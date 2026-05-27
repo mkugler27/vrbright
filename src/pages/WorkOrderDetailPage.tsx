@@ -17,7 +17,7 @@ const STATUS_OPTIONS: { value: WorkOrderStatus; label: string; bubbleValue: stri
 export function WorkOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { refreshQueue } = useSync();
+  const { refreshQueue, isSyncing } = useSync();
   const isOnline = useOnlineStatus();
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -42,6 +42,10 @@ export function WorkOrderDetailPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!isSyncing) loadData();
+  }, [isSyncing, loadData]);
 
   const handleStatusChange = async (newStatus: WorkOrderStatus) => {
     if (!wo || newStatus === wo.status) return;
@@ -278,19 +282,24 @@ export function WorkOrderDetailPage() {
                 alt={photo.caption || 'Foto do trabalho'}
                 className="w-full h-full object-cover"
               />
-              {photo.synced ? (
-                <div className="absolute bottom-1 left-1 bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              ) : (
-                <div className="absolute bottom-1 left-1 bg-warning text-white rounded-full w-5 h-5 flex items-center justify-center">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              )}
+              <div className="absolute bottom-1 left-1 flex items-center gap-1">
+                {photo.synced ? (
+                  <div className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="bg-warning text-white rounded-full w-5 h-5 flex items-center justify-center">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                )}
+                <span className="bg-black/50 backdrop-blur text-white text-[9px] font-medium px-1.5 py-0.5 rounded-full">
+                  {(photo.blob.size / 1024).toFixed(0)}KB
+                </span>
+              </div>
               <button
                 onClick={async () => {
                   await deletePhoto(photo.id);

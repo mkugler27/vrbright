@@ -5,6 +5,7 @@ import {
   updateSyncQueueItem,
   getPhotosByWorkOrder,
   getWorkOrder,
+  savePhoto,
 } from './db';
 import * as api from './api';
 
@@ -73,6 +74,7 @@ async function processItem(item: SyncQueueItem): Promise<void> {
       const photo = photos.find((p: Photo) => p.id === item.payload.photo_id);
       if (photo && wo) {
         await api.uploadPhoto(wo.codigo_id, photo.blob);
+        await savePhoto({ ...photo, synced: true });
       }
       break;
     }
