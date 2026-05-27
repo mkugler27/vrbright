@@ -24,6 +24,7 @@ export function WorkOrderDetailPage() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<{ used: number; quota: number } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -37,6 +38,11 @@ export function WorkOrderDetailPage() {
     const pics = await getPhotosByWorkOrder(id);
     setPhotos(pics);
     setLoading(false);
+
+    if (navigator.storage?.estimate) {
+      const est = await navigator.storage.estimate();
+      setStorageInfo({ used: est.usage || 0, quota: est.quota || 0 });
+    }
   }, [id]);
 
   useEffect(() => {
@@ -331,6 +337,12 @@ export function WorkOrderDetailPage() {
           />
         </label>
       </div>
+
+      {storageInfo && (
+        <div className="text-center text-xs text-gray-400 pt-2">
+          Armazenamento: {(storageInfo.used / 1024 / 1024).toFixed(1)} MB usado de {(storageInfo.quota / 1024 / 1024).toFixed(0)} MB disponível
+        </div>
+      )}
     </div>
   );
 }
