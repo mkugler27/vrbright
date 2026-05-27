@@ -4,6 +4,7 @@ import {
   removeSyncQueueItem,
   updateSyncQueueItem,
   getPhotosByWorkOrder,
+  getWorkOrder,
 } from './db';
 import * as api from './api';
 
@@ -55,24 +56,23 @@ async function processItem(item: SyncQueueItem): Promise<void> {
     case 'update_status':
       await api.updateWorkOrderStatus(
         item.work_order_id,
-        item.payload.status as string,
-        item.payload.notes as string | undefined
+        item.payload.status as string
       );
       break;
 
     case 'update_notes':
-      await api.updateWorkOrderStatus(
+      await api.updateWorkOrderNotes(
         item.work_order_id,
-        item.payload.status as string,
         item.payload.notes as string
       );
       break;
 
     case 'upload_photo': {
+      const wo = await getWorkOrder(item.work_order_id);
       const photos = await getPhotosByWorkOrder(item.work_order_id);
       const photo = photos.find((p: Photo) => p.id === item.payload.photo_id);
-      if (photo) {
-        await api.uploadPhoto(item.work_order_id, photo.blob, photo.caption);
+      if (photo && wo) {
+        await api.uploadPhoto(wo.codigo_id, photo.blob);
       }
       break;
     }
