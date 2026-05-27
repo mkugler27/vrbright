@@ -43,7 +43,18 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.bubbleapps\.io\/api/,
+            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/(.*\.bubbleapps\.io|system\.vrbrightpainting\.com)\//,
             handler: 'NetworkFirst',
             options: {
               cacheName: 'bubble-api-cache',
