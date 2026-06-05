@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -67,7 +67,7 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 
 const STORAGE_KEY = 'vrbright_home_order';
 
-function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: () => void }) {
+function SortableModuleCard({ mod, onClick, cascadeDelay }: { mod: ModuleCardData; onClick: () => void; cascadeDelay?: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: mod.to,
     animateLayoutChanges: (args) => {
@@ -87,18 +87,14 @@ function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: ()
   return (
     <button
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, animationDelay: cascadeDelay ? `${cascadeDelay}ms` : undefined }}
       onClick={(e) => {
         if (!isDragging) onClick();
         e.preventDefault();
       }}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${
-        isDragging
-          ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing'
-          : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'
-      }`}
+      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDragging ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${cascadeDelay !== undefined ? 'animate-cascade-card' : ''}`}
     >
       <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDragging ? 'scale-110' : ''}`}>
         {mod.icon}
@@ -116,7 +112,6 @@ export function DashboardHome() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const order = JSON.parse(stored) as string[];
-        // Reorder DEFAULT_CARDS based on stored order
         return order
           .map((to) => DEFAULT_CARDS.find((c) => c.to === to))
           .filter(Boolean) as ModuleCardData[];
@@ -126,6 +121,30 @@ export function DashboardHome() {
     }
     return DEFAULT_CARDS;
   });
+
+  // Cascade animation: play only when remounted (not on initial page load)
+  const mountCountRef = useRef(0);
+  const [cascadeIndex, setCascadeIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    mountCountRef.current += 1;
+    if (mountCountRef.current > 1) {
+      // This is a remount triggered by Home icon click — play cascade
+      setCascadeIndex(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cascadeIndex === null) return;
+    if (cascadeIndex >= cards.length) {
+      setCascadeIndex(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCascadeIndex((i) => (i !== null ? i + 1 : null));
+    }, 70);
+    return () => clearTimeout(timer);
+  }, [cascadeIndex, cards.length]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards.map((c) => c.to)));
@@ -159,11 +178,12 @@ export function DashboardHome() {
       >
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-3 px-1 pb-4">
-            {cards.map((mod) => (
+            {cards.map((mod, i) => (
               <SortableModuleCard
                 key={mod.to}
                 mod={mod}
                 onClick={() => navigate(mod.to)}
+                cascadeDelay={cascadeIndex !== null && i >= cascadeIndex ? (i - cascadeIndex) * 70 : undefined}
               />
             ))}
           </div>

@@ -46,6 +46,15 @@
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+@keyframes cascadeCard {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-cascade-card {
+  animation: cascadeCard 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }

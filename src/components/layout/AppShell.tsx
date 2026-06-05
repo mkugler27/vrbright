@@ -54,6 +54,7 @@ export function AppShell() {
   const isOnline = useOnlineStatus();
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [homeClickCount, setHomeClickCount] = useState(0);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -110,24 +111,40 @@ export function AppShell() {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
-        <Outlet />
+        <Outlet key={homeClickCount === 0 ? 'initial' : `home-${homeClickCount}`} />
       </main>
 
       {/* Bottom Nav */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-around z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
-        {BOTTOM_NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 py-1.5 text-xs font-medium transition-colors ${
-                isActive ? 'text-primary-dark' : 'text-gray-400'
-              }`
-            }
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </NavLink>
+        {BOTTOM_NAV.map((item, idx) => (
+          idx === 0 ? (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setHomeClickCount((n) => n + 1)}
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-0.5 py-1.5 text-xs font-medium transition-colors ${
+                  isActive ? 'text-primary-dark' : 'text-gray-400'
+                }`
+              }
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          ) : (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex flex-col items-center gap-0.5 py-1.5 text-xs font-medium transition-colors ${
+                  isActive ? 'text-primary-dark' : 'text-gray-400'
+                }`
+              }
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </NavLink>
+          )
         ))}
       </nav>
 
