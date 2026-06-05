@@ -72,7 +72,7 @@ function SortableModuleCard({ mod, idx, onClick }: { mod: ModuleCardData; idx: n
     animateLayoutChanges: (args) => {
       // Animate when items swap positions (not just on drag)
       if (args.isSorting || args.wasDragging) {
-        return defaultAnimateLayoutChanges({ ...args, duration: 250 });
+        return defaultAnimateLayoutChanges(args);
       }
       return true;
     },
