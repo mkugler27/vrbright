@@ -385,7 +385,7 @@ export function TeamPage() {
             {filtered.map((member) => (
               <div
                 key={member._id}
-                className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/60 flex items-center gap-3 active:scale-[0.98] transition-transform duration-150"
+                className="bg-white rounded-[28px] p-4 shadow-sm border border-gray-100/60 flex items-center gap-3 active:scale-[0.98] transition-transform duration-150"
               >
                 <TeamAvatar src={member.profile_picture} name={member.Nome} size="lg" />
 
