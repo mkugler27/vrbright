@@ -92,6 +92,136 @@ const VERSION = 'version-live'; // ← antes era 'version-test'
 
 ---
 
+## 7. Home Dashboard — Drag & Drop com Cascade Animation
+
+**Padrão obrigatório para a home com cards de módulos reordenáveis.** Combina 3 efeitos:
+1. **Drag & drop** suave (cards deslizam quando arrastados)
+2. **Cascade animation** ao entrar na home (um por um)
+3. **Sem pisca** (cards começam invisíveis, depois aparecem)
+
+**Referência**: [src/pages/DashboardHome.tsx](src/pages/DashboardHome.tsx)
+
+### 7.1. Estrutura — wrapper div + inner button
+
+**A regra de ouro**: o `setNodeRef` e o `transform` do dnd-kit ficam em um `<div>` wrapper. O `<button>` interno recebe a animação de cascade. **Nunca** misture `transform` de animação CSS com `transform` do dnd-kit no mesmo elemento — o `animation-fill-mode: both` sobrescreve o transform inline.
+
+```tsx
+// CORRETO — wrappers separados
+<div ref={setNodeRef} style={buttonStyle /* transform + transition */}>
+  <button onClick={...} {...attributes} {...listeners}>
+    <div className={visible ? 'animate-cascade-card' : 'opacity-0'}>
+      {/* conteúdo */}
+    </div>
+  </button>
+</div>
+
+// ERRADO — tudo no mesmo elemento (cascade vai matar o transform do drag)
+// <button ref={setNodeRef} style={{ transform: ... }} className="animate-cascade-card">
+```
+
+### 7.2. animateLayoutChanges — só bloqueia animação no drop
+
+```ts
+useSortable({
+  id: mod.to,
+  animateLayoutChanges: (args) => {
+    if (args.wasDragging) return false;   // sem animação ao soltar
+    return defaultAnimateLayoutChanges(args);  // outros cards deslizam durante drag
+  },
+});
+```
+
+### 7.3. Cascade animation — trigger por localStorage mount count
+
+**O problema**: `useRef` e `useState` resetam a cada remount do componente. Sem isso, o contador nunca chega a `> 1`.
+
+**Solução**: guardar contador de mounts no localStorage, que persiste entre remounts.
+
+```ts
+const MOUNT_COUNT_KEY = 'vrbright_home_mounts';
+const [cascadeIndex, setCascadeIndex] = useState(-1); // -1 = all visible
+
+useEffect(() => {
+  const count = parseInt(localStorage.getItem(MOUNT_COUNT_KEY) || '0', 10);
+  localStorage.setItem(MOUNT_COUNT_KEY, String(count + 1));
+  if (count > 0) setCascadeIndex(0);   // animação cascata
+  else setCascadeIndex(cards.length);  // 1ª vez: aparece tudo direto
+}, []);
+
+// Avança um card a cada 70ms
+useEffect(() => {
+  if (cascadeIndex < 0 || cascadeIndex >= cards.length) return;
+  if (cascadeIndex === 0) { setCascadeIndex(1); return; }
+  const t = setTimeout(() => setCascadeIndex(i => i + 1), 70);
+  return () => clearTimeout(t);
+}, [cascadeIndex, cards.length]);
+
+// Visibilidade por card
+visible={cascadeIndex < 0 || i < cascadeIndex}
+```
+
+### 7.4. CSS — registrar animação no `@theme` do Tailwind v4
+
+**Cuidado**: com `@tailwindcss/vite`, animações definidas como CSS puro fora do `@theme` são **dropadas em prod**. A classe `animate-cascade-card` precisa ser registrada:
+
+```css
+/* src/index.css */
+@theme {
+  --animate-cascade-card: cascadeCard 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cascadeCard {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-cascade-card {
+  animation: var(--animate-cascade-card);
+}
+```
+
+### 7.5. DndContext config
+
+```tsx
+<DndContext
+  sensors={sensors}
+  collisionDetection={closestCenter}
+  onDragStart={handleDragStart}  {/* track activeId pra desabilitar transição no card arrastado */}
+  onDragEnd={handleDragEnd}
+  autoScroll={false}             {/* evita scroll horizontal ao arrastar */}
+  modifiers={[restrictToWindowEdges]}  {/* card não sai do viewport */}
+>
+  <SortableContext items={cards.map(c => c.to)} strategy={rectSortingStrategy}>
+    <div className="grid grid-cols-2 gap-3 px-1 pb-4 overflow-x-hidden">
+      {cards.map(...)}
+    </div>
+  </SortableContext>
+</DndContext>
+```
+
+### 7.6. Sensors (mobile-friendly)
+
+```ts
+const sensors = useSensors(
+  useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+  useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+);
+```
+
+### 7.7. Estilo do wrapper (drag)
+
+```ts
+const buttonStyle: React.CSSProperties = {
+  transform: CSS.Translate.toString(transform),
+  transition,  // vem do useSortable
+  zIndex: isDraggingThis ? 50 : 'auto',
+};
+```
+
+**Não** setar `transition: 'none'` no card arrastado — o slide dos outros cards depende dessa transição estar ativa.
+
+---
+
 ## 6. Pastas e estrutura
 
 ```

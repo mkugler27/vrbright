@@ -73,39 +73,43 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id: mod.to,
     animateLayoutChanges: (args) => {
-      // wasDragging = true means the card was dropped — no animation needed on drop
       if (args.wasDragging) return false;
-      // Otherwise let dnd-kit animate (this makes other cards slide during drag)
       return defaultAnimateLayoutChanges(args);
     },
   });
 
-  const style: React.CSSProperties = {
+  // transform style on the BUTTON (for drag) — no animation conflict here
+  const buttonStyle: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: isDraggingThis ? 'none' : transition,
+    transition,
     zIndex: isDraggingThis ? 50 : 'auto',
-    opacity: visible ? 1 : 0,
-    pointerEvents: visible ? 'auto' : 'none',
   };
 
   return (
-    <button
-      ref={setNodeRef}
-      style={style}
-      onClick={(e) => {
-        if (!isDraggingThis && visible) onClick();
-        e.preventDefault();
-      }}
-      {...attributes}
-      {...listeners}
-      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${visible && !isDraggingThis ? 'animate-cascade-card' : ''}`}
-    >
-      <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
-        {mod.icon}
-      </div>
-      <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
-      <p className="text-[11px] text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
-    </button>
+    <div ref={setNodeRef} style={buttonStyle} className="touch-none select-none">
+      <button
+        onClick={(e) => {
+          if (!isDraggingThis && visible) onClick();
+          e.preventDefault();
+        }}
+        {...attributes}
+        {...listeners}
+        className={`w-full bg-white rounded-[24px] p-3.5 shadow-sm border text-left ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'}`}
+        style={{ pointerEvents: visible ? 'auto' : 'none' }}
+      >
+        {/* Cascade animation lives on inner content, not the dragged element */}
+        <div
+          className={visible ? 'animate-cascade-card' : 'opacity-0'}
+          style={{ animationDelay: visible ? '0ms' : '0ms' }}
+        >
+          <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
+            {mod.icon}
+          </div>
+          <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
+          <p className="text-[11px] text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -127,7 +131,7 @@ export function DashboardHome() {
   });
 
   // Cascade: reveal cards one-by-one on subsequent home visits
-  const [cascadeIndex, setCascadeIndex] = useState(-1); // -1 = all visible, no animation
+  const [cascadeIndex, setCascadeIndex] = useState(-1);
 
   useEffect(() => {
     const raw = localStorage.getItem(MOUNT_COUNT_KEY);
