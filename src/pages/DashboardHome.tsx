@@ -79,7 +79,7 @@ function SortableModuleCard({ mod, onClick, visible }: { mod: ModuleCardData; on
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition,
+    transition: transition || 'transform 200ms ease',
     zIndex: isDragging ? 50 : 'auto',
     opacity: visible ? 1 : 0,
     pointerEvents: visible ? 'auto' : 'none',
