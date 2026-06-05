@@ -106,17 +106,20 @@ function DashboardHome() {
   const navigate = useNavigate();
   return (
     <div className="p-5">
-      <h2 className="text-xl font-bold text-gray-800 mb-1">Welcome back</h2>
-      <p className="text-sm text-gray-500 mb-5">Choose a module to continue</p>
+      <div className="animate-fadeInUp">
+        <h2 className="text-xl font-bold text-gray-800 mb-1">Welcome back</h2>
+        <p className="text-sm text-gray-500 mb-5">Choose a module to continue</p>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {MODULE_CARDS.map((mod) => (
+        {MODULE_CARDS.map((mod, idx) => (
           <button
             key={mod.to}
             onClick={() => navigate(mod.to)}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100/50 text-left active:scale-[0.97] transition-all duration-150"
+            style={{ animationDelay: `${0.05 + idx * 0.06}s` }}
+            className="bg-white rounded-[28px] p-4 shadow-sm border border-gray-100/50 text-left active:scale-[0.97] transition-all duration-150 animate-fadeInUp"
           >
-            <div className={`w-12 h-12 rounded-xl ${mod.color} flex items-center justify-center mb-3`}>
+            <div className={`w-12 h-12 rounded-2xl ${mod.color} flex items-center justify-center mb-3`}>
               {mod.icon}
             </div>
             <h3 className="font-semibold text-gray-800 text-sm">{mod.title}</h3>
