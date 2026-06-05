@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -66,14 +66,13 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 ];
 
 const STORAGE_KEY = 'vrbright_home_order';
+const MOUNT_COUNT_KEY = 'vrbright_home_mounts';
 
 function SortableModuleCard({ mod, onClick, cascadeDelay }: { mod: ModuleCardData; onClick: () => void; cascadeDelay?: number }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: mod.to,
     animateLayoutChanges: (args) => {
-      // No animation on drop (wasDragging = true means the drop just happened)
       if (args.wasDragging) return false;
-      // Smooth slide during drag (other items move out of the way)
       return defaultAnimateLayoutChanges(args);
     },
   });
@@ -122,29 +121,20 @@ export function DashboardHome() {
     return DEFAULT_CARDS;
   });
 
-  // Cascade animation: play only when remounted (not on initial page load)
-  const mountCountRef = useRef(0);
-  const [cascadeIndex, setCascadeIndex] = useState<number | null>(null);
+  // Cascade animation: plays when DashboardHome mounts after the first time
+  // (i.e. user navigated away and clicked Home again)
+  const [showCascade, setShowCascade] = useState(false);
 
   useEffect(() => {
-    mountCountRef.current += 1;
-    if (mountCountRef.current > 1) {
-      // This is a remount triggered by Home icon click — play cascade
-      setCascadeIndex(0);
+    const raw = localStorage.getItem(MOUNT_COUNT_KEY);
+    const count = raw ? parseInt(raw, 10) : 0;
+    localStorage.setItem(MOUNT_COUNT_KEY, String(count + 1));
+    if (count > 0) {
+      setShowCascade(true);
+      const timer = setTimeout(() => setShowCascade(false), 900);
+      return () => clearTimeout(timer);
     }
   }, []);
-
-  useEffect(() => {
-    if (cascadeIndex === null) return;
-    if (cascadeIndex >= cards.length) {
-      setCascadeIndex(null);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setCascadeIndex((i) => (i !== null ? i + 1 : null));
-    }, 70);
-    return () => clearTimeout(timer);
-  }, [cascadeIndex, cards.length]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards.map((c) => c.to)));
@@ -183,7 +173,7 @@ export function DashboardHome() {
                 key={mod.to}
                 mod={mod}
                 onClick={() => navigate(mod.to)}
-                cascadeDelay={cascadeIndex !== null && i >= cascadeIndex ? (i - cascadeIndex) * 70 : undefined}
+                cascadeDelay={showCascade ? i * 70 : undefined}
               />
             ))}
           </div>
