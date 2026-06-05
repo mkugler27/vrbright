@@ -66,7 +66,7 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 
 const STORAGE_KEY = 'vrbright_home_order';
 
-function SortableModuleCard({ mod, idx, onClick }: { mod: ModuleCardData; idx: number; onClick: () => void }) {
+function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: mod.to,
     animateLayoutChanges: (args) => {
@@ -82,7 +82,6 @@ function SortableModuleCard({ mod, idx, onClick }: { mod: ModuleCardData; idx: n
     transform: CSS.Translate.toString(transform),
     transition: isDragging ? 'none' : (transition || 'transform 250ms cubic-bezier(0.2, 0, 0, 1)'),
     zIndex: isDragging ? 50 : 'auto',
-    animationDelay: `${0.05 + idx * 0.06}s`,
   };
 
   return (
@@ -148,19 +147,16 @@ export function DashboardHome() {
 
   return (
     <div className="p-5">
-      <div className="animate-fadeInUp">
-        <h2 className="text-xl font-bold text-gray-800 mb-1">Welcome back</h2>
-        <p className="text-sm text-gray-500 mb-5">Hold and drag to reorder</p>
-      </div>
+      <h2 className="text-xl font-bold text-gray-800 mb-1">Welcome back</h2>
+      <p className="text-sm text-gray-500 mb-5">Hold and drag to reorder</p>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-3">
-            {cards.map((mod, idx) => (
+            {cards.map((mod) => (
               <SortableModuleCard
                 key={mod.to}
                 mod={mod}
-                idx={idx}
                 onClick={() => navigate(mod.to)}
               />
             ))}

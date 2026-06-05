@@ -114,7 +114,7 @@ export function AppShell() {
       </main>
 
       {/* Bottom Nav */}
-      <nav className="bg-white border-t border-gray-100 px-6 py-2 flex justify-around sticky bottom-0 z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
+      <nav className="flex-shrink-0 bg-white border-t border-gray-100 px-6 py-2 flex justify-around z-10 shadow-[0_-2px_10px_rgba(0,0,0,0.04)]">
         {BOTTOM_NAV.map((item) => (
           <NavLink
             key={item.to}
