@@ -17,6 +17,17 @@
   --color-gray-700: #374151;
   --color-gray-800: #1F2937;
   --color-gray-900: #111827;
+
+  --animate-cascade-card: cascadeCard 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cascadeCard {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-cascade-card {
+  animation: var(--animate-cascade-card);
 }
 
 @keyframes slideDown {
@@ -44,15 +55,6 @@
 
 .animate-fadeInUp {
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes cascadeCard {
-  from { opacity: 0; transform: translateY(18px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-.animate-cascade-card {
-  animation: cascadeCard 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 * {
