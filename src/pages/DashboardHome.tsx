@@ -14,6 +14,7 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
+  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -68,30 +69,39 @@ const STORAGE_KEY = 'vrbright_home_order';
 function SortableModuleCard({ mod, idx, onClick }: { mod: ModuleCardData; idx: number; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: mod.to,
+    animateLayoutChanges: (args) => {
+      // Animate when items swap positions (not just on drag)
+      if (args.isSorting || args.wasDragging) {
+        return defaultAnimateLayoutChanges({ ...args, duration: 250 });
+      }
+      return true;
+    },
   });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? 'none' : (transition || 'transform 250ms cubic-bezier(0.2, 0, 0, 1)'),
     zIndex: isDragging ? 50 : 'auto',
+    animationDelay: `${0.05 + idx * 0.06}s`,
   };
 
   return (
     <button
       ref={setNodeRef}
-      style={{ ...style, animationDelay: `${0.05 + idx * 0.06}s` }}
+      style={style}
       onClick={(e) => {
-        // Only navigate if not dragging
         if (!isDragging) onClick();
         e.preventDefault();
       }}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-[28px] p-4 shadow-sm border border-gray-100/50 text-left active:scale-[0.97] transition-all duration-150 animate-fadeInUp touch-none select-none ${
-        isDragging ? 'opacity-50 scale-105 shadow-xl cursor-grabbing' : 'cursor-grab'
+      className={`bg-white rounded-[28px] p-4 shadow-sm border text-left touch-none select-none ${
+        isDragging
+          ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing'
+          : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'
       }`}
     >
-      <div className={`w-12 h-12 rounded-2xl ${mod.color} flex items-center justify-center mb-3 pointer-events-none`}>
+      <div className={`w-12 h-12 rounded-2xl ${mod.color} flex items-center justify-center mb-3 pointer-events-none transition-transform ${isDragging ? 'scale-110' : ''}`}>
         {mod.icon}
       </div>
       <h3 className="font-semibold text-gray-800 text-sm pointer-events-none">{mod.title}</h3>
