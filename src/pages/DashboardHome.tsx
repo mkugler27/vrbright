@@ -16,6 +16,7 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
+  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -69,11 +70,19 @@ const STORAGE_KEY = 'vrbright_home_order';
 const MOUNT_COUNT_KEY = 'vrbright_home_mounts';
 
 function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: ModuleCardData; onClick: () => void; visible: boolean; isDraggingThis: boolean }) {
-  const { attributes, listeners, setNodeRef, transform } = useSortable({ id: mod.to });
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: mod.to,
+    animateLayoutChanges: (args) => {
+      // wasDragging = true means the card was dropped — no animation needed on drop
+      if (args.wasDragging) return false;
+      // Otherwise let dnd-kit animate (this makes other cards slide during drag)
+      return defaultAnimateLayoutChanges(args);
+    },
+  });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: isDraggingThis ? 'none' : 'transform 200ms cubic-bezier(0.25, 0.8, 0.25, 1)',
+    transition: isDraggingThis ? 'none' : transition,
     zIndex: isDraggingThis ? 50 : 'auto',
     opacity: visible ? 1 : 0,
     pointerEvents: visible ? 'auto' : 'none',
@@ -89,7 +98,7 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
       }}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${visible ? 'animate-cascade-card' : ''}`}
+      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${visible && !isDraggingThis ? 'animate-cascade-card' : ''}`}
     >
       <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
         {mod.icon}
@@ -117,7 +126,7 @@ export function DashboardHome() {
     return DEFAULT_CARDS;
   });
 
-  // Cascade: cards start invisible and reveal one by one
+  // Cascade: reveal cards one-by-one on subsequent home visits
   const [cascadeIndex, setCascadeIndex] = useState(-1); // -1 = all visible, no animation
 
   useEffect(() => {
@@ -131,7 +140,6 @@ export function DashboardHome() {
     }
   }, []);
 
-  // Advance cascade one card at a time
   useEffect(() => {
     if (cascadeIndex < 0 || cascadeIndex >= cards.length) return;
     if (cascadeIndex === 0) {
@@ -146,7 +154,6 @@ export function DashboardHome() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards.map((c) => c.to)));
   }, [cards]);
 
-  // Track which card is currently being dragged
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
