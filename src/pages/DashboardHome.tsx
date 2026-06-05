@@ -9,6 +9,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
 import {
   SortableContext,
   rectSortingStrategy,
@@ -145,13 +146,19 @@ export function DashboardHome() {
   };
 
   return (
-    <div className="p-4 pb-2">
+    <div className="p-4">
       <h2 className="text-xl font-bold text-gray-800 mb-0.5">Welcome back</h2>
       <p className="text-sm text-gray-500 mb-4">Hold and drag to reorder</p>
 
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        autoScroll={false}
+        modifiers={[restrictToWindowEdges]}
+      >
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 gap-3 overflow-x-hidden">
+          <div className="grid grid-cols-2 gap-3 px-1 pb-4">
             {cards.map((mod) => (
               <SortableModuleCard
                 key={mod.to}
