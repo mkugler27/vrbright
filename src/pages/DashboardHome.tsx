@@ -14,7 +14,6 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
-  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -67,20 +66,13 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 const STORAGE_KEY = 'vrbright_home_order';
 
 function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: mod.to,
-    animateLayoutChanges: (args) => {
-      // Animate when items swap positions (not just on drag)
-      if (args.isSorting || args.wasDragging) {
-        return defaultAnimateLayoutChanges(args);
-      }
-      return true;
-    },
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: isDragging ? 'none' : (transition || 'transform 250ms cubic-bezier(0.2, 0, 0, 1)'),
+    transition: undefined,
     zIndex: isDragging ? 50 : 'auto',
   };
 
@@ -152,7 +144,7 @@ export function DashboardHome() {
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 overflow-x-hidden">
             {cards.map((mod) => (
               <SortableModuleCard
                 key={mod.to}
