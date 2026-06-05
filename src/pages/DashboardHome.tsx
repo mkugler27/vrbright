@@ -7,6 +7,7 @@ import {
   TouchSensor,
   useSensor,
   useSensors,
+  type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { restrictToWindowEdges } from '@dnd-kit/modifiers';
@@ -67,15 +68,13 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 const STORAGE_KEY = 'vrbright_home_order';
 const MOUNT_COUNT_KEY = 'vrbright_home_mounts';
 
-function SortableModuleCard({ mod, onClick, visible }: { mod: ModuleCardData; onClick: () => void; visible: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
-    id: mod.to,
-  });
+function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: ModuleCardData; onClick: () => void; visible: boolean; isDraggingThis: boolean }) {
+  const { attributes, listeners, setNodeRef, transform } = useSortable({ id: mod.to });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: 'transform 200ms ease',
-    zIndex: isDragging ? 50 : 'auto',
+    transition: isDraggingThis ? 'none' : 'transform 200ms cubic-bezier(0.25, 0.8, 0.25, 1)',
+    zIndex: isDraggingThis ? 50 : 'auto',
     opacity: visible ? 1 : 0,
     pointerEvents: visible ? 'auto' : 'none',
   };
@@ -85,14 +84,14 @@ function SortableModuleCard({ mod, onClick, visible }: { mod: ModuleCardData; on
       ref={setNodeRef}
       style={style}
       onClick={(e) => {
-        if (!isDragging && visible) onClick();
+        if (!isDraggingThis && visible) onClick();
         e.preventDefault();
       }}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDragging ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${visible ? 'animate-cascade-card' : ''}`}
+      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'} ${visible ? 'animate-cascade-card' : ''}`}
     >
-      <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDragging ? 'scale-110' : ''}`}>
+      <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
         {mod.icon}
       </div>
       <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
@@ -119,18 +118,15 @@ export function DashboardHome() {
   });
 
   // Cascade: cards start invisible and reveal one by one
-  // cascadeIndex = how many cards are currently visible (-1 = all visible, no animation)
-  const [cascadeIndex, setCascadeIndex] = useState(-1); // -1 = no animation running
+  const [cascadeIndex, setCascadeIndex] = useState(-1); // -1 = all visible, no animation
 
   useEffect(() => {
     const raw = localStorage.getItem(MOUNT_COUNT_KEY);
     const count = raw ? parseInt(raw, 10) : 0;
     localStorage.setItem(MOUNT_COUNT_KEY, String(count + 1));
     if (count > 0) {
-      // This is a subsequent visit — play cascade (start with all hidden)
       setCascadeIndex(0);
     } else {
-      // First load — show all cards immediately (no animation)
       setCascadeIndex(cards.length);
     }
   }, []);
@@ -139,13 +135,10 @@ export function DashboardHome() {
   useEffect(() => {
     if (cascadeIndex < 0 || cascadeIndex >= cards.length) return;
     if (cascadeIndex === 0) {
-      // First card: show immediately, no delay
       setCascadeIndex(1);
       return;
     }
-    const timer = setTimeout(() => {
-      setCascadeIndex((i) => i + 1);
-    }, 70);
+    const timer = setTimeout(() => setCascadeIndex((i) => i + 1), 70);
     return () => clearTimeout(timer);
   }, [cascadeIndex, cards.length]);
 
@@ -153,12 +146,20 @@ export function DashboardHome() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cards.map((c) => c.to)));
   }, [cards]);
 
+  // Track which card is currently being dragged
+  const [activeId, setActiveId] = useState<string | null>(null);
+
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   );
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -175,6 +176,7 @@ export function DashboardHome() {
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         autoScroll={false}
         modifiers={[restrictToWindowEdges]}
@@ -187,6 +189,7 @@ export function DashboardHome() {
                 mod={mod}
                 onClick={() => navigate(mod.to)}
                 visible={cascadeIndex < 0 || i < cascadeIndex}
+                isDraggingThis={activeId === mod.to}
               />
             ))}
           </div>
