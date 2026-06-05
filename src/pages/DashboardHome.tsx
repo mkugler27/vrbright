@@ -15,7 +15,6 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
-  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -69,17 +68,13 @@ const STORAGE_KEY = 'vrbright_home_order';
 const MOUNT_COUNT_KEY = 'vrbright_home_mounts';
 
 function SortableModuleCard({ mod, onClick, visible }: { mod: ModuleCardData; onClick: () => void; visible: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
     id: mod.to,
-    animateLayoutChanges: (args) => {
-      if (args.wasDragging) return false;
-      return defaultAnimateLayoutChanges(args);
-    },
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: transition || 'transform 200ms ease',
+    transition: 'transform 200ms ease',
     zIndex: isDragging ? 50 : 'auto',
     opacity: visible ? 1 : 0,
     pointerEvents: visible ? 'auto' : 'none',
