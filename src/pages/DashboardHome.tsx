@@ -94,17 +94,17 @@ function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: ()
       }}
       {...attributes}
       {...listeners}
-      className={`bg-white rounded-[28px] p-4 shadow-sm border text-left touch-none select-none ${
+      className={`bg-white rounded-[24px] p-3.5 shadow-sm border text-left touch-none select-none ${
         isDragging
           ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing'
           : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'
       }`}
     >
-      <div className={`w-12 h-12 rounded-2xl ${mod.color} flex items-center justify-center mb-3 pointer-events-none transition-transform ${isDragging ? 'scale-110' : ''}`}>
+      <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDragging ? 'scale-110' : ''}`}>
         {mod.icon}
       </div>
-      <h3 className="font-semibold text-gray-800 text-sm pointer-events-none">{mod.title}</h3>
-      <p className="text-xs text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
+      <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
+      <p className="text-[11px] text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
     </button>
   );
 }
@@ -146,9 +146,9 @@ export function DashboardHome() {
   };
 
   return (
-    <div className="p-5">
-      <h2 className="text-xl font-bold text-gray-800 mb-1">Welcome back</h2>
-      <p className="text-sm text-gray-500 mb-5">Hold and drag to reorder</p>
+    <div className="p-4 pb-2">
+      <h2 className="text-xl font-bold text-gray-800 mb-0.5">Welcome back</h2>
+      <p className="text-sm text-gray-500 mb-4">Hold and drag to reorder</p>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>

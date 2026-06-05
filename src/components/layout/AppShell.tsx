@@ -109,7 +109,7 @@ export function AppShell() {
       </header>
 
       {/* Main content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto min-h-0">
         <Outlet />
       </main>
 
