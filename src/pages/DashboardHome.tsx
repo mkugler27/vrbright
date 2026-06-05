@@ -14,6 +14,7 @@ import {
   rectSortingStrategy,
   useSortable,
   arrayMove,
+  defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
@@ -66,13 +67,19 @@ const DEFAULT_CARDS: ModuleCardData[] = [
 const STORAGE_KEY = 'vrbright_home_order';
 
 function SortableModuleCard({ mod, onClick }: { mod: ModuleCardData; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: mod.to,
+    animateLayoutChanges: (args) => {
+      // No animation on drop (wasDragging = true means the drop just happened)
+      if (args.wasDragging) return false;
+      // Smooth slide during drag (other items move out of the way)
+      return defaultAnimateLayoutChanges(args);
+    },
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
-    transition: undefined,
+    transition,
     zIndex: isDragging ? 50 : 'auto',
   };
 
