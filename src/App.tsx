@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ErrorProvider } from './context/ErrorContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ActiveConversationProvider } from './context/ActiveConversationContext';
 import { AppShell } from './components/layout/AppShell';
 import { AppFrame } from './components/layout/AppFrame';
 import { LoginPage } from './pages/LoginPage';
@@ -43,28 +44,30 @@ export default function App() {
       <BrowserRouter>
         <ErrorToast />
         <AuthProvider>
-          <AppFrame>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppShell />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/" element={<DashboardHome />} />
-                <Route path="/wo" element={<WOPage />} />
-                <Route path="/chat" element={<ChatPage />} />
+          <ActiveConversationProvider>
+            <AppFrame>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppShell />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/" element={<DashboardHome />} />
+                  <Route path="/wo" element={<WOPage />} />
+                  <Route path="/chat" element={<ChatPage />} />
 <Route path="/chat/new" element={<NewChatPage />} />
-                <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
-                <Route path="/team" element={<TeamPage />} />
-                <Route path="/clients" element={<PlaceholderPage title="Clients" />} />
-                <Route path="/pre-proposal" element={<PlaceholderPage title="Pre-Proposal" />} />
-                <Route path="/supervisors" element={<PlaceholderPage title="Supervisors" />} />
-              </Route>
-            </Routes>
-          </AppFrame>
+                  <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
+                  <Route path="/team" element={<TeamPage />} />
+                  <Route path="/clients" element={<PlaceholderPage title="Clients" />} />
+                  <Route path="/pre-proposal" element={<PlaceholderPage title="Pre-Proposal" />} />
+                  <Route path="/supervisors" element={<PlaceholderPage title="Supervisors" />} />
+                </Route>
+              </Routes>
+            </AppFrame>
+          </ActiveConversationProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorProvider>

@@ -19,6 +19,7 @@ import { getWOCache, saveWOCache } from '../services/db'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { isSupabaseConfigured } from '../services/supabase'
 import { useUnreadCount } from '../hooks/useUnreadCount'
+import { useActiveConversation } from '../context/ActiveConversationContext'
 import type { WorkOrderRow } from '../services/workingOrdersApi'
 
 type Tab = 'chats' | 'wo'
@@ -28,6 +29,7 @@ export default function ChatPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const { refresh: refreshUnread } = useUnreadCount()
+  const { setActiveConversationId } = useActiveConversation()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>('chats')
   const [woTab, setWoTab] = useState<WoTab>('today')
@@ -116,6 +118,7 @@ export default function ChatPage() {
     }
 
     setActiveConversation(conv)
+    setActiveConversationId(conv.id) // sync to global context for badge
     setLoadingMessages(true)
 
     if (!user) return
@@ -144,15 +147,16 @@ export default function ChatPage() {
 
   openConversationRef.current = openConversation
 
-  // Cleanup message channel when leaving ChatPage entirely
+  // Cleanup message channel and clear active conversation when leaving ChatPage
   useEffect(() => {
     return () => {
       if (msgChannelRef.current) {
         supabase.removeChannel(msgChannelRef.current)
         msgChannelRef.current = null
       }
+      setActiveConversationId(null)
     }
-  }, [])
+  }, [setActiveConversationId])
 
   // ── Send message
   async function handleSend() {
@@ -282,7 +286,7 @@ export default function ChatPage() {
     return (
       <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm shrink-0">
-          <button onClick={() => { setActiveConversation(null); if (msgChannelRef.current) { supabase.removeChannel(msgChannelRef.current); msgChannelRef.current = null } }}
+          <button onClick={() => { setActiveConversation(null); setActiveConversationId(null); if (msgChannelRef.current) { supabase.removeChannel(msgChannelRef.current); msgChannelRef.current = null } }}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

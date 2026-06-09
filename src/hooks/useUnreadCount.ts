@@ -2,13 +2,16 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserByBubbleId } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
+import { useActiveConversation } from '../context/ActiveConversationContext'
 
 // Returns the number of conversations with unread messages.
-// Strategy: counts conversations where last_message_at > my last_read_at.
-// This means: messages I sent update my last_read_at automatically,
-// so I never see my own messages as unread.
+// - Excludes the currently active conversation (no badge when user is
+//   already viewing that chat).
+// - Sender updates their own last_read_at when sending, so they never
+//   see their own messages as unread.
 export function useUnreadCount(): { count: number; refresh: () => void } {
   const { user } = useAuth()
+  const { activeConversationId } = useActiveConversation()
   const [count, setCount] = useState(0)
   const refreshKeyRef = useRef(0)
 
@@ -35,6 +38,8 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
       for (const row of myConvs as any[]) {
         const conv = row.conversations
         if (!conv?.last_message_at) continue
+        // Skip the conversation the user is currently viewing
+        if (conv.id === activeConversationId) continue
         const lastRead = row.last_read_at ?? '1970-01-01'
         if (conv.last_message_at > lastRead) unread++
       }
@@ -43,7 +48,7 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
     } catch (err) {
       console.warn('unread count error:', err)
     }
-  }, [user])
+  }, [user, activeConversationId])
 
   useEffect(() => {
     refresh()
