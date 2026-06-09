@@ -34,6 +34,9 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [loadingConversations, setLoadingConversations] = useState(true)
 
+  // ── My Supabase user ID (used to determine if a message is mine)
+  const [mySupabaseId, setMySupabaseId] = useState<string | null>(null)
+
   // ── Active conversation
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -57,6 +60,7 @@ export default function ChatPage() {
       setLoadingConversations(true)
       const sbUser = await getSupabaseUserByBubbleId(userBubbleId)
       if (!sbUser || cancelled) { setLoadingConversations(false); return }
+      if (!cancelled) setMySupabaseId(sbUser.id)
 
       const convs = await getConversationsForUser(sbUser.id)
       if (!cancelled) {
@@ -113,7 +117,9 @@ export default function ChatPage() {
     if (!sbUser) return
 
     const msgs = await getMessages(conv.id)
-    setMessages(msgs)
+    // Dedup by id (defensive)
+    const unique = Array.from(new Map(msgs.map(m => [m.id, m])).values())
+    setMessages(unique)
     setLoadingMessages(false)
 
     await markConversationRead(conv.id)
@@ -122,7 +128,11 @@ export default function ChatPage() {
     )
 
     const channel = subscribeToMessages(conv.id, (msg: Message) => {
-      setMessages(prev => [...prev, msg])
+      setMessages(prev => {
+        // Dedup — avoid double insert if we already added this message locally
+        if (prev.some(m => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
 
@@ -246,9 +256,9 @@ export default function ChatPage() {
   // ── Message view
   if (activeConversation) {
     return (
-      <div className="flex flex-col h-screen bg-gray-50">
+      <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm shrink-0">
           <button
             onClick={() => setActiveConversation(null)}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
@@ -278,13 +288,13 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map(msg => {
-            const isMine = msg.sender?.id === user?.id_bubble || msg.sender_id === user?.id_bubble
+            const isMine = msg.sender_id === mySupabaseId
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-sm ${
+                <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${
                   isMine
                     ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'
+                    : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'
                 }`}>
                   {msg.tipo === 'audio' ? (
                     <div className="flex items-center gap-2">
@@ -292,12 +302,12 @@ export default function ChatPage() {
                       <span className="text-xs opacity-80">Audio</span>
                     </div>
                   ) : (
-                    <p>{msg.content}</p>
+                    <p className="break-words whitespace-pre-wrap">{msg.content}</p>
                   )}
                   {msg.transcription && (
-                    <p className="text-xs mt-1 opacity-70 italic">{msg.transcription}</p>
+                    <p className="text-xs mt-1 opacity-70 italic break-words">{msg.transcription}</p>
                   )}
-                  <p className={`text-xs mt-1 ${isMine ? 'text-blue-200' : 'text-gray-400'} text-right`}>
+                  <p className={`text-[10px] mt-1 ${isMine ? 'text-blue-100' : 'text-gray-400'} text-right`}>
                     {formatTime(msg.created_at)}
                   </p>
                 </div>
@@ -308,7 +318,7 @@ export default function ChatPage() {
         </div>
 
         {/* Input */}
-        <div className="px-4 py-3 bg-white border-t border-gray-200">
+        <div className="px-4 py-3 bg-white border-t border-gray-200 shrink-0">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -316,11 +326,12 @@ export default function ChatPage() {
               onChange={e => setNewMessage(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
               placeholder="Type a message..."
-              className="flex-1 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
               onClick={handleSend}
-              className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+              disabled={!newMessage.trim()}
+              className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:hover:bg-blue-600 shrink-0"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -335,7 +346,7 @@ export default function ChatPage() {
 
   // ── Main list view
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
       {/* Supabase not configured banner */}
       {!isSupabaseConfigured && (
         <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs flex items-center gap-2">
