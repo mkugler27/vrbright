@@ -74,19 +74,20 @@ export default function ChatPage() {
     return () => { cancelled = true }
   }, [user])
 
+  // ── Open conversation ref (defined below, use ref to avoid TDZ)
+  const openConversationRef = useRef<(conv: Conversation) => void>(() => {})
+
   // ── Open conversation from ?c= param
   useEffect(() => {
     const targetId = searchParams.get('c')
     if (!targetId || !user) return
-    // Wait for conversations to load
     if (loadingConversations) return
     const target = conversations.find(c => c.id === targetId)
     if (target && activeConversation?.id !== targetId) {
-      openConversation(target)
-      // Clear the param
+      openConversationRef.current(target)
       setSearchParams({}, { replace: true })
     }
-  }, [searchParams, loadingConversations, conversations, user])
+  }, [searchParams, loadingConversations, conversations, user, activeConversation?.id])
 
   // ── Subscribe to conversation updates
   useEffect(() => {
@@ -126,6 +127,9 @@ export default function ChatPage() {
 
     return () => supabase.removeChannel(channel)
   }
+
+  // Keep ref pointing to the latest openConversation
+  openConversationRef.current = openConversation
 
   // ── Send message
   async function handleSend() {
