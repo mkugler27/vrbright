@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useOpenWOCount } from '../hooks/useOpenWOCount';
+import { useUnreadCount } from '../hooks/useUnreadCount';
 
 interface ModuleCardData {
   to: string;
@@ -28,6 +29,7 @@ interface ModuleCardData {
   icon: React.ReactNode;
   color: string;
   badge?: number;
+  badgeIcon?: React.ReactNode;
 }
 
 const DEFAULT_CARDS: ModuleCardData[] = [
@@ -107,11 +109,15 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
           <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
             {mod.icon}
           </div>
-          {mod.badge !== undefined && mod.badge !== 0 && (
+          {mod.badgeIcon ? (
+            <span className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center pointer-events-none">
+              {mod.badgeIcon}
+            </span>
+          ) : mod.badge !== undefined && mod.badge !== 0 ? (
             <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center pointer-events-none shadow-sm">
               {mod.badge}
             </span>
-          )}
+          ) : null}
           <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
           <p className="text-[11px] text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
         </div>
@@ -123,6 +129,7 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
 export function DashboardHome() {
   const navigate = useNavigate();
   const openWOCount = useOpenWOCount();
+  const { count: unreadCount } = useUnreadCount();
   const [cards, setCards] = useState<ModuleCardData[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -204,8 +211,23 @@ export function DashboardHome() {
           <div className="grid grid-cols-2 gap-3 px-1 pb-4">
             {cards.map((mod, i) => {
               const isWOCard = mod.to === '/wo';
+              const isChatCard = mod.to === '/chat';
               const enriched: ModuleCardData = isWOCard
                 ? { ...mod, badge: openWOCount }
+                : isChatCard && unreadCount > 0
+                ? {
+                    ...mod,
+                    badgeIcon: (
+                      <div className="relative inline-flex items-center justify-center">
+                        <svg className="w-5 h-5 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center shadow-sm animate-pulse-subtle">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      </div>
+                    ),
+                  }
                 : mod;
               return (
                 <SortableModuleCard

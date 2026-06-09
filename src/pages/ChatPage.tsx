@@ -122,7 +122,7 @@ export default function ChatPage() {
     setMessages(unique)
     setLoadingMessages(false)
 
-    await markConversationRead(conv.id)
+    await markConversationRead(conv.id, sbUser.id)
     setConversations(prev =>
       prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c)
     )
@@ -161,6 +161,16 @@ export default function ChatPage() {
     const others = conv.participants?.filter(p => p.id !== myId) ?? []
     if (conv.tipo === 'group') return conv.nome ?? 'Group'
     return others[0]?.nome ?? 'Chat'
+  }
+
+  function getParticipantAvatar(conv: Conversation, myId: string): string | undefined {
+    const others = conv.participants?.filter(p => p.id !== myId) ?? []
+    return others[0]?.avatar_url
+  }
+
+  function getParticipantInitials(conv: Conversation, myId: string): string {
+    const name = getParticipantNames(conv, myId)
+    return name.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
   }
 
   function formatTime(dateStr: string | null): string {
@@ -289,13 +299,30 @@ export default function ChatPage() {
           )}
           {messages.map(msg => {
             const isMine = msg.sender_id === mySupabaseId
+            const senderAvatar = msg.sender?.avatar_url
+            const senderInitials = msg.sender?.nome ? msg.sender.nome.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') : '?'
             return (
-              <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
+                {!isMine && senderAvatar && (
+                  <img
+                    src={senderAvatar}
+                    alt={msg.sender?.nome ?? 'User'}
+                    className="w-7 h-7 rounded-full object-cover mr-2 mb-0.5 shrink-0"
+                  />
+                )}
+                {!isMine && !senderAvatar && (
+                  <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 mr-2 mb-0.5 shrink-0">
+                    {senderInitials}
+                  </div>
+                )}
                 <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${
                   isMine
                     ? 'bg-blue-600 text-white rounded-br-md'
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'
                 }`}>
+                  {!isMine && msg.sender?.nome && (
+                    <p className="text-[10px] font-semibold text-blue-600 mb-0.5">{msg.sender.nome}</p>
+                  )}
                   {msg.tipo === 'audio' ? (
                     <div className="flex items-center gap-2">
                       <MicIcon />
@@ -307,9 +334,14 @@ export default function ChatPage() {
                   {msg.transcription && (
                     <p className="text-xs mt-1 opacity-70 italic break-words">{msg.transcription}</p>
                   )}
-                  <p className={`text-[10px] mt-1 ${isMine ? 'text-blue-100' : 'text-gray-400'} text-right`}>
-                    {formatTime(msg.created_at)}
-                  </p>
+                  <div className={`flex items-center justify-end gap-1 mt-1 ${isMine ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <span className="text-[10px]">{formatTime(msg.created_at)}</span>
+                    {isMine && (
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
+                        <path d="M1 8l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -445,17 +477,21 @@ export default function ChatPage() {
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-100 transition-colors border-b border-gray-100"
               >
                 {/* Avatar */}
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
-                  conv.tipo === 'group' ? 'bg-purple-500' : 'bg-blue-600'
-                }`}>
-                  {conv.tipo === 'group' ? (
+                {conv.tipo === 'group' ? (
+                  <div className="w-12 h-12 rounded-full bg-purple-500 flex items-center justify-center shrink-0">
                     <GroupIcon />
+                  </div>
+                ) : (() => {
+                  const avatarUrl = getParticipantAvatar(conv, mySupabaseId ?? '')
+                  const initials = getParticipantInitials(conv, mySupabaseId ?? '')
+                  return avatarUrl ? (
+                    <img src={avatarUrl} alt="avatar" className="w-12 h-12 rounded-full object-cover shrink-0" />
                   ) : (
-                    <span className="text-sm font-semibold text-white">
-                      {getParticipantNames(conv, '').charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
+                    <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                      <span className="text-sm font-semibold text-white">{initials}</span>
+                    </div>
+                  )
+                })()}
 
                 {/* Info */}
                 <div className="flex-1 min-w-0 text-left">

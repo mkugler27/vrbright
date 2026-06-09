@@ -175,7 +175,16 @@ export async function sendMessage(
   return data as Message
 }
 
-export async function markConversationRead(conversationId: string): Promise<void> {
+export async function markConversationRead(conversationId: string, userId?: string): Promise<void> {
+  // Update last_read_at on my participant row (drives unread count)
+  if (userId) {
+    await supabase
+      .from('conversation_participants')
+      .update({ last_read_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', userId)
+  }
+  // Also reset the old unread_count (kept for backwards compat)
   await supabase
     .from('conversations')
     .update({ unread_count: 0 })
