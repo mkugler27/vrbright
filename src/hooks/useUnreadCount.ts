@@ -1,15 +1,15 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserByBubbleId } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 
-// Returns the number of conversations that have unread messages.
-// Strategy: sums unread_count on conversations the user participates in.
-// This works without last_read_at column — the count is updated when
-// messages arrive and when markConversationRead resets it.
+// Returns the number of conversations with unread messages.
+// Sums unread_count from conversations the user participates in.
+// Subscribes to realtime INSERT on messages so the badge updates live.
 export function useUnreadCount(): { count: number; refresh: () => void } {
   const { user } = useAuth()
   const [count, setCount] = useState(0)
+  const refreshKeyRef = useRef(0) // bump to force re-render
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -19,7 +19,6 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
       const me = await getSupabaseUserByBubbleId(user.id_bubble)
       if (!me) return
 
-      // Get all conversations I'm in and sum their unread_count
       const { data: myConvs } = await supabase
         .from('conversation_participants')
         .select('conversation_id, conversations (unread_count)')
@@ -31,6 +30,7 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
         return sum + ((row.conversations as any)?.unread_count ?? 0)
       }, 0)
       setCount(total)
+      refreshKeyRef.current += 1
     } catch (err) {
       console.warn('unread count error:', err)
     }
@@ -43,15 +43,15 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
     let channel: ReturnType<typeof supabase.channel> | undefined
     try {
       channel = supabase
-        .channel('unread-count')
+        .channel('unread-count-global')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'conversation_participants' },
+          { event: 'INSERT', schema: 'public', table: 'messages' },
           () => refresh()
         )
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
+          { event: 'UPDATE', schema: 'public', table: 'conversations' },
           () => refresh()
         )
         .subscribe()
