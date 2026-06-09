@@ -102,6 +102,9 @@ export async function createIndividualConversation(
   userA_id: string,
   userB_id: string
 ): Promise<string | null> {
+  // Don't allow self-conversations
+  if (userA_id === userB_id) return null
+
   // Verifica se já existe conversa individual entre os dois
   const { data: existing } = await supabase
     .from('conversation_participants')
