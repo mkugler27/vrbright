@@ -18,6 +18,7 @@ import { fetchTodayWO } from '../services/workingOrdersApi'
 import { getWOCache, saveWOCache } from '../services/db'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { isSupabaseConfigured } from '../services/supabase'
+import { useUnreadCount } from '../hooks/useUnreadCount'
 import type { WorkOrderRow } from '../services/workingOrdersApi'
 
 type Tab = 'chats' | 'wo'
@@ -26,6 +27,7 @@ type WoTab = 'today' | 'other'
 export default function ChatPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const { refresh: refreshUnread } = useUnreadCount()
   const [searchParams, setSearchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState<Tab>('chats')
   const [woTab, setWoTab] = useState<WoTab>('today')
@@ -129,6 +131,7 @@ export default function ChatPage() {
     setConversations(prev =>
       prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c)
     )
+    refreshUnread() // re-fetch unread count after marking as read
 
     msgChannelRef.current = subscribeToMessages(conv.id, (msg: Message) => {
       setMessages(prev => {
