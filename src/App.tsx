@@ -7,6 +7,7 @@ import { AppFrame } from './components/layout/AppFrame';
 import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
 import { DashboardHome } from './pages/DashboardHome';
+import { WOPage } from './pages/WOPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
 
@@ -51,7 +52,7 @@ export default function App() {
                 }
               >
                 <Route path="/" element={<DashboardHome />} />
-                <Route path="/wo" element={<PlaceholderPage title="Working Orders" />} />
+                <Route path="/wo" element={<WOPage />} />
                 <Route path="/chat" element={<PlaceholderPage title="Chat" />} />
                 <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
                 <Route path="/team" element={<TeamPage />} />

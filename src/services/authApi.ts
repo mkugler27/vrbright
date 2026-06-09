@@ -65,3 +65,40 @@ export async function fetchUserProfile(idBubble: string, token: string): Promise
     profile_picture: (u['profile_picture'] as string) || (u['profile_picture_url'] as string) || undefined,
   };
 }
+
+export async function fetchUserProfileByEmail(
+  email: string,
+  token: string,
+): Promise<UserProfile | null> {
+  // Filter by authentication.email.email — that's the only reliable way to
+  // get the User from a login email.
+  const constraints = JSON.stringify([
+    { key: 'authentication.email.email', constraint_type: 'equals', value: email },
+  ]);
+  const params = new URLSearchParams({ constraints, limit: '1' });
+  const url = `${API_BASE}/obj/user?${params.toString()}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Fetch user by email failed: ${response.status}`);
+  }
+  const data = (await response.json()) as {
+    response: { results: Record<string, unknown>[] };
+  };
+  const u = data.response.results?.[0];
+  if (!u) return null;
+
+  const auth = u.authentication as { email?: { email?: string } } | undefined;
+  return {
+    id_bubble: (u._id as string) || '',
+    nome: (u.Nome as string) || (u.nome as string) || '',
+    email: auth?.email?.email || email,
+    profile_picture: (u.profile_picture as string) || undefined,
+  };
+}

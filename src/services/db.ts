@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Photo, SyncQueueItem } from '../types';
+import type { WorkOrderRow } from './workingOrdersApi';
 
 interface VRBrightDB extends DBSchema {
   workOrders: {
@@ -30,6 +31,14 @@ interface VRBrightDB extends DBSchema {
     key: string; // arbitrary key like 'team_last_sync'
     value: { key: string; value: unknown; updated_at: string };
   };
+  woCache: {
+    key: string; // YYYY-MM-DD (today's date)
+    value: {
+      key: string;
+      data: WorkOrderRow[];
+      cached_at: string;
+    };
+  };
 }
 
 let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
@@ -37,7 +46,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 2, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 3, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -49,6 +58,9 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
         const teamStore = db.createObjectStore('team', { keyPath: '_id' });
         teamStore.createIndex('by-cached', 'cached_at');
         db.createObjectStore('meta', { keyPath: 'key' });
+      }
+      if (oldVersion < 3) {
+        db.createObjectStore('woCache', { keyPath: 'key' });
       }
     },
   });
@@ -97,4 +109,16 @@ export async function clearTeamCache(): Promise<void> {
   const db = await getDB();
   await db.clear('team');
   await setMeta('team_last_sync', null);
+}
+
+// Working orders cache (keyed by YYYY-MM-DD)
+export async function saveWOCache(dateKey: string, wos: WorkOrderRow[]): Promise<void> {
+  const db = await getDB();
+  await db.put('woCache', { key: dateKey, data: wos, cached_at: new Date().toISOString() });
+}
+
+export async function getWOCache(dateKey: string): Promise<WorkOrderRow[]> {
+  const db = await getDB();
+  const entry = await db.get('woCache', dateKey);
+  return (entry?.data as WorkOrderRow[]) ?? [];
 }
