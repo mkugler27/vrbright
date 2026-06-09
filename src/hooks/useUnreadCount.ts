@@ -51,15 +51,16 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
   }, [user, activeConversationId])
 
   useEffect(() => {
-    refresh()
     if (!user || !isSupabaseConfigured) return
 
-    let channel: ReturnType<typeof supabase.channel> | undefined
-    let pollInterval: ReturnType<typeof setInterval> | undefined
+    refresh()
 
-    try {
-      channel = supabase
-        .channel(`unread-count-${user.id_bubble}`)
+    let pollInterval: ReturnType<typeof setInterval> | undefined
+    const channelName = `unread-count-${user.id_bubble}-${Date.now()}`
+
+    const setupSubscription = () => {
+      const channel = supabase
+        .channel(channelName)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -77,20 +78,30 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
         )
         .subscribe((status) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.warn('realtime unavailable, falling back to polling')
             if (!pollInterval) {
               pollInterval = setInterval(() => refresh(), 5000)
             }
           }
         })
-    } catch (err) {
-      console.warn('unread subscription error:', err)
+      return channel
+    }
+
+    let channel: ReturnType<typeof supabase.channel> | null = null
+    try {
+      channel = setupSubscription()
+    } catch {
       pollInterval = setInterval(() => refresh(), 5000)
     }
 
     return () => {
-      if (channel) supabase.removeChannel(channel)
-      if (pollInterval) clearInterval(pollInterval)
+      if (channel) {
+        supabase.removeChannel(channel)
+        channel = null
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval)
+        pollInterval = undefined
+      }
     }
   }, [user, refresh])
 

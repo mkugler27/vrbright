@@ -82,7 +82,7 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
       conversation_id,
       last_read_at,
       conversations (
-        id, tipo, nome, bubble_group_id, last_message, last_message_at, unread_count, created_at,
+        id, tipo, nome, bubble_group_id, last_message, last_message_at, created_at,
         users:conversation_participants!inner(user_id, users(id, bubble_id, nome, email, role, avatar_url))
       )
     `)
@@ -90,21 +90,27 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 
   if (!data) return []
 
-  // Flatten nested structure and compute per-conversation unread
-  return data.map((row: any) => {
-    const conv: any = row.conversations
-    // Derive unread_count from last_message_at vs last_read_at (per participant)
-    let unread = conv?.unread_count ?? 0
-    if (conv?.last_message_at) {
-      const lastRead = row.last_read_at ?? '1970-01-01'
-      unread = conv.last_message_at > lastRead ? 1 : 0
-    }
-    return {
-      ...conv,
-      unread_count: unread,
-      participants: conv.users?.map((p: any) => p.users).filter(Boolean) ?? [],
-    }
-  })
+  // Flatten nested structure and compute per-conversation unread,
+  // and filter out self-conversations (orphan conversations where the
+  // current user is the only distinct participant).
+  return data
+    .map((row: any) => {
+      const conv: any = row.conversations
+      const participants = conv.users?.map((p: any) => p.users).filter(Boolean) ?? []
+      const distinctUserIds = new Set(participants.map((p: any) => p.id))
+      if (distinctUserIds.size < 2) return null
+      let unread = 0
+      if (conv?.last_message_at) {
+        const lastRead = row.last_read_at ?? '1970-01-01'
+        unread = conv.last_message_at > lastRead ? 1 : 0
+      }
+      return {
+        ...conv,
+        unread_count: unread,
+        participants,
+      }
+    })
+    .filter(Boolean) as Conversation[]
 }
 
 export async function createIndividualConversation(
@@ -192,30 +198,8 @@ export async function sendMessage(
     return null
   }
 
-  // Update last_message and unread_count on the conversation
-  // Use atomic increment via RPC to avoid race conditions
-  try {
-    await supabase.rpc('increment_unread', { conv_id: conversationId })
-  } catch {
-    // Fallback if RPC doesn't exist: just set to 1 (we'll dedup on the client)
-    const { data: currentConv } = await supabase
-      .from('conversations')
-      .select('unread_count')
-      .eq('id', conversationId)
-      .single()
-    const newUnread = ((currentConv as any)?.unread_count ?? 0) + 1
-    await supabase
-      .from('conversations')
-      .update({
-        last_message: tipo === 'audio' ? 'Audio' : content,
-        last_message_at: new Date().toISOString(),
-        unread_count: newUnread,
-      })
-      .eq('id', conversationId)
-    return data as Message
-  }
-
-  // Update last_message and last_message_at (separate from increment)
+  // Unread is derived from `last_message_at > last_read_at`, so we only need
+  // to bump `last_message` and `last_message_at` on the conversation.
   await supabase
     .from('conversations')
     .update({
@@ -224,8 +208,8 @@ export async function sendMessage(
     })
     .eq('id', conversationId)
 
-  // The sender's last_read_at is updated so their own unread count
-  // for this conversation does not include this message they just sent
+  // Mark the sender as read up to this message so their own message
+  // doesn't count as unread on this conversation.
   await supabase
     .from('conversation_participants')
     .update({ last_read_at: new Date().toISOString() })
@@ -244,11 +228,6 @@ export async function markConversationRead(conversationId: string, userId?: stri
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
   }
-  // Reset unread_count so the badge disappears
-  await supabase
-    .from('conversations')
-    .update({ unread_count: 0 })
-    .eq('id', conversationId)
 }
 
 // ──────────────────────────────────────────────

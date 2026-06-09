@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
+
+// Curated set of frequently used emojis. Covers reactions, work-site
+// vocabulary and general chat use. Loaded on demand from a button row.
+const QUICK_EMOJIS = [
+  '👍','👎','👏','🙌','🙏','💪','✌️','🤝',
+  '😂','🤣','😊','😎','🤔','😢','😡','😍',
+  '🔥','⭐','✅','❌','⚠️','🚧','🛠️','🔧',
+  '☀️','🌧️','❄️','🌙','🏠','🚗','📞','💬',
+]
 import {
   getConversationsForUser,
   getMessages,
@@ -41,7 +50,10 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [newMessage, setNewMessage] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   // ── Realtime channel refs — cleaned up on unmount / conversation close
   const convChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
@@ -52,6 +64,23 @@ export default function ChatPage() {
     if (!user) return
     syncUserFromBubble(user.id_bubble, user.nome, user.email, 'worker')
   }, [user])
+
+  // ── Close emoji picker on outside click
+  useEffect(() => {
+    if (!showEmojiPicker) return
+    const handleClick = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showEmojiPicker])
+
+  function insertEmoji(emoji: string) {
+    setNewMessage(prev => prev + emoji)
+    inputRef.current?.focus()
+  }
 
   // ── Load conversations + subscribe to updates
   useEffect(() => {
@@ -143,9 +172,19 @@ export default function ChatPage() {
         await markConversationRead(conv.id, sbUser.id)
         refreshUnread()
       }
+      // Realtime payload doesn't include the joined sender — fetch it
+      let enriched = msg
+      if (!msg.sender) {
+        const { data: senderData } = await supabase
+          .from('users')
+          .select('id, bubble_id, nome, email, role, avatar_url')
+          .eq('id', msg.sender_id)
+          .single()
+        enriched = { ...msg, sender: (senderData as any) ?? undefined }
+      }
       setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev
-        return [...prev, msg]
+        if (prev.some(m => m.id === enriched.id)) return prev
+        return [...prev, enriched]
       })
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
@@ -300,7 +339,7 @@ export default function ChatPage() {
           </button>
           <div>
             <p className="font-semibold text-gray-800 text-sm">
-              {activeConversation.tipo === 'group' ? activeConversation.nome : getParticipantNames(activeConversation, '')}
+              {activeConversation.tipo === 'group' ? activeConversation.nome : getParticipantNames(activeConversation, mySupabaseId ?? '')}
             </p>
             <p className="text-xs text-gray-500 capitalize">{activeConversation.tipo}</p>
           </div>
@@ -312,7 +351,11 @@ export default function ChatPage() {
           {messages.map(msg => {
             const isMine = msg.sender_id === mySupabaseId
             const senderAvatar = msg.sender?.avatar_url
-            const senderInitials = msg.sender?.nome ? msg.sender.nome.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') : '?'
+            // Fallback chain: nome initials → user_id first char → "?"
+            const senderName = msg.sender?.nome ?? ''
+            const senderInitials = senderName
+              ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
+              : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
                 {!isMine && senderAvatar && (
@@ -345,9 +388,30 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="px-4 py-3 bg-white border-t border-gray-200 shrink-0">
+        <div className="px-4 py-3 bg-white border-t border-gray-200 shrink-0 relative">
+          {showEmojiPicker && (
+            <div ref={emojiPickerRef}
+              className="absolute bottom-full mb-2 left-4 right-4 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 z-10">
+              <div className="grid grid-cols-8 gap-1">
+                {QUICK_EMOJIS.map(emoji => (
+                  <button key={emoji} type="button" onClick={() => insertEmoji(emoji)}
+                    className="text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)}
+            <button type="button" onClick={() => setShowEmojiPicker(v => !v)}
+              className="p-2.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors shrink-0"
+              aria-label="Open emoji picker">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+            <input ref={inputRef} type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Type a message..."
               className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <button onClick={handleSend} disabled={!newMessage.trim()}
@@ -451,7 +515,7 @@ export default function ChatPage() {
                 <div className="flex-1 min-w-0 text-left">
                   <div className="flex items-center justify-between">
                     <p className="font-semibold text-gray-800 text-sm truncate">
-                      {conv.tipo === 'group' ? conv.nome : getParticipantNames(conv, '')}
+                      {conv.tipo === 'group' ? conv.nome : getParticipantNames(conv, mySupabaseId ?? '')}
                     </p>
                     <span className="text-xs text-gray-400 ml-2 shrink-0">{formatTime(conv.last_message_at)}</span>
                   </div>
