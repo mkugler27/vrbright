@@ -4,8 +4,9 @@ import { getSupabaseUserByBubbleId } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 
 // Returns the number of conversations with unread messages.
-// Sums unread_count from conversations the user participates in.
-// Subscribes to realtime INSERT on messages so the badge updates live.
+// Strategy: counts conversations where last_message_at > my last_read_at.
+// This means: messages I sent update my last_read_at automatically,
+// so I never see my own messages as unread.
 export function useUnreadCount(): { count: number; refresh: () => void } {
   const { user } = useAuth()
   const [count, setCount] = useState(0)
@@ -21,15 +22,23 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
 
       const { data: myConvs } = await supabase
         .from('conversation_participants')
-        .select('conversation_id, conversations (unread_count)')
+        .select(`
+          conversation_id,
+          last_read_at,
+          conversations (id, last_message_at)
+        `)
         .eq('user_id', me.id)
 
       if (!myConvs) { setCount(0); return }
 
-      const total = (myConvs as any[]).reduce((sum, row) => {
-        return sum + ((row.conversations as any)?.unread_count ?? 0)
-      }, 0)
-      setCount(total)
+      let unread = 0
+      for (const row of myConvs as any[]) {
+        const conv = row.conversations
+        if (!conv?.last_message_at) continue
+        const lastRead = row.last_read_at ?? '1970-01-01'
+        if (conv.last_message_at > lastRead) unread++
+      }
+      setCount(unread)
       refreshKeyRef.current += 1
     } catch (err) {
       console.warn('unread count error:', err)
@@ -62,7 +71,6 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
           () => refresh()
         )
         .subscribe((status) => {
-          // Fallback polling if realtime connection fails
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             console.warn('realtime unavailable, falling back to polling')
             if (!pollInterval) {
@@ -72,7 +80,6 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
         })
     } catch (err) {
       console.warn('unread subscription error:', err)
-      // Polling fallback
       pollInterval = setInterval(() => refresh(), 5000)
     }
 

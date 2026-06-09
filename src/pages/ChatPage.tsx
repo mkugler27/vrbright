@@ -164,7 +164,12 @@ export default function ChatPage() {
     setNewMessage('')
 
     const msg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
-    if (msg) setMessages(prev => [...prev, msg])
+    if (msg) {
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
+    }
 
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
   }

@@ -184,22 +184,44 @@ export async function sendMessage(
   }
 
   // Update last_message and unread_count on the conversation
-  // First, get current unread_count to increment it (don't reset to 1)
-  const { data: currentConv } = await supabase
-    .from('conversations')
-    .select('unread_count')
-    .eq('id', conversationId)
-    .single()
+  // Use atomic increment via RPC to avoid race conditions
+  try {
+    await supabase.rpc('increment_unread', { conv_id: conversationId })
+  } catch {
+    // Fallback if RPC doesn't exist: just set to 1 (we'll dedup on the client)
+    const { data: currentConv } = await supabase
+      .from('conversations')
+      .select('unread_count')
+      .eq('id', conversationId)
+      .single()
+    const newUnread = ((currentConv as any)?.unread_count ?? 0) + 1
+    await supabase
+      .from('conversations')
+      .update({
+        last_message: tipo === 'audio' ? 'Audio' : content,
+        last_message_at: new Date().toISOString(),
+        unread_count: newUnread,
+      })
+      .eq('id', conversationId)
+    return data as Message
+  }
 
-  const newUnread = ((currentConv as any)?.unread_count ?? 0) + 1
+  // Update last_message and last_message_at (separate from increment)
   await supabase
     .from('conversations')
     .update({
       last_message: tipo === 'audio' ? 'Audio' : content,
       last_message_at: new Date().toISOString(),
-      unread_count: newUnread,
     })
     .eq('id', conversationId)
+
+  // The sender's last_read_at is updated so their own unread count
+  // for this conversation does not include this message they just sent
+  await supabase
+    .from('conversation_participants')
+    .update({ last_read_at: new Date().toISOString() })
+    .eq('conversation_id', conversationId)
+    .eq('user_id', senderId)
 
   return data as Message
 }
