@@ -169,12 +169,20 @@ export async function sendMessage(
   }
 
   // Update last_message and unread_count on the conversation
+  // First, get current unread_count to increment it (don't reset to 1)
+  const { data: currentConv } = await supabase
+    .from('conversations')
+    .select('unread_count')
+    .eq('id', conversationId)
+    .single()
+
+  const newUnread = ((currentConv as any)?.unread_count ?? 0) + 1
   await supabase
     .from('conversations')
     .update({
       last_message: tipo === 'audio' ? 'Audio' : content,
       last_message_at: new Date().toISOString(),
-      unread_count: 1,
+      unread_count: newUnread,
     })
     .eq('id', conversationId)
 

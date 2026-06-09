@@ -9,7 +9,7 @@ import { useAuth } from '../context/AuthContext'
 export function useUnreadCount(): { count: number; refresh: () => void } {
   const { user } = useAuth()
   const [count, setCount] = useState(0)
-  const refreshKeyRef = useRef(0) // bump to force re-render
+  const refreshKeyRef = useRef(0)
 
   const refresh = useCallback(async () => {
     if (!user) return
@@ -41,9 +41,11 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
     if (!user || !isSupabaseConfigured) return
 
     let channel: ReturnType<typeof supabase.channel> | undefined
+    let pollInterval: ReturnType<typeof setInterval> | undefined
+
     try {
       channel = supabase
-        .channel('unread-count-global')
+        .channel(`unread-count-${user.id_bubble}`)
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -54,13 +56,29 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
           { event: 'UPDATE', schema: 'public', table: 'conversations' },
           () => refresh()
         )
-        .subscribe()
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'conversation_participants' },
+          () => refresh()
+        )
+        .subscribe((status) => {
+          // Fallback polling if realtime connection fails
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.warn('realtime unavailable, falling back to polling')
+            if (!pollInterval) {
+              pollInterval = setInterval(() => refresh(), 5000)
+            }
+          }
+        })
     } catch (err) {
       console.warn('unread subscription error:', err)
+      // Polling fallback
+      pollInterval = setInterval(() => refresh(), 5000)
     }
 
     return () => {
       if (channel) supabase.removeChannel(channel)
+      if (pollInterval) clearInterval(pollInterval)
     }
   }, [user, refresh])
 
