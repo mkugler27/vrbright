@@ -3,8 +3,10 @@ import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserByBubbleId } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 
-// Returns the number of conversations that have new messages
-// (i.e. last_message_at > my last read timestamp)
+// Returns the number of conversations that have unread messages.
+// Strategy: sums unread_count on conversations the user participates in.
+// This works without last_read_at column — the count is updated when
+// messages arrive and when markConversationRead resets it.
 export function useUnreadCount(): { count: number; refresh: () => void } {
   const { user } = useAuth()
   const [count, setCount] = useState(0)
@@ -17,28 +19,19 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
       const me = await getSupabaseUserByBubbleId(user.id_bubble)
       if (!me) return
 
-      // Get all conversations I'm in
+      // Get all conversations I'm in and sum their unread_count
       const { data: myConvs } = await supabase
         .from('conversation_participants')
-        .select(`
-          conversation_id,
-          last_read_at,
-          conversations (id, last_message_at, last_message)
-        `)
+        .select('conversation_id, conversations (unread_count)')
         .eq('user_id', me.id)
 
       if (!myConvs) { setCount(0); return }
 
-      let unread = 0
-      for (const row of myConvs as any[]) {
-        const conv = row.conversations
-        if (!conv?.last_message_at) continue
-        const lastRead = row.last_read_at ?? '1970-01-01'
-        if (conv.last_message_at > lastRead) unread++
-      }
-      setCount(unread)
+      const total = (myConvs as any[]).reduce((sum, row) => {
+        return sum + ((row.conversations as any)?.unread_count ?? 0)
+      }, 0)
+      setCount(total)
     } catch (err) {
-      // Silently ignore — unread count is non-critical
       console.warn('unread count error:', err)
     }
   }, [user])
@@ -58,7 +51,7 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
         )
         .on(
           'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'conversations' },
+          { event: 'INSERT', schema: 'public', table: 'messages' },
           () => refresh()
         )
         .subscribe()

@@ -168,12 +168,13 @@ export async function sendMessage(
     return null
   }
 
-  // Atualiza last_message na conversa
+  // Update last_message and unread_count on the conversation
   await supabase
     .from('conversations')
     .update({
-      last_message: tipo === 'audio' ? '🎤 Áudio' : content,
+      last_message: tipo === 'audio' ? 'Audio' : content,
       last_message_at: new Date().toISOString(),
+      unread_count: 1,
     })
     .eq('id', conversationId)
 
@@ -189,7 +190,7 @@ export async function markConversationRead(conversationId: string, userId?: stri
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
   }
-  // Also reset the old unread_count (kept for backwards compat)
+  // Reset unread_count so the badge disappears
   await supabase
     .from('conversations')
     .update({ unread_count: 0 })
