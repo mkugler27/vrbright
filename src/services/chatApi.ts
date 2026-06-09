@@ -44,12 +44,17 @@ export async function syncUserFromBubble(
 }
 
 export async function getSupabaseUserByBubbleId(bubbleId: string): Promise<User | null> {
-  const { data } = await supabase
-    .from('users')
-    .select('*')
-    .eq('bubble_id', bubbleId)
-    .single()
-  return data ?? null
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('bubble_id', bubbleId)
+      .single()
+    if (error) return null
+    return data ?? null
+  } catch {
+    return null
+  }
 }
 
 // ──────────────────────────────────────────────

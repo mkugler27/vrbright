@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabase } from '../services/supabase'
+import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserByBubbleId } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 
@@ -11,51 +11,64 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
 
   const refresh = useCallback(async () => {
     if (!user) return
-    const me = await getSupabaseUserByBubbleId(user.id_bubble)
-    if (!me) return
+    if (!isSupabaseConfigured) return
 
-    // Get all conversations I'm in
-    const { data: myConvs } = await supabase
-      .from('conversation_participants')
-      .select(`
-        conversation_id,
-        last_read_at,
-        conversations (id, last_message_at, last_message)
-      `)
-      .eq('user_id', me.id)
+    try {
+      const me = await getSupabaseUserByBubbleId(user.id_bubble)
+      if (!me) return
 
-    if (!myConvs) { setCount(0); return }
+      // Get all conversations I'm in
+      const { data: myConvs } = await supabase
+        .from('conversation_participants')
+        .select(`
+          conversation_id,
+          last_read_at,
+          conversations (id, last_message_at, last_message)
+        `)
+        .eq('user_id', me.id)
 
-    let unread = 0
-    for (const row of myConvs as any[]) {
-      const conv = row.conversations
-      if (!conv?.last_message_at) continue
-      const lastRead = row.last_read_at ?? '1970-01-01'
-      if (conv.last_message_at > lastRead) unread++
+      if (!myConvs) { setCount(0); return }
+
+      let unread = 0
+      for (const row of myConvs as any[]) {
+        const conv = row.conversations
+        if (!conv?.last_message_at) continue
+        const lastRead = row.last_read_at ?? '1970-01-01'
+        if (conv.last_message_at > lastRead) unread++
+      }
+      setCount(unread)
+    } catch (err) {
+      // Silently ignore — unread count is non-critical
+      console.warn('unread count error:', err)
     }
-    setCount(unread)
   }, [user])
 
   useEffect(() => {
     refresh()
-    if (!user) return
+    if (!user || !isSupabaseConfigured) return
 
-    // Subscribe to changes on my conversation_participants rows
-    const channel = supabase
-      .channel('unread-count')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversation_participants' },
-        () => refresh()
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'conversations' },
-        () => refresh()
-      )
-      .subscribe()
+    let channel: ReturnType<typeof supabase.channel> | undefined
+    try {
+      channel = supabase
+        .channel('unread-count')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'conversation_participants' },
+          () => refresh()
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'conversations' },
+          () => refresh()
+        )
+        .subscribe()
+    } catch (err) {
+      console.warn('unread subscription error:', err)
+    }
 
-    return () => { supabase.removeChannel(channel) }
+    return () => {
+      if (channel) supabase.removeChannel(channel)
+    }
   }, [user, refresh])
 
   return { count, refresh }
