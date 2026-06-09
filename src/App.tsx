@@ -8,6 +8,8 @@ import { LoginPage } from './pages/LoginPage';
 import { TeamPage } from './pages/TeamPage';
 import { DashboardHome } from './pages/DashboardHome';
 import { WOPage } from './pages/WOPage';
+import ChatPage from './pages/ChatPage';
+import NewChatPage from './pages/NewChatPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
 
@@ -53,7 +55,8 @@ export default function App() {
               >
                 <Route path="/" element={<DashboardHome />} />
                 <Route path="/wo" element={<WOPage />} />
-                <Route path="/chat" element={<PlaceholderPage title="Chat" />} />
+                <Route path="/chat" element={<ChatPage />} />
+<Route path="/chat/new" element={<NewChatPage />} />
                 <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/clients" element={<PlaceholderPage title="Clients" />} />

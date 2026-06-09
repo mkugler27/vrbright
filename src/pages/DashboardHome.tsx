@@ -19,6 +19,7 @@ import {
   defaultAnimateLayoutChanges,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useOpenWOCount } from '../hooks/useOpenWOCount';
 
 interface ModuleCardData {
   to: string;
@@ -26,6 +27,7 @@ interface ModuleCardData {
   description: string;
   icon: React.ReactNode;
   color: string;
+  badge?: number;
 }
 
 const DEFAULT_CARDS: ModuleCardData[] = [
@@ -94,7 +96,7 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
         }}
         {...attributes}
         {...listeners}
-        className={`w-full bg-white rounded-[24px] p-3.5 shadow-sm border text-left ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'}`}
+        className={`relative w-full bg-white rounded-[24px] p-3.5 shadow-sm border text-left ${isDraggingThis ? 'opacity-90 shadow-2xl ring-2 ring-primary cursor-grabbing' : 'border-gray-100/50 active:scale-[0.97] cursor-grab hover:shadow-md'}`}
         style={{ pointerEvents: visible ? 'auto' : 'none' }}
       >
         {/* Cascade animation lives on inner content, not the dragged element */}
@@ -105,6 +107,11 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
           <div className={`w-11 h-11 rounded-2xl ${mod.color} flex items-center justify-center mb-2.5 pointer-events-none transition-transform ${isDraggingThis ? 'scale-110' : ''}`}>
             {mod.icon}
           </div>
+          {mod.badge !== undefined && mod.badge !== 0 && (
+            <span className="absolute top-2 right-2 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center pointer-events-none shadow-sm">
+              {mod.badge}
+            </span>
+          )}
           <h3 className="font-semibold text-gray-800 text-sm leading-tight pointer-events-none">{mod.title}</h3>
           <p className="text-[11px] text-gray-500 mt-0.5 pointer-events-none">{mod.description}</p>
         </div>
@@ -115,6 +122,7 @@ function SortableModuleCard({ mod, onClick, visible, isDraggingThis }: { mod: Mo
 
 export function DashboardHome() {
   const navigate = useNavigate();
+  const openWOCount = useOpenWOCount();
   const [cards, setCards] = useState<ModuleCardData[]>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -194,15 +202,21 @@ export function DashboardHome() {
       >
         <SortableContext items={cards.map((c) => c.to)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-3 px-1 pb-4">
-            {cards.map((mod, i) => (
-              <SortableModuleCard
-                key={mod.to}
-                mod={mod}
-                onClick={() => navigate(mod.to)}
-                visible={cascadeIndex < 0 || i < cascadeIndex}
-                isDraggingThis={activeId === mod.to}
-              />
-            ))}
+            {cards.map((mod, i) => {
+              const isWOCard = mod.to === '/wo';
+              const enriched: ModuleCardData = isWOCard
+                ? { ...mod, badge: openWOCount }
+                : mod;
+              return (
+                <SortableModuleCard
+                  key={mod.to}
+                  mod={enriched}
+                  onClick={() => navigate(mod.to)}
+                  visible={cascadeIndex < 0 || i < cascadeIndex}
+                  isDraggingThis={activeId === mod.to}
+                />
+              );
+            })}
           </div>
         </SortableContext>
       </DndContext>

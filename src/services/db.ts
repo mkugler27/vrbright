@@ -32,10 +32,18 @@ interface VRBrightDB extends DBSchema {
     value: { key: string; value: unknown; updated_at: string };
   };
   woCache: {
-    key: string; // YYYY-MM-DD (today's date)
+    key: string; // user id (bubble id) — full list cache per user
     value: {
       key: string;
       data: WorkOrderRow[];
+      cached_at: string;
+    };
+  };
+  woDetail: {
+    key: string; // wo _id
+    value: {
+      _id: string;
+      data: WorkOrderRow;
       cached_at: string;
     };
   };
@@ -46,7 +54,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 3, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 4, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -61,6 +69,9 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
       }
       if (oldVersion < 3) {
         db.createObjectStore('woCache', { keyPath: 'key' });
+      }
+      if (oldVersion < 4) {
+        db.createObjectStore('woDetail', { keyPath: '_id' });
       }
     },
   });
@@ -111,14 +122,28 @@ export async function clearTeamCache(): Promise<void> {
   await setMeta('team_last_sync', null);
 }
 
-// Working orders cache (keyed by YYYY-MM-DD)
-export async function saveWOCache(dateKey: string, wos: WorkOrderRow[]): Promise<void> {
+// Working orders list cache (keyed by an arbitrary string — e.g. user id,
+// date, or "open_<userId>" used by WOPage). Returns the array directly.
+export async function saveWOCache(key: string, wos: WorkOrderRow[]): Promise<void> {
   const db = await getDB();
-  await db.put('woCache', { key: dateKey, data: wos, cached_at: new Date().toISOString() });
+  await db.put('woCache', { key, data: wos, cached_at: new Date().toISOString() });
 }
 
-export async function getWOCache(dateKey: string): Promise<WorkOrderRow[]> {
+export async function getWOCache(key: string): Promise<WorkOrderRow[]> {
   const db = await getDB();
-  const entry = await db.get('woCache', dateKey);
+  const entry = await db.get('woCache', key);
   return (entry?.data as WorkOrderRow[]) ?? [];
+}
+
+// Working order detail cache (keyed by wo _id)
+export async function saveWODetail(wo: WorkOrderRow): Promise<void> {
+  const db = await getDB();
+  await db.put('woDetail', { _id: wo._id, data: wo, cached_at: new Date().toISOString() });
+}
+
+export async function getWODetail(woId: string): Promise<{ data: WorkOrderRow; cached_at: string } | null> {
+  const db = await getDB();
+  const entry = await db.get('woDetail', woId);
+  if (!entry) return null;
+  return { data: entry.data as WorkOrderRow, cached_at: entry.cached_at };
 }
