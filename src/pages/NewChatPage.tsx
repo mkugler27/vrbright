@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, isSupabaseConfigured } from '../services/supabase'
+import { supabase } from '../services/supabase'
 import {
   createIndividualConversation,
   getSupabaseUserByBubbleId,
