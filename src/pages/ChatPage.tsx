@@ -136,7 +136,13 @@ export default function ChatPage() {
     )
     refreshUnread() // re-fetch unread count after marking as read
 
-    msgChannelRef.current = subscribeToMessages(conv.id, (msg: Message) => {
+    msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
+      // If message is from someone else, mark as read immediately
+      // (user is viewing this conversation)
+      if (msg.sender_id !== sbUser.id) {
+        await markConversationRead(conv.id, sbUser.id)
+        refreshUnread()
+      }
       setMessages(prev => {
         if (prev.some(m => m.id === msg.id)) return prev
         return [...prev, msg]

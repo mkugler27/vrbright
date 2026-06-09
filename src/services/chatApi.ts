@@ -74,11 +74,13 @@ export async function getSupabaseUserByBubbleId(bubbleId: string): Promise<User 
 // ──────────────────────────────────────────────
 
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
-  // Pega conversas onde o usuário é participante
+  // Pega conversas onde o usuário é participante, incluindo o last_read_at
+  // deste participante específico (para calcular unread por conversa)
   const { data } = await supabase
     .from('conversation_participants')
     .select(`
       conversation_id,
+      last_read_at,
       conversations (
         id, tipo, nome, bubble_group_id, last_message, last_message_at, unread_count, created_at,
         users:conversation_participants!inner(user_id, users(id, bubble_id, nome, email, role, avatar_url))
@@ -88,11 +90,18 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
 
   if (!data) return []
 
-  // Flatten nested structure
+  // Flatten nested structure and compute per-conversation unread
   return data.map((row: any) => {
     const conv: any = row.conversations
+    // Derive unread_count from last_message_at vs last_read_at (per participant)
+    let unread = conv?.unread_count ?? 0
+    if (conv?.last_message_at) {
+      const lastRead = row.last_read_at ?? '1970-01-01'
+      unread = conv.last_message_at > lastRead ? 1 : 0
+    }
     return {
       ...conv,
+      unread_count: unread,
       participants: conv.users?.map((p: any) => p.users).filter(Boolean) ?? [],
     }
   })
