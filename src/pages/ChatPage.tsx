@@ -309,7 +309,6 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'}`}>
-                  {!isMine && msg.sender?.nome && <p className="text-[10px] font-semibold text-blue-600 mb-0.5">{msg.sender.nome}</p>}
                   {msg.tipo === 'audio' ? (
                     <div className="flex items-center gap-2"><MicIcon /><span className="text-xs opacity-80">Audio</span></div>
                   ) : (
