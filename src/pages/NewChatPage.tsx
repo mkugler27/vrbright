@@ -44,10 +44,11 @@ export default function NewChatPage() {
       const me = await getSupabaseUserByBubbleId(bubbleId)
       if (!me) { setLoading(false); return }
 
-      // 3) Load all users except me
+      // 3) Load all users except me (filter by bubble_id to avoid duplicates)
       const { data: allUsers } = await supabase
         .from('users')
         .select('*')
+        .neq('bubble_id', bubbleId)
         .neq('id', me.id)
         .order('nome', { ascending: true })
 

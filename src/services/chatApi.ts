@@ -36,11 +36,23 @@ export async function syncUserFromBubble(
   email: string,
   role: string
 ): Promise<void> {
-  const { error } = await supabase.from('users').upsert(
-    { bubble_id: bubbleId, nome, email, role },
-    { onConflict: 'bubble_id' }
-  )
-  if (error) console.error('syncUser error:', error.message)
+  // Try to update first by bubble_id; insert if not found
+  // This avoids the duplicate-row problem that upsert can cause
+  // when bubble_id has no UNIQUE constraint
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('bubble_id', bubbleId)
+    .maybeSingle()
+
+  if (existing) {
+    await supabase
+      .from('users')
+      .update({ nome, email, role })
+      .eq('id', existing.id)
+  } else {
+    await supabase.from('users').insert({ bubble_id: bubbleId, nome, email, role })
+  }
 }
 
 export async function getSupabaseUserByBubbleId(bubbleId: string): Promise<User | null> {
