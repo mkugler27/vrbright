@@ -1,30 +1,38 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
-import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { supabase } from '../services/supabase'
-import { getSupabaseUserByEmail } from '../services/chatApi'
-import { fetchUserProfileByEmail } from '../services/authApi'
-import { BUBBLE_TOKEN } from '../config/api'
-import { useAuth } from '../context/AuthContext'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
 
-export function LoginPage() {
+export function SignupPage() {
+  const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
   const isOnline = useOnlineStatus()
-  const navigate = useNavigate()
-  const { setUser } = useAuth()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      return
+    }
+
     setLoading(true)
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
       })
@@ -36,46 +44,66 @@ export function LoginPage() {
       }
 
       if (!authData.user) {
-        setError('Login failed. Please try again.')
+        setError('Signup failed. Please try again.')
         setLoading(false)
         return
       }
 
-      // Fetch profile from users table
-      const profile = await getSupabaseUserByEmail(email)
-      if (!profile) {
-        setError('User profile not found. Please sign up first.')
-        await supabase.auth.signOut()
-        setLoading(false)
-        return
-      }
-
-      // Fetch Bubble profile picture
-      let profilePicture = profile.avatar_url
-      try {
-        const bubbleProfile = await fetchUserProfileByEmail(email, BUBBLE_TOKEN)
-        if (bubbleProfile?.profile_picture) {
-          profilePicture = bubbleProfile.profile_picture
-        }
-      } catch {
-        // Bubble fetch is best-effort; continue without picture
-      }
-
-      setUser({
-        id: profile.id,
-        email: profile.email,
-        nome: profile.nome,
-        role: profile.role as 'worker' | 'supervisor' | 'admin',
-        profile_picture: profilePicture,
+      // Create profile in users table (role always 'worker' — admin decides via Bubble)
+      const { error: profileError } = await supabase.from('users').insert({
+        id: authData.user.id,
+        nome: nome.trim(),
+        email,
+        role: 'worker',
       })
 
-      navigate('/')
+      if (profileError) {
+        console.error('Profile insert error:', profileError)
+        // Auth user was created; profile might be retried later
+        // For now, warn but continue
+      }
+
+      setSuccess(true)
     } catch (err) {
       setError('Connection error. Please try again.')
-      console.error('Login error:', err)
+      console.error('Signup error:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="bg-gradient-to-r from-primary-dark to-primary px-6 pt-12 pb-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+            </div>
+            <span className="text-white text-xl font-bold tracking-tight">VRBright</span>
+          </div>
+        </div>
+        <div className="flex-1 px-6 pt-8 pb-6 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Account created!</h2>
+            <p className="text-gray-500 mb-6">Check your email to verify your account, then sign in.</p>
+            <Link to="/login">
+              <Button variant="primary" size="lg">
+                Go to Sign In
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -92,9 +120,8 @@ export function LoginPage() {
             </div>
             <span className="text-white text-xl font-bold tracking-tight">VRBright</span>
           </div>
-          <p className="text-white/80 text-sm font-medium">Workers Area</p>
+          <p className="text-white/80 text-sm font-medium">Create your account</p>
         </div>
-        {/* Online/Offline indicator */}
         <div
           className={`w-3 h-3 rounded-full ring-2 ring-white/30 ${isOnline ? 'bg-green-300' : 'bg-red-400'}`}
           title={isOnline ? 'Online' : 'Offline'}
@@ -102,9 +129,9 @@ export function LoginPage() {
       </div>
 
       {/* Form */}
-      <div className="flex-1 px-6 pt-8 pb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Sign In</h2>
-        <p className="text-sm text-gray-500 mb-6">Enter your credentials to continue.</p>
+      <div className="flex-1 px-6 pt-8 pb-6 overflow-y-auto">
+        <h2 className="text-2xl font-bold text-gray-800 mb-1">Sign Up</h2>
+        <p className="text-sm text-gray-500 mb-6">Join VRBright to access your work orders and chat.</p>
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
@@ -112,7 +139,24 @@ export function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSignup} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5" htmlFor="nome">
+              Full Name
+            </label>
+            <input
+              id="nome"
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="John Doe"
+              required
+              autoComplete="name"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-gray-400"
+            />
+          </div>
+
           {/* Email */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5" htmlFor="email">
@@ -141,9 +185,10 @@ export function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Min 6 characters"
                 required
-                autoComplete="current-password"
+                minLength={6}
+                autoComplete="new-password"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 pr-11 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-gray-400"
               />
               <button
@@ -166,11 +211,22 @@ export function LoginPage() {
             </div>
           </div>
 
-          {/* Forgot password */}
-          <div className="text-right">
-            <button type="button" className="text-xs text-primary-dark font-medium hover:underline">
-              Forgot password
-            </button>
+          {/* Confirm Password */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5" htmlFor="confirmPassword">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword"
+              type={showPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-gray-400"
+            />
           </div>
 
           {/* Submit */}
@@ -187,19 +243,19 @@ export function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Signing in...
+                Creating account...
               </span>
             ) : (
-              'Sign In'
+              'Create Account'
             )}
           </Button>
         </form>
 
-        {/* Sign up link */}
+        {/* Sign in link */}
         <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link to="/signup" className="text-primary-dark font-semibold hover:underline">
-            Sign up
+          Already have an account?{' '}
+          <Link to="/login" className="text-primary-dark font-semibold hover:underline">
+            Sign in
           </Link>
         </p>
       </div>

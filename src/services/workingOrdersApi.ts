@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
 
 const API_BASE = API_BASE_URL;
 
@@ -20,11 +20,11 @@ export interface WorkOrderRow {
   qual_condo_txt_nick?: string;
   qual_pintor_txt?: string;
   qual_pintor_nick_txt?: string;
+  worker_email?: string; // email do worker (link com Supabase users.email)
 }
 
 export interface FetchTodayWOOptions {
-  userBubbleId: string;
-  token: string;
+  workerEmail: string;
 }
 
 interface BubbleListResponse<T> {
@@ -35,25 +35,18 @@ interface BubbleListResponse<T> {
 }
 
 export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrderRow[]> {
-  const { userBubbleId, token } = opts;
+  const { workerEmail } = opts;
 
-  // Bubble "obj/workingorders" – show every WO assigned to this painter that
-  // is NOT completed yet. We don't filter by date here: a worker should be
-  // able to see any open job, regardless of when it's scheduled.
-  //
-  //   qual_pintor = Current User
+  // Busca WOs onde worker_email = email do worker logado no Supabase Auth.
+  // Filtros:
+  //   worker_email = email do worker (identificador único entre Supabase e Bubble)
   //   status <> COMPLETED
-  //   liberado_para_pintor = true
   //   deletado = false
+  //   liberado_para_pintor = true
   //   esconder_complain_calendario = false
-  //   sort by data ascending (earliest first)
-  //
-  // NOTE: in Bubble's schema the values for liberado_para_pintor / deletado /
-  // esconder_complain_calendario are booleans (not "yes"/"no" strings), and
-  // there is no `Type` field — "Type" in the UI is the Data Type's name, not
-  // a per-record field.
+  //   ordenação por data (ascendente — mais antigas primeiro)
   const constraints = JSON.stringify([
-    { key: 'qual_pintor', constraint_type: 'equals', value: userBubbleId },
+    { key: 'worker_email', constraint_type: 'equals', value: workerEmail },
     { key: 'status', constraint_type: 'not equal', value: 'COMPLETED' },
     { key: 'liberado_para_pintor', constraint_type: 'equals', value: true },
     { key: 'deletado', constraint_type: 'equals', value: false },
@@ -72,7 +65,7 @@ export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrder
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${BUBBLE_TOKEN}`,
     },
   });
 
@@ -101,5 +94,6 @@ export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrder
     qual_condo_txt_nick: r.qual_condo_txt_nick as string | undefined,
     qual_pintor_txt: r.qual_pintor_txt as string | undefined,
     qual_pintor_nick_txt: r.qual_pintor_nick_txt as string | undefined,
+    worker_email: r.worker_email as string | undefined,
   }));
 }

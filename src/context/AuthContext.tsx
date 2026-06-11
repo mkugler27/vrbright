@@ -1,12 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 
 export interface AuthUser {
-  id_bubble: string;
-  nome: string;
+  id: string;           // Supabase Auth uid
   email: string;
-  token: string;
-  expires: number; // unix timestamp (seconds)
+  nome: string;
+  role: 'worker' | 'supervisor' | 'admin';
   profile_picture?: string;
+  bubble_id?: string;
 }
 
 interface AuthContextType {
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Sync state if storage changes from another tab
     const handler = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) {
         setUserState(e.newValue ? JSON.parse(e.newValue) : null);

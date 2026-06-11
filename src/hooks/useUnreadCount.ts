@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase, isSupabaseConfigured } from '../services/supabase'
-import { getSupabaseUserByBubbleId } from '../services/chatApi'
+import { getSupabaseUserById } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 import { useActiveConversation } from '../context/ActiveConversationContext'
 
@@ -20,7 +20,7 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
     if (!isSupabaseConfigured) return
 
     try {
-      const me = await getSupabaseUserByBubbleId(user.id_bubble)
+      const me = await getSupabaseUserById(user.id)
       if (!me) return
 
       const { data: myConvs } = await supabase
@@ -55,53 +55,12 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
 
     refresh()
 
-    let pollInterval: ReturnType<typeof setInterval> | undefined
-    const channelName = `unread-count-${user.id_bubble}-${Date.now()}`
-
-    const setupSubscription = () => {
-      const channel = supabase
-        .channel(channelName)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
-          () => refresh()
-        )
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'conversations' },
-          () => refresh()
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'conversation_participants' },
-          () => refresh()
-        )
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (!pollInterval) {
-              pollInterval = setInterval(() => refresh(), 5000)
-            }
-          }
-        })
-      return channel
-    }
-
-    let channel: ReturnType<typeof supabase.channel> | null = null
-    try {
-      channel = setupSubscription()
-    } catch {
-      pollInterval = setInterval(() => refresh(), 5000)
-    }
+    // Always poll — realtime is best-effort but unreliable for badge updates.
+    // 5s interval is light and keeps the badge fresh.
+    const pollInterval = setInterval(() => refresh(), 5000)
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel)
-        channel = null
-      }
-      if (pollInterval) {
-        clearInterval(pollInterval)
-        pollInterval = undefined
-      }
+      clearInterval(pollInterval)
     }
   }, [user, refresh])
 

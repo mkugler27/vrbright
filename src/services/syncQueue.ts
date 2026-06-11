@@ -1,6 +1,7 @@
 import { getDB, getMeta, setMeta } from './db'
 import type { SyncQueueItem } from '../types'
 import type { WorkOrderRow } from './workingOrdersApi'
+import { BUBBLE_TOKEN } from '../config/api'
 
 const PATCH_URL = 'https://system.vrbrightpainting.com/version-test/api/1.1/obj/workingorders'
 
@@ -47,10 +48,9 @@ export async function getPendingForWO(workOrderId: string): Promise<SyncQueueIte
 
 let processing = false
 
-export async function processQueue(token: string): Promise<{ ok: number; fail: number }> {
+export async function processQueue(): Promise<{ ok: number; fail: number }> {
   if (processing) return { ok: 0, fail: 0 }
   if (!navigator.onLine) return { ok: 0, fail: 0 }
-  if (!token) return { ok: 0, fail: 0 }
 
   processing = true
   let ok = 0
@@ -72,7 +72,7 @@ export async function processQueue(token: string): Promise<{ ok: number; fail: n
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${BUBBLE_TOKEN}`,
           },
           body: JSON.stringify(item.payload),
         })

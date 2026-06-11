@@ -45,14 +45,14 @@ export function AppShell() {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [homeClickCount, setHomeClickCount] = useState(0);
-  const navigate = useNavigate();
+  const navigate = useNavigate()
 
   useEffect(() => {
     document.body.style.overflow = menuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate('/login') };
   const handleNav = (to: string) => { setMenuOpen(false); navigate(to); };
 
   return (

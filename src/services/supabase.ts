@@ -10,17 +10,17 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey)
 
 export const supabase: SupabaseClient = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseKey!, {
-      auth: { persistSession: false, autoRefreshToken: false },
+      auth: { persistSession: true, autoRefreshToken: true },
     })
   : (createClient('https://placeholder.supabase.co', 'placeholder-key', {
-      auth: { persistSession: false, autoRefreshToken: false },
+      auth: { persistSession: true, autoRefreshToken: true },
     }) as SupabaseClient)
 
 export type User = {
   id: string
-  bubble_id: string
   nome: string
   email: string
-  role: string
+  role: 'worker' | 'supervisor' | 'admin'
   avatar_url?: string
+  bubble_id?: string // só supervisor precisa
 }

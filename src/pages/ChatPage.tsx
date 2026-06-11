@@ -17,8 +17,8 @@ import {
   subscribeToMessages,
   subscribeToConversations,
   markConversationRead,
-  syncUserFromBubble,
-  getSupabaseUserByBubbleId,
+  upsertUser,
+  getSupabaseUserById,
   type Conversation,
   type Message,
 } from '../services/chatApi'
@@ -58,11 +58,13 @@ export default function ChatPage() {
   // ── Realtime channel refs — cleaned up on unmount / conversation close
   const convChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const msgChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const msgPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const prevSizeRef = useRef<number>(0)
 
   // ── Sync user on mount
   useEffect(() => {
     if (!user) return
-    syncUserFromBubble(user.id_bubble, user.nome, user.email, 'worker')
+    upsertUser(user.id, { nome: user.nome, email: user.email, role: user.role })
   }, [user])
 
   // ── Close emoji picker on outside click
@@ -85,12 +87,11 @@ export default function ChatPage() {
   // ── Load conversations + subscribe to updates
   useEffect(() => {
     if (!user) return
-    const bubbleId = user.id_bubble
     let cancelled = false
 
     async function load() {
       setLoadingConversations(true)
-      const sbUser = await getSupabaseUserByBubbleId(bubbleId)
+      const sbUser = await getSupabaseUserById(user.id)
       if (!sbUser || cancelled) { setLoadingConversations(false); return }
       if (!cancelled) setMySupabaseId(sbUser.id)
 
@@ -151,7 +152,7 @@ export default function ChatPage() {
     setLoadingMessages(true)
 
     if (!user) return
-    const sbUser = await getSupabaseUserByBubbleId(user.id_bubble)
+    const sbUser = await getSupabaseUserById(user.id)
     if (!sbUser) return
 
     const msgs = await getMessages(conv.id)
@@ -165,7 +166,36 @@ export default function ChatPage() {
     )
     refreshUnread() // re-fetch unread count after marking as read
 
+    let lastMessageCount = unique.length
+
+    const startPolling = () => {
+      if (msgPollTimerRef.current) return
+      console.warn('[ChatPage] realtime failed, falling back to 3s polling')
+      msgPollTimerRef.current = setInterval(async () => {
+        const latest = await getMessages(conv.id)
+        if (latest.length > lastMessageCount) {
+          setMessages(prev => {
+            const known = new Set(prev.map(m => m.id))
+            const next = [...prev, ...latest.filter(m => !known.has(m.id))]
+            prevSizeRef.current = next.length
+            return next
+          })
+          lastMessageCount = latest.length
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+        }
+      }, 3000)
+    }
+
+    const stopPolling = () => {
+      if (msgPollTimerRef.current) {
+        clearInterval(msgPollTimerRef.current)
+        msgPollTimerRef.current = null
+        console.log('[ChatPage] realtime back, stopping polling')
+      }
+    }
+
     msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
+      stopPolling()
       // If message is from someone else, mark as read immediately
       // (user is viewing this conversation)
       if (msg.sender_id !== sbUser.id) {
@@ -183,11 +213,20 @@ export default function ChatPage() {
         enriched = { ...msg, sender: (senderData as any) ?? undefined }
       }
       setMessages(prev => {
+        prevSizeRef.current = prev.length
         if (prev.some(m => m.id === enriched.id)) return prev
         return [...prev, enriched]
       })
+      lastMessageCount = Math.max(lastMessageCount, prevSizeRef.current)
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
+
+    // If no new messages arrived via realtime within 4s, fall back to polling
+    setTimeout(() => {
+      if (lastMessageCount === unique.length && !msgPollTimerRef.current) {
+        startPolling()
+      }
+    }, 4000)
   }
 
   openConversationRef.current = openConversation
@@ -199,6 +238,10 @@ export default function ChatPage() {
         supabase.removeChannel(msgChannelRef.current)
         msgChannelRef.current = null
       }
+      if (msgPollTimerRef.current) {
+        clearInterval(msgPollTimerRef.current)
+        msgPollTimerRef.current = null
+      }
       setActiveConversationId(null)
     }
   }, [setActiveConversationId])
@@ -206,7 +249,7 @@ export default function ChatPage() {
   // ── Send message
   async function handleSend() {
     if (!newMessage.trim() || !user || !activeConversation) return
-    const sbUser = await getSupabaseUserByBubbleId(user.id_bubble)
+    const sbUser = await getSupabaseUserById(user.id)
     if (!sbUser) return
 
     const text = newMessage.trim()
@@ -276,13 +319,12 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (activeTab !== 'wo') return
-    if (!user?.id_bubble) return
-    const userId = user.id_bubble
-    const token = user.token
+    if (!user?.email) return
+    const workerEmail = user.email
     let cancelled = false
 
     async function load() {
-      const cached = await getWOCache(userId)
+      const cached = await getWOCache(workerEmail)
       if (cancelled) return
       if (cached.length > 0) {
         setWoList(cached)
@@ -295,11 +337,11 @@ export default function ChatPage() {
       if (!navigator.onLine) return
 
       try {
-        const wos = await fetchTodayWO({ userBubbleId: userId, token })
+        const wos = await fetchTodayWO({ workerEmail })
         if (cancelled) return
         setWoList(wos)
         setWoCachedAt(new Date().toISOString())
-        await saveWOCache(userId, wos)
+        await saveWOCache(workerEmail, wos)
       } catch (err) {
         console.warn('WO fetch failed (offline?):', err)
       } finally {
@@ -331,7 +373,12 @@ export default function ChatPage() {
     return (
       <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm shrink-0">
-          <button onClick={() => { setActiveConversation(null); setActiveConversationId(null); if (msgChannelRef.current) { supabase.removeChannel(msgChannelRef.current); msgChannelRef.current = null } }}
+          <button onClick={() => {
+            setActiveConversation(null);
+            setActiveConversationId(null);
+            if (msgChannelRef.current) { supabase.removeChannel(msgChannelRef.current); msgChannelRef.current = null }
+            if (msgPollTimerRef.current) { clearInterval(msgPollTimerRef.current); msgPollTimerRef.current = null }
+          }}
             className="p-2 rounded-full hover:bg-gray-100 transition-colors">
             <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

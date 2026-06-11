@@ -1,21 +1,19 @@
-// Placeholder — to be rebuilt for Work Orders, Photos, etc.
-// Will use Bearer token from AuthContext in the Authorization header.
-
-import { useAuth } from '../context/AuthContext';
+// Deprecated — Bubble token is now read from config/api.ts (BUBBLE_TOKEN).
+// This file is kept for reference; prefer importing BUBBLE_TOKEN directly.
+import { BUBBLE_TOKEN } from '../config/api';
 
 export function getAuthHeaders(): Record<string, string> {
-  // Lazy access to avoid circular deps in non-React contexts
-  // Caller should pass token in or use the hook version below
   return {
     'Content-Type': 'application/json',
+    Authorization: `Bearer ${BUBBLE_TOKEN}`,
   };
 }
 
 export function useAuthHeaders(): Record<string, string> {
-  const { user } = useAuth();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (user?.token) {
-    headers['Authorization'] = `Bearer ${user.token}`;
-  }
-  return headers;
+  // NOTE: user.token is no longer available in AuthContext.
+  // All Bubble API calls use BUBBLE_TOKEN from config/api.ts.
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${BUBBLE_TOKEN}`,
+  };
 }

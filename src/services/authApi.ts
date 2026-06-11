@@ -1,3 +1,8 @@
+// DEPRECATED — Auth is now handled entirely by Supabase Auth.
+// This file is kept for reference only. Do not use.
+// All auth calls go through: supabase.auth.signInWithPassword / signUp
+// All Bubble calls use BUBBLE_TOKEN from config/api.ts
+
 import { API_BASE_URL } from '../config/api';
 
 const API_BASE = API_BASE_URL;

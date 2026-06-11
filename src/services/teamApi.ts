@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
 
 const API_BASE = API_BASE_URL;
 
@@ -19,7 +19,7 @@ interface UserListResponse {
   };
 }
 
-export async function fetchActiveTeam(token: string): Promise<TeamMember[]> {
+export async function fetchActiveTeam(): Promise<TeamMember[]> {
   const constraints = JSON.stringify([
     { key: 'user_ativo_txt', constraint_type: 'equals', value: 'yes' },
   ]);
@@ -29,7 +29,7 @@ export async function fetchActiveTeam(token: string): Promise<TeamMember[]> {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      'Authorization': `Bearer ${BUBBLE_TOKEN}`,
     },
   });
 

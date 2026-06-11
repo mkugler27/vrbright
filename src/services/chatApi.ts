@@ -30,37 +30,36 @@ export type Message = {
 // USERS
 // ──────────────────────────────────────────────
 
-export async function syncUserFromBubble(
-  bubbleId: string,
-  nome: string,
-  email: string,
-  role: string
+export async function upsertUser(
+  supabaseId: string,
+  profile: { nome: string; email: string; role: string; avatar_url?: string; bubble_id?: string }
 ): Promise<void> {
-  // Try to update first by bubble_id; insert if not found
-  // This avoids the duplicate-row problem that upsert can cause
-  // when bubble_id has no UNIQUE constraint
-  const { data: existing } = await supabase
-    .from('users')
-    .select('id')
-    .eq('bubble_id', bubbleId)
-    .maybeSingle()
-
-  if (existing) {
-    await supabase
-      .from('users')
-      .update({ nome, email, role })
-      .eq('id', existing.id)
-  } else {
-    await supabase.from('users').insert({ bubble_id: bubbleId, nome, email, role })
-  }
+  await supabase.from('users').upsert(
+    { id: supabaseId, ...profile },
+    { onConflict: 'id' }
+  )
 }
 
-export async function getSupabaseUserByBubbleId(bubbleId: string): Promise<User | null> {
+export async function getSupabaseUserById(supabaseId: string): Promise<User | null> {
   try {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('bubble_id', bubbleId)
+      .eq('id', supabaseId)
+      .single()
+    if (error) return null
+    return data ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function getSupabaseUserByEmail(email: string): Promise<User | null> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
       .single()
     if (error) return null
     return data ?? null
@@ -250,7 +249,9 @@ export function subscribeToMessages(
       },
       (payload) => onNewMessage(payload.new as Message)
     )
-    .subscribe()
+    .subscribe((status) => {
+      console.log(`[chatApi] messages:${conversationId} status: ${status}`)
+    })
 }
 
 export function subscribeToConversations(

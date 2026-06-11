@@ -4,8 +4,8 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { fetchTodayWO, type WorkOrderRow } from '../services/workingOrdersApi';
 import { getWOCache, saveWOCache } from '../services/db';
 
-function cacheKey(userBubbleId: string): string {
-  return `open_${userBubbleId || 'anon'}`;
+function cacheKey(email: string): string {
+  return `open_${email || 'anon'}`;
 }
 
 function formatSectionDate(iso: string | undefined, today: Date = new Date()): string {
@@ -97,7 +97,7 @@ function PriorityTag() {
 export function WOPage() {
   const { user } = useAuth();
   const isOnline = useOnlineStatus();
-  const dayKey = useMemo(() => cacheKey(user?.id_bubble ?? ''), [user?.id_bubble]);
+  const dayKey = useMemo(() => cacheKey(user?.email ?? ''), [user?.email]);
 
   const [wos, setWOs] = useState<WorkOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +115,7 @@ export function WOPage() {
       }
 
       // 2) Network refresh
-      if (!user?.token) {
+      if (!user?.email) {
         if (cachedWO.length === 0) {
           setError('Not authenticated');
           setLoading(false);
@@ -126,7 +126,7 @@ export function WOPage() {
       if (cachedWO.length > 0) setRefreshing(true);
 
       try {
-        const data = await fetchTodayWO({ userBubbleId: user.id_bubble, token: user.token });
+        const data = await fetchTodayWO({ workerEmail: user.email });
         setWOs(data);
         await saveWOCache(dayKey, data);
         setLastSync(new Date().toISOString());
@@ -142,13 +142,13 @@ export function WOPage() {
       }
     };
     load();
-  }, [user?.token, user?.id_bubble, isOnline, dayKey]);
+  }, [user?.token, user?.email, isOnline, dayKey]);
 
   const handleRefresh = async () => {
     if (!user?.token || refreshing) return;
     setRefreshing(true);
     try {
-      const data = await fetchTodayWO({ userBubbleId: user.id_bubble, token: user.token });
+      const data = await fetchTodayWO({ workerEmail: user.email });
       setWOs(data);
       await saveWOCache(dayKey, data);
       setLastSync(new Date().toISOString());

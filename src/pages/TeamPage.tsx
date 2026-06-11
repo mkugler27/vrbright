@@ -213,7 +213,7 @@ export function TeamPage() {
       }
 
       // 2) Try to refresh from network
-      if (!user?.token) {
+      if (!user) {
         if (cached.length === 0) {
           setError('Not authenticated');
           setLoading(false);
@@ -226,7 +226,7 @@ export function TeamPage() {
       }
 
       try {
-        const data = await fetchActiveTeam(user.token);
+        const data = await fetchActiveTeam();
         setTeam(data);
         await saveTeamCache(data);
         const now = new Date().toISOString();
@@ -243,13 +243,13 @@ export function TeamPage() {
       }
     };
     load();
-  }, [user?.token, isOnline]);
+  }, [user, isOnline]);
 
   const handleRefresh = async () => {
-    if (!user?.token || refreshing) return;
+    if (!user || refreshing) return;
     setRefreshing(true);
     try {
-      const data = await fetchActiveTeam(user.token);
+      const data = await fetchActiveTeam();
       setTeam(data);
       await saveTeamCache(data);
       setLastSync(new Date().toISOString());

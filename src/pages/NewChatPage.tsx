@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import {
   createIndividualConversation,
-  getSupabaseUserByBubbleId,
-  syncUserFromBubble,
+  getSupabaseUserById,
+  upsertUser,
 } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
@@ -27,7 +27,7 @@ export default function NewChatPage() {
   // Sync current user and load contacts
   useEffect(() => {
     if (!user) return
-    const bubbleId = user.id_bubble
+    const myId = user.id
     const myNome = user.nome
     const myEmail = user.email
     let cancelled = false
@@ -37,18 +37,17 @@ export default function NewChatPage() {
 
       // 1) Ensure current user exists in Supabase
       if (navigator.onLine) {
-        await syncUserFromBubble(bubbleId, myNome, myEmail, 'worker')
+        await upsertUser(myId, { nome: myNome, email: myEmail, role: user.role })
       }
 
-      // 2) Get my Supabase user
-      const me = await getSupabaseUserByBubbleId(bubbleId)
+      // 2) Get my Supabase user (should already exist)
+      const me = await getSupabaseUserById(myId)
       if (!me) { setLoading(false); return }
 
-      // 3) Load all users except me (filter by bubble_id to avoid duplicates)
+      // 3) Load all users except me
       const { data: allUsers } = await supabase
         .from('users')
         .select('*')
-        .neq('bubble_id', bubbleId)
         .neq('id', me.id)
         .order('nome', { ascending: true })
 
@@ -121,7 +120,7 @@ export default function NewChatPage() {
     if (!user || creating) return
     setCreating(targetUser.id)
 
-    const me = await getSupabaseUserByBubbleId(user.id_bubble)
+    const me = await getSupabaseUserById(user.id)
     if (!me) { setCreating(null); return }
 
     // Reuse existing conversation if present
