@@ -91,6 +91,7 @@ export default function ChatPage() {
 
     async function load() {
       setLoadingConversations(true)
+      if (!user) return
       const sbUser = await getSupabaseUserById(user.id)
       if (!sbUser || cancelled) { setLoadingConversations(false); return }
       if (!cancelled) setMySupabaseId(sbUser.id)

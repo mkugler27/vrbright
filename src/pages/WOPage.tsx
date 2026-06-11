@@ -142,10 +142,10 @@ export function WOPage() {
       }
     };
     load();
-  }, [user?.token, user?.email, isOnline, dayKey]);
+  }, [user?.email, isOnline, dayKey]);
 
   const handleRefresh = async () => {
-    if (!user?.token || refreshing) return;
+    if (!user?.email || refreshing) return;
     setRefreshing(true);
     try {
       const data = await fetchTodayWO({ workerEmail: user.email });

@@ -30,6 +30,7 @@ export default function NewChatPage() {
     const myId = user.id
     const myNome = user.nome
     const myEmail = user.email
+    const myRole = user.role
     let cancelled = false
 
     async function load() {
@@ -37,7 +38,7 @@ export default function NewChatPage() {
 
       // 1) Ensure current user exists in Supabase
       if (navigator.onLine) {
-        await upsertUser(myId, { nome: myNome, email: myEmail, role: user.role })
+        await upsertUser(myId, { nome: myNome, email: myEmail, role: myRole })
       }
 
       // 2) Get my Supabase user (should already exist)
