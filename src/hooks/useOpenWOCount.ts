@@ -50,8 +50,12 @@ export function useOpenWOCount(): number {
           signal: ctrl.signal,
         });
         if (!res.ok) return;
-        const json = (await res.json()) as { response: { count?: number } };
-        const total = typeof json.response.count === 'number' ? json.response.count : 0;
+        const json = (await res.json()) as { response: { results: unknown[]; remaining?: number; count?: number } };
+        // `remaining` = how many records exist beyond the current page.
+        // Total = results returned + remaining.
+        const returned = Array.isArray(json.response.results) ? json.response.results.length : 0;
+        const remaining = typeof json.response.remaining === 'number' ? json.response.remaining : 0;
+        const total = returned + remaining;
         const entry: CachedCount = {
           count: total,
           cached_at: new Date().toISOString(),
