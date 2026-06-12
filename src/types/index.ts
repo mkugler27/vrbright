@@ -39,7 +39,8 @@ export type SyncAction =
   | 'update_notes'
   | 'upload_photo'
   | 'complete_wo'
-  | 'send_chat_file';
+  | 'send_chat_file'
+  | 'send_chat_file_delete';
 
 export interface SyncQueueItem {
   id: string;

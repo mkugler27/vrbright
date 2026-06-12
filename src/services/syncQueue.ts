@@ -75,6 +75,25 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
       }
 
       try {
+        if (item.action === 'send_chat_file_delete') {
+          const current = await db.get('syncQueue', item.id)
+          if (!current) continue
+
+          const res = await fetch(CHAT_FILE_RECEIVE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item.payload),
+          })
+
+          if (!res.ok) {
+            throw new Error(`Bubble chat file delete sync failed: ${res.status}`)
+          }
+
+          await db.delete('syncQueue', item.id)
+          ok++
+          continue
+        }
+
         if (item.action === 'send_chat_file') {
           // Idempotency check: re-read the item from IDB. If it was
           // already deleted (by a concurrent processor), skip.

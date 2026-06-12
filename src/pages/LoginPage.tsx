@@ -7,6 +7,7 @@ import { getSupabaseUserByEmail } from '../services/chatApi'
 import { fetchUserProfileByEmail } from '../services/authApi'
 import { BUBBLE_TOKEN } from '../config/api'
 import { useAuth } from '../context/AuthContext'
+import { syncBubbleRolesToUsers } from '../services/teamSync'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -41,7 +42,6 @@ export function LoginPage() {
         return
       }
 
-      // Fetch profile from users table
       const profile = await getSupabaseUserByEmail(email)
       if (!profile) {
         setError('User profile not found. Please sign up first.')
@@ -50,7 +50,6 @@ export function LoginPage() {
         return
       }
 
-      // Fetch Bubble profile picture
       let profilePicture = profile.avatar_url
       try {
         const bubbleProfile = await fetchUserProfileByEmail(email, BUBBLE_TOKEN)
@@ -58,8 +57,37 @@ export function LoginPage() {
           profilePicture = bubbleProfile.profile_picture
         }
       } catch {
-        // Bubble fetch is best-effort; continue without picture
+        // best-effort
       }
+
+      // Sync Bubble roles → Supabase users in the background.
+      // Fire-and-forget; failures are non-fatal.
+      syncBubbleRolesToUsers()
+        .then(({ synced }) => {
+          if (synced > 0) {
+            // Re-fetch the current user's row so the cached AuthUser
+            // gets the new tipo_user_bubble value.
+            return getSupabaseUserByEmail(email)
+          }
+          return null
+        })
+        .then(updated => {
+          if (updated) {
+            try {
+              const stored = localStorage.getItem('vrbright_user')
+              if (stored) {
+                const u = JSON.parse(stored)
+                u.tipo_user_bubble = (updated as any).tipo_user_bubble
+                localStorage.setItem('vrbright_user', JSON.stringify(u))
+              }
+            } catch {
+              // ignore
+            }
+          }
+        })
+        .catch(() => {
+          // ignore
+        })
 
       setUser({
         id: profile.id,
@@ -67,6 +95,7 @@ export function LoginPage() {
         nome: profile.nome,
         role: profile.role as 'worker' | 'supervisor' | 'admin',
         profile_picture: profilePicture,
+        tipo_user_bubble: (profile as any).tipo_user_bubble,
       })
 
       navigate('/')

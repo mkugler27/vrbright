@@ -7,6 +7,7 @@ export interface AuthUser {
   role: 'worker' | 'supervisor' | 'admin';
   profile_picture?: string;
   bubble_id?: string;
+  tipo_user_bubble?: string;
 }
 
 interface AuthContextType {

@@ -12,6 +12,7 @@ export type Conversation = {
   unread_count: number
   created_at: string
   participants?: User[]
+  member_count?: number
 }
 
 export type Message = {
@@ -25,8 +26,6 @@ export type Message = {
   bubble_id: string | null
   created_at: string
   sender?: User
-  // Joined chat file (if this message has a file/image/audio attachment
-  // uploaded via the new chatMedia service)
   chat_file?: ChatFile | null
 }
 
@@ -36,7 +35,7 @@ export type Message = {
 
 export async function upsertUser(
   supabaseId: string,
-  profile: { nome: string; email: string; role: string; avatar_url?: string; bubble_id?: string }
+  profile: { nome: string; email: string; role: string; avatar_url?: string; bubble_id?: string; tipo_user_bubble?: string }
 ): Promise<void> {
   await supabase.from('users').upsert(
     { id: supabaseId, ...profile },
@@ -77,8 +76,6 @@ export async function getSupabaseUserByEmail(email: string): Promise<User | null
 // ──────────────────────────────────────────────
 
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
-  // Pega conversas onde o usuário é participante, incluindo o last_read_at
-  // deste participante específico (para calcular unread por conversa)
   const { data } = await supabase
     .from('conversation_participants')
     .select(`
@@ -86,16 +83,13 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
       last_read_at,
       conversations (
         id, tipo, nome, bubble_group_id, last_message, last_message_at, created_at,
-        users:conversation_participants!inner(user_id, users(id, bubble_id, nome, email, role, avatar_url))
+        users:conversation_participants!inner(user_id, users(id, bubble_id, nome, email, role, avatar_url, tipo_user_bubble))
       )
     `)
     .eq('user_id', userId)
 
   if (!data) return []
 
-  // Flatten nested structure and compute per-conversation unread,
-  // and filter out self-conversations (orphan conversations where the
-  // current user is the only distinct participant).
   return data
     .map((row: any) => {
       const conv: any = row.conversations
@@ -111,19 +105,40 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
         ...conv,
         unread_count: unread,
         participants,
+        member_count: participants.length,
       }
     })
     .filter(Boolean) as Conversation[]
+}
+
+export async function getGroupsForUser(userId: string): Promise<Conversation[]> {
+  const all = await getConversationsForUser(userId)
+  return all
+    .filter(c => c.tipo === 'group')
+    .sort((a, b) => {
+      const at = a.last_message_at ?? a.created_at
+      const bt = b.last_message_at ?? b.created_at
+      return bt.localeCompare(at)
+    })
+}
+
+export async function getDMsForUser(userId: string): Promise<Conversation[]> {
+  const all = await getConversationsForUser(userId)
+  return all
+    .filter(c => c.tipo === 'individual')
+    .sort((a, b) => {
+      const at = a.last_message_at ?? a.created_at
+      const bt = b.last_message_at ?? b.created_at
+      return bt.localeCompare(at)
+    })
 }
 
 export async function createIndividualConversation(
   userA_id: string,
   userB_id: string
 ): Promise<string | null> {
-  // Don't allow self-conversations
   if (userA_id === userB_id) return null
 
-  // Verifica se já existe conversa individual entre os dois
   const { data: existing } = await supabase
     .from('conversation_participants')
     .select('conversation_id')
@@ -141,7 +156,6 @@ export async function createIndividualConversation(
     if (data && data.length > 0) return data[0].conversation_id
   }
 
-  // Cria nova conversa
   const { data: conv, error: convErr } = await supabase
     .from('conversations')
     .insert({ tipo: 'individual' })
@@ -158,23 +172,94 @@ export async function createIndividualConversation(
   return conv.id
 }
 
+export async function createGroupConversation(
+  name: string,
+  memberIds: string[]
+): Promise<string | null> {
+  if (!name.trim() || memberIds.length < 2) return null
+
+  const { data: conv, error: convErr } = await supabase
+    .from('conversations')
+    .insert({ tipo: 'group', nome: name.trim() })
+    .select('id')
+    .single()
+
+  if (convErr || !conv) return null
+
+  const rows = Array.from(new Set(memberIds)).map(uid => ({
+    conversation_id: conv.id,
+    user_id: uid,
+  }))
+
+  const { error: partErr } = await supabase
+    .from('conversation_participants')
+    .insert(rows)
+
+  if (partErr) {
+    await supabase.from('conversations').delete().eq('id', conv.id)
+    return null
+  }
+
+  return conv.id
+}
+
+export async function getGroupMembers(convId: string): Promise<User[]> {
+  const { data } = await supabase
+    .from('conversation_participants')
+    .select('user_id, users(id, bubble_id, nome, email, role, avatar_url, tipo_user_bubble)')
+    .eq('conversation_id', convId)
+
+  if (!data) return []
+  return data.map((row: any) => row.users).filter(Boolean) as User[]
+}
+
+export async function addGroupMembers(convId: string, userIds: string[]): Promise<void> {
+  const rows = userIds.map(uid => ({ conversation_id: convId, user_id: uid }))
+  await supabase.from('conversation_participants').insert(rows)
+}
+
+export async function removeGroupMember(convId: string, userId: string): Promise<void> {
+  await supabase
+    .from('conversation_participants')
+    .delete()
+    .eq('conversation_id', convId)
+    .eq('user_id', userId)
+}
+
+export async function searchUsersForGroup(
+  query: string,
+  excludeUserId: string
+): Promise<User[]> {
+  const q = query.trim()
+  let req = supabase
+    .from('users')
+    .select('*')
+    .neq('id', excludeUserId)
+    .order('nome', { ascending: true })
+    .limit(20)
+
+  if (q) {
+    req = req.or(`nome.ilike.%${q}%,email.ilike.%${q}%`)
+  }
+
+  const { data } = await req
+  return (data ?? []) as User[]
+}
+
 // ──────────────────────────────────────────────
 // MESSAGES
 // ──────────────────────────────────────────────
 
-export async function getMessages(conversationId: string, limit = 200): Promise<Message[]> {
-  // Fetch messages + sender in one query. The chat_file join is intentionally
-  // NOT done here because the chat_files RLS subquery can fail under load,
-  // which kills the whole query. Instead, we fetch chat_files separately
-  // and merge them client-side. Cheaper and more reliable.
+export async function getMessages(conversationId: string, limit = 100): Promise<Message[]> {
   const { data, error } = await supabase
     .from('messages')
     .select(`
       *,
-      sender:users(id, nome, email, role, avatar_url)
+      sender:users(id, nome, email, role, avatar_url, tipo_user_bubble),
+      chat_file:chat_files(*)
     `)
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: true })
     .limit(limit)
 
   if (error) {
@@ -182,42 +267,21 @@ export async function getMessages(conversationId: string, limit = 200): Promise<
     return []
   }
 
-  const messages = (data ?? []).reverse() as Message[]
+  return (data ?? []) as Message[]
+}
 
-  // Find messages that might have a chat_file (based on content label),
-  // and fetch the chat_files for them in one query.
-  const mediaMessageIds = messages
-    .filter(m => m.content && /^(Image|Audio|Document|File|📷|🎙|📎)/.test(m.content.trim()))
-    .map(m => m.id)
+export async function getChatFile(messageId: string): Promise<ChatFile | null> {
+  const { data, error } = await supabase
+    .from('chat_files')
+    .select('*')
+    .eq('message_id', messageId)
+    .maybeSingle()
 
-  if (mediaMessageIds.length === 0) {
-    return messages
+  if (error) {
+    console.warn('[chatApi] getChatFile error:', error.message)
+    return null
   }
-
-  try {
-    const { data: files, error: cfError } = await supabase
-      .from('chat_files')
-      .select('*')
-      .in('message_id', mediaMessageIds)
-
-    if (cfError) {
-      console.warn('[chatApi] chat_files fetch failed (non-fatal):', cfError.message)
-      return messages
-    }
-
-    const byMessageId = new Map<string, ChatFile>()
-    for (const cf of (files ?? []) as ChatFile[]) {
-      byMessageId.set(cf.message_id, cf)
-    }
-
-    return messages.map(m => ({
-      ...m,
-      chat_file: byMessageId.get(m.id) ?? null,
-    }))
-  } catch (e) {
-    console.warn('[chatApi] chat_files merge failed (non-fatal):', e)
-    return messages
-  }
+  return (data as ChatFile) ?? null
 }
 
 export async function sendMessage(
@@ -242,7 +306,8 @@ export async function sendMessage(
     })
     .select(`
       *,
-      sender:users(id, nome, email, role, avatar_url)
+      sender:users(id, nome, email, role, avatar_url, tipo_user_bubble),
+      chat_file:chat_files(*)
     `)
     .single()
 
@@ -251,11 +316,6 @@ export async function sendMessage(
     return null
   }
 
-  // chat_file is set by the caller (sendMediaMessage) — no join here
-  const message: Message = { ...(data as any), chat_file: null }
-
-  // Unread is derived from `last_message_at > last_read_at`, so we only need
-  // to bump `last_message` and `last_message_at` on the conversation.
   await supabase
     .from('conversations')
     .update({
@@ -264,19 +324,16 @@ export async function sendMessage(
     })
     .eq('id', conversationId)
 
-  // Mark the sender as read up to this message so their own message
-  // doesn't count as unread on this conversation.
   await supabase
     .from('conversation_participants')
     .update({ last_read_at: new Date().toISOString() })
     .eq('conversation_id', conversationId)
     .eq('user_id', senderId)
 
-  return message
+  return data as Message
 }
 
 export async function markConversationRead(conversationId: string, userId?: string): Promise<void> {
-  // Update last_read_at on my participant row (drives unread count)
   if (userId) {
     await supabase
       .from('conversation_participants')
@@ -287,12 +344,16 @@ export async function markConversationRead(conversationId: string, userId?: stri
 }
 
 // ──────────────────────────────────────────────
-// REALTIME SUBSCRIPTION
+// REALTIME
 // ──────────────────────────────────────────────
+
+export type ChannelStatus = 'SUBSCRIBED' | 'CHANNEL_ERROR' | 'TIMED_OUT' | 'CLOSED' | 'JOINING'
 
 export function subscribeToMessages(
   conversationId: string,
-  onNewMessage: (msg: Message) => void
+  onNewMessage: (msg: Message) => void,
+  onDeleted: (id: string) => void,
+  onStatus?: (status: ChannelStatus, err?: any) => void
 ) {
   const channel = supabase
     .channel(`messages:${conversationId}`, {
@@ -308,9 +369,23 @@ export function subscribeToMessages(
       },
       (payload) => onNewMessage(payload.new as Message)
     )
-    .subscribe((status, err) => {
-      console.log(`[chatApi] messages:${conversationId} status: ${status}`, err ?? '')
-    })
+    .on(
+      'postgres_changes',
+      {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${conversationId}`,
+      },
+      (payload) => onDeleted((payload.old as any).id)
+    )
+
+  if (onStatus) {
+    channel.subscribe((status, err) => onStatus(status as ChannelStatus, err))
+  } else {
+    channel.subscribe()
+  }
+
   return channel
 }
 
