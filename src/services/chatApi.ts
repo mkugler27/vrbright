@@ -162,7 +162,7 @@ export async function createIndividualConversation(
 // MESSAGES
 // ──────────────────────────────────────────────
 
-export async function getMessages(conversationId: string, limit = 50): Promise<Message[]> {
+export async function getMessages(conversationId: string, limit = 200): Promise<Message[]> {
   // Fetch messages + sender in one query. The chat_file join is intentionally
   // NOT done here because the chat_files RLS subquery can fail under load,
   // which kills the whole query. Instead, we fetch chat_files separately
