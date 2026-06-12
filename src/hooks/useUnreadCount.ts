@@ -23,25 +23,43 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
       const me = await getSupabaseUserById(user.id)
       if (!me) return
 
-      const { data: myConvs } = await supabase
+      // Step 1: get my conversation participants
+      const { data: myConvs, error: cpError } = await supabase
         .from('conversation_participants')
-        .select(`
-          conversation_id,
-          last_read_at,
-          conversations (id, last_message_at)
-        `)
+        .select('conversation_id, last_read_at')
         .eq('user_id', me.id)
 
-      if (!myConvs) { setCount(0); return }
+      if (cpError) {
+        console.warn('[unread] conversation_participants fetch failed:', cpError.message)
+        return
+      }
+      if (!myConvs || myConvs.length === 0) { setCount(0); return }
+
+      // Step 2: get last_message_at for each conversation (separate query
+      // to avoid the JOIN RLS issue we saw in getMessages)
+      const convIds = myConvs.map(c => c.conversation_id)
+      const { data: convs, error: convError } = await supabase
+        .from('conversations')
+        .select('id, last_message_at')
+        .in('id', convIds)
+
+      if (convError) {
+        console.warn('[unread] conversations fetch failed:', convError.message)
+        return
+      }
+
+      const lastMessageById = new Map<string, string | null>()
+      for (const c of (convs ?? []) as any[]) {
+        lastMessageById.set(c.id, c.last_message_at)
+      }
 
       let unread = 0
-      for (const row of myConvs as any[]) {
-        const conv = row.conversations
-        if (!conv?.last_message_at) continue
-        // Skip the conversation the user is currently viewing
-        if (conv.id === activeConversationId) continue
+      for (const row of myConvs) {
+        const lastMessageAt = lastMessageById.get(row.conversation_id)
+        if (!lastMessageAt) continue
+        if (row.conversation_id === activeConversationId) continue
         const lastRead = row.last_read_at ?? '1970-01-01'
-        if (conv.last_message_at > lastRead) unread++
+        if (lastMessageAt > lastRead) unread++
       }
       setCount(unread)
       refreshKeyRef.current += 1
