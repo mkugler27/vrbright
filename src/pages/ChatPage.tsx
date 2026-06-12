@@ -289,9 +289,9 @@ export default function ChatPage() {
 
       const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
       const placeholderContent =
-        media.type === 'image' ? '📷' :
-        media.type === 'audio' ? '🎙' :
-        `📎 ${media.name ?? 'File'}`
+        media.type === 'image' ? 'Image' :
+        media.type === 'audio' ? 'Audio' :
+        (media.name ?? 'File')
 
       const optimistic: Message = {
         id: tempId,
@@ -375,12 +375,17 @@ export default function ChatPage() {
     const text = newMessage.trim()
     setNewMessage('')
 
-    const msg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
-    if (msg) {
-      setMessages(prev => {
-        if (prev.some(m => m.id === msg.id)) return prev
-        return [...prev, msg]
-      })
+    try {
+      const msg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
+      console.log('[ChatPage] sendMessage returned:', msg)
+      if (msg) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          return [...prev, msg]
+        })
+      }
+    } catch (e) {
+      console.error('[ChatPage] sendMessage threw:', e)
     }
 
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
@@ -477,6 +482,12 @@ export default function ChatPage() {
     const diffHr = Math.floor(diffMin / 60)
     if (diffHr < 24) return `${diffHr}h ago`
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
   // ── WO tab data (offline-first: cache → fetch)
@@ -604,12 +615,24 @@ export default function ChatPage() {
                       target="_blank"
                       rel="noopener noreferrer"
                       download={cf.original_name}
-                      className={`flex items-center gap-2 underline break-all ${isMine ? 'text-white' : 'text-blue-600'}`}
+                      className={`flex items-center gap-3 min-w-[200px] max-w-[260px] ${isMine ? 'text-white' : 'text-gray-800'}`}
                     >
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMine ? 'bg-white/20' : 'bg-orange-100'}`}>
+                        <svg className={`w-5 h-5 ${isMine ? 'text-white' : 'text-orange-600'}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${isMine ? 'text-white' : 'text-gray-800'}`}>
+                          {cf.original_name ?? 'File'}
+                        </p>
+                        <p className={`text-xs ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
+                          {cf.file_size ? formatFileSize(cf.file_size) : 'Document'}
+                        </p>
+                      </div>
+                      <svg className={`w-5 h-5 shrink-0 ${isMine ? 'text-white' : 'text-gray-400'}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
-                      <span className="truncate max-w-[180px]">{cf.original_name ?? 'File'}</span>
                     </a>
                   ) : msg.tipo === 'audio' ? (
                     // Legacy audio message (no chat_file) — kept as-is

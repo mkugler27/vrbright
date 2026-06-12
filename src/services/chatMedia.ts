@@ -166,9 +166,9 @@ export async function saveChatFile(params: {
 // ──────────────────────────────────────────────
 
 function defaultContent(fileType: ChatFileType, originalName?: string): string {
-  if (fileType === 'image') return '📷 Image';
-  if (fileType === 'audio') return '🎙 Audio';
-  return `📎 ${originalName ?? 'File'}`;
+  if (fileType === 'image') return 'Image';
+  if (fileType === 'audio') return 'Audio';
+  return originalName ?? 'File';
 }
 
 export interface SendMediaOptions {
