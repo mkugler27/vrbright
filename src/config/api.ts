@@ -20,6 +20,7 @@ export const PHOTO_UPLOAD_TOKEN = '9d461f01be8bc85cf85ae4aad0dc5a07';
 // Chat file sync — receives the public Supabase URL + worker email
 // after a chat file has been uploaded. The Bubble workflow (wf/receive_file)
 // stores the reference so the message shows up in the CRM too.
+// This workflow is exposed as a PUBLIC API workflow, so no auth header is sent.
 export const CHAT_FILE_RECEIVE_URL =
   'https://vrbcrmsystem.bubbleapps.io/version-test/api/1.1/wf/receive_file';
-export const CHAT_FILE_RECEIVE_TOKEN = '9d461f01be8bc85cf85ae4aad0dc5a07';
+export const CHAT_FILE_RECEIVE_TOKEN = ''; // public — no token needed

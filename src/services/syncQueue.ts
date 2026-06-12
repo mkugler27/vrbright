@@ -72,12 +72,13 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
         if (item.action === 'send_chat_file') {
           // POST to Bubble workflow (wf/receive_file) with the public URL
           // + worker email. The workflow stores the reference in Bubble.
+          // Workflow is public — no Authorization header.
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+          }
           const res = await fetch(CHAT_FILE_RECEIVE_URL, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${BUBBLE_TOKEN}`,
-            },
+            headers,
             body: JSON.stringify(item.payload),
           })
 
