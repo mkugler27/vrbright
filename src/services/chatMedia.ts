@@ -290,6 +290,8 @@ export async function getPendingChatFileCount(): Promise<number> {
 // BUBBLE SYNC ENQUEUE
 // ──────────────────────────────────────────────
 
+// Payload shape sent to Bubble's wf/receive_file workflow.
+// Keep these keys in sync with the workflow's parameter definition.
 async function enqueueChatFileSync(p: {
   chatFileId: string;
   messageId: string;
@@ -306,13 +308,13 @@ async function enqueueChatFileSync(p: {
     action: 'send_chat_file',
     chat_file_id: p.chatFileId,
     payload: {
+      email_worker: p.senderEmail,
       file_url: p.fileUrl,
       file_type: p.fileType,
       mime_type: p.mimeType,
       original_name: p.originalName ?? null,
       message_id: p.messageId,
       conversation_id: p.conversationId,
-      sender_email: p.senderEmail,
     },
     attempts: 0,
     max_attempts: 5,

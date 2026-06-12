@@ -1,7 +1,7 @@
 import { getDB, getMeta, setMeta } from './db'
 import type { SyncQueueItem } from '../types'
 import type { WorkOrderRow } from './workingOrdersApi'
-import { BUBBLE_TOKEN, PHOTO_UPLOAD_URL } from '../config/api'
+import { BUBBLE_TOKEN, CHAT_FILE_RECEIVE_URL } from '../config/api'
 import { supabase } from './supabase'
 
 const PATCH_URL = 'https://system.vrbrightpainting.com/version-test/api/1.1/obj/workingorders'
@@ -70,8 +70,9 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
 
       try {
         if (item.action === 'send_chat_file') {
-          // POST to Bubble workflow with the chat file metadata + public URL
-          const res = await fetch(PHOTO_UPLOAD_URL, {
+          // POST to Bubble workflow (wf/receive_file) with the public URL
+          // + worker email. The workflow stores the reference in Bubble.
+          const res = await fetch(CHAT_FILE_RECEIVE_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
