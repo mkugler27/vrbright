@@ -72,6 +72,7 @@ export default function ChatPage() {
   // ── Realtime channel refs — cleaned up on unmount / conversation close
   const convChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const msgChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const diagChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const msgPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevSizeRef = useRef<number>(0)
 
@@ -211,6 +212,22 @@ export default function ChatPage() {
     // CHANNEL_ERROR, etc.).
     startPolling()
 
+    // Diagnostic: listen to ALL postgres_changes (no filter) so we can see
+    // if the realtime is delivering anything at all.
+    const diagChannel = supabase
+      .channel('diag:all-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages' },
+        (payload) => {
+          console.log('[ChatPage] DIAG realtime payload:', payload)
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ChatPage] DIAG channel status:', status)
+      })
+    diagChannelRef.current = diagChannel
+
     msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
       console.log('[ChatPage] realtime message received:', msg.id)
       // If message is from someone else, mark as read immediately
@@ -261,6 +278,10 @@ export default function ChatPage() {
       if (msgChannelRef.current) {
         supabase.removeChannel(msgChannelRef.current)
         msgChannelRef.current = null
+      }
+      if (diagChannelRef.current) {
+        supabase.removeChannel(diagChannelRef.current)
+        diagChannelRef.current = null
       }
       if (msgPollTimerRef.current) {
         clearInterval(msgPollTimerRef.current)

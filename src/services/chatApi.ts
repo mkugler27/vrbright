@@ -304,8 +304,10 @@ export function subscribeToMessages(
   conversationId: string,
   onNewMessage: (msg: Message) => void
 ) {
-  return supabase
-    .channel(`messages:${conversationId}`)
+  const channel = supabase
+    .channel(`messages:${conversationId}`, {
+      config: { broadcast: { self: false }, presence: { key: '' } },
+    })
     .on(
       'postgres_changes',
       {
@@ -316,9 +318,10 @@ export function subscribeToMessages(
       },
       (payload) => onNewMessage(payload.new as Message)
     )
-    .subscribe((status) => {
-      console.log(`[chatApi] messages:${conversationId} status: ${status}`)
+    .subscribe((status, err) => {
+      console.log(`[chatApi] messages:${conversationId} status: ${status}`, err ?? '')
     })
+  return channel
 }
 
 export function subscribeToConversations(
