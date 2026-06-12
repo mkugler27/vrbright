@@ -230,18 +230,19 @@ export default function ChatPage() {
           .single()
         enriched = { ...msg, sender: (senderData as any) ?? undefined }
       }
-      // Realtime also doesn't include the joined chat_file. Fetch it if the
-      // message content suggests it has media (we use the content label).
-      if (enriched.content && /^(Image|Audio|Document|File)/.test(enriched.content.trim())) {
-        if (!(enriched.chat_file && (enriched.chat_file as any).id)) {
-          const { data: cfRow } = await supabase
-            .from('chat_files')
-            .select('*')
-            .eq('message_id', enriched.id)
-            .maybeSingle()
-          if (cfRow) {
-            enriched = { ...enriched, chat_file: cfRow as any }
-          }
+      // Realtime also doesn't include the joined chat_file. Always fetch
+      // it from the DB so the player/card renders correctly on the
+      // receiving side.
+      if (!(enriched.chat_file && (enriched.chat_file as any).id)) {
+        const { data: cfRow, error: cfErr } = await supabase
+          .from('chat_files')
+          .select('*')
+          .eq('message_id', enriched.id)
+          .maybeSingle()
+        if (cfErr) {
+          console.warn('[ChatPage] chat_files fetch failed:', cfErr.message)
+        } else if (cfRow) {
+          enriched = { ...enriched, chat_file: cfRow as any }
         }
       }
       setMessages(prev => {
