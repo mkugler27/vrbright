@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { User } from './supabase'
+import type { ChatFile } from '../types'
 
 export type Conversation = {
   id: string
@@ -24,6 +25,9 @@ export type Message = {
   bubble_id: string | null
   created_at: string
   sender?: User
+  // Joined chat file (if this message has a file/image/audio attachment
+  // uploaded via the new chatMedia service)
+  chat_file?: ChatFile | null
 }
 
 // ──────────────────────────────────────────────
@@ -161,7 +165,11 @@ export async function createIndividualConversation(
 export async function getMessages(conversationId: string, limit = 50): Promise<Message[]> {
   const { data } = await supabase
     .from('messages')
-    .select(`*, sender:users(id, nome, email, role, avatar_url)`)
+    .select(`
+      *,
+      sender:users(id, nome, email, role, avatar_url),
+      chat_file:chat_files(*)
+    `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(limit)
@@ -189,7 +197,11 @@ export async function sendMessage(
       transcription: transcription ?? null,
       bubble_id: bubbleId ?? null,
     })
-    .select(`*, sender:users(id, nome, email, role, avatar_url)`)
+    .select(`
+      *,
+      sender:users(id, nome, email, role, avatar_url),
+      chat_file:chat_files(*)
+    `)
     .single()
 
   if (error) {

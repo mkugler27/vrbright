@@ -1,7 +1,8 @@
 import { getDB, getMeta, setMeta } from './db'
 import type { SyncQueueItem } from '../types'
 import type { WorkOrderRow } from './workingOrdersApi'
-import { BUBBLE_TOKEN } from '../config/api'
+import { BUBBLE_TOKEN, PHOTO_UPLOAD_URL } from '../config/api'
+import { supabase } from './supabase'
 
 const PATCH_URL = 'https://system.vrbrightpainting.com/version-test/api/1.1/obj/workingorders'
 
@@ -68,6 +69,38 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
       }
 
       try {
+        if (item.action === 'send_chat_file') {
+          // POST to Bubble workflow with the chat file metadata + public URL
+          const res = await fetch(PHOTO_UPLOAD_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${BUBBLE_TOKEN}`,
+            },
+            body: JSON.stringify(item.payload),
+          })
+
+          if (!res.ok) {
+            throw new Error(`Bubble chat file sync failed: ${res.status}`)
+          }
+
+          // Mark the chat_files row as synced in Supabase
+          if (item.chat_file_id) {
+            await supabase
+              .from('chat_files')
+              .update({ synced: true })
+              .eq('id', item.chat_file_id)
+          }
+
+          await db.delete('syncQueue', item.id)
+          ok++
+          continue
+        }
+
+        // Default: PATCH the working order
+        if (!item.work_order_id) {
+          throw new Error('SyncQueue item missing work_order_id')
+        }
         const res = await fetch(`${PATCH_URL}/${item.work_order_id}`, {
           method: 'PATCH',
           headers: {

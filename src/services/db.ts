@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Photo, SyncQueueItem } from '../types';
+import type { Photo, SyncQueueItem, PendingChatFile } from '../types';
 import type { WorkOrderRow } from './workingOrdersApi';
 
 interface VRBrightDB extends DBSchema {
@@ -47,6 +47,11 @@ interface VRBrightDB extends DBSchema {
       cached_at: string;
     };
   };
+  pendingChatFiles: {
+    key: string;
+    value: PendingChatFile;
+    indexes: { 'by-created': string };
+  };
 }
 
 let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
@@ -54,7 +59,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 4, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 5, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -72,6 +77,10 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
       }
       if (oldVersion < 4) {
         db.createObjectStore('woDetail', { keyPath: '_id' });
+      }
+      if (oldVersion < 5) {
+        const store = db.createObjectStore('pendingChatFiles', { keyPath: 'id' });
+        store.createIndex('by-created', 'created_at');
       }
     },
   });

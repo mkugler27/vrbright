@@ -30,6 +30,16 @@ import { isSupabaseConfigured } from '../services/supabase'
 import { useUnreadCount } from '../hooks/useUnreadCount'
 import { useActiveConversation } from '../context/ActiveConversationContext'
 import type { WorkOrderRow } from '../services/workingOrdersApi'
+import type { ChatFileType } from '../types'
+import {
+  compressImage,
+  sendMediaMessage,
+  queueMediaOffline,
+} from '../services/chatMedia'
+import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { AudioPlayer } from '../components/chat/AudioPlayer'
+import { AttachmentMenu } from '../components/chat/AttachmentMenu'
+import { MediaPreview, type MediaPreviewItem } from '../components/chat/MediaPreview'
 
 type Tab = 'chats' | 'wo'
 type WoTab = 'today' | 'other'
@@ -51,6 +61,10 @@ export default function ChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [newMessage, setNewMessage] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [pendingMedia, setPendingMedia] = useState<MediaPreviewItem | null>(null)
+  const [sendingMedia, setSendingMedia] = useState(false)
+  const recorder = useAudioRecorder()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
@@ -247,12 +261,97 @@ export default function ChatPage() {
     }
   }, [setActiveConversationId])
 
-  // ── Send message
+  // ── Send message (text or media)
   async function handleSend() {
-    if (!newMessage.trim() || !user || !activeConversation) return
+    if (!user || !activeConversation) return
+    if (sendingMedia) return
     const sbUser = await getSupabaseUserById(user.id)
     if (!sbUser) return
 
+    // 1) Media path
+    if (pendingMedia) {
+      const media = pendingMedia
+      setPendingMedia(null)
+      setSendingMedia(true)
+
+      const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+      const placeholderContent =
+        media.type === 'image' ? '📷' :
+        media.type === 'audio' ? '🎙' :
+        `📎 ${media.name ?? 'File'}`
+
+      const optimistic: Message = {
+        id: tempId,
+        conversation_id: activeConversation.id,
+        sender_id: sbUser.id,
+        content: placeholderContent,
+        tipo: 'text',
+        audio_url: null,
+        transcription: null,
+        bubble_id: null,
+        created_at: new Date().toISOString(),
+        sender: {
+          id: sbUser.id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          avatar_url: undefined,
+        },
+        chat_file: {
+          id: tempId,
+          message_id: tempId,
+          sender_id: sbUser.id,
+          bucket: 'chat-media',
+          storage_path: '',
+          public_url: media.url,
+          file_type: media.type,
+          mime_type: media.mimeType,
+          original_name: media.name,
+          file_size: media.blob.size,
+          synced: false,
+          created_at: new Date().toISOString(),
+        },
+      }
+      setMessages(prev => [...prev, optimistic])
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+      try {
+        if (isOnline) {
+          const { message, chatFile } = await sendMediaMessage({
+            conversationId: activeConversation.id,
+            senderId: sbUser.id,
+            senderEmail: user.email,
+            fileType: media.type,
+            mimeType: media.mimeType,
+            originalName: media.name,
+            blob: media.blob,
+          })
+          // Replace optimistic message with the real one
+          setMessages(prev =>
+            prev.map(m => (m.id === tempId ? { ...message, chat_file: chatFile } : m))
+          )
+        } else {
+          await queueMediaOffline({
+            conversationId: activeConversation.id,
+            senderId: sbUser.id,
+            senderEmail: user.email,
+            fileType: media.type,
+            mimeType: media.mimeType,
+            originalName: media.name,
+            blob: media.blob,
+          })
+        }
+      } catch (e) {
+        console.error('media send failed:', e)
+      } finally {
+        setSendingMedia(false)
+        URL.revokeObjectURL(media.url)
+      }
+      return
+    }
+
+    // 2) Plain text path
+    if (!newMessage.trim()) return
     const text = newMessage.trim()
     setNewMessage('')
 
@@ -265,6 +364,52 @@ export default function ChatPage() {
     }
 
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  // ── Handle file/image selection from AttachmentMenu
+  async function handleFileSelected(file: File, _source: 'camera' | 'gallery' | 'file') {
+    setShowAttachMenu(false)
+    try {
+      let blob: Blob = file
+      let mimeType = file.type
+      let type: ChatFileType
+
+      if (file.type.startsWith('image/')) {
+        blob = await compressImage(file)
+        mimeType = blob.type || file.type
+        type = 'image'
+      } else {
+        type = 'file'
+      }
+
+      setPendingMedia({
+        blob,
+        type,
+        mimeType,
+        url: URL.createObjectURL(blob),
+        name: file.name,
+      })
+    } catch (e) {
+      console.error('Failed to process file:', e)
+      alert('Could not process this file. Please try another.')
+    }
+  }
+
+  // ── Hold-to-record mic handlers
+  async function handleMicPress() {
+    await recorder.start()
+  }
+  async function handleMicRelease() {
+    const recorded = await recorder.stop()
+    if (recorded) {
+      setPendingMedia({
+        blob: recorded.blob,
+        type: 'audio',
+        mimeType: recorded.mimeType,
+        url: recorded.url,
+        durationMs: recorded.durationMs,
+      })
+    }
   }
 
   function getParticipantNames(conv: Conversation, myId: string): string {
@@ -292,6 +437,13 @@ export default function ChatPage() {
       return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     }
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  function formatRecordingTime(ms: number): string {
+    const totalSec = Math.floor(ms / 1000)
+    const m = Math.floor(totalSec / 60)
+    const s = totalSec % 60
+    return `${m}:${s.toString().padStart(2, '0')}`
   }
 
   function formatLastSync(iso: string | null): string {
@@ -404,6 +556,7 @@ export default function ChatPage() {
             const senderInitials = senderName
               ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
               : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
+            const cf = msg.chat_file ?? null
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
                 {!isMine && senderAvatar && (
@@ -415,18 +568,51 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'}`}>
-                  {msg.tipo === 'audio' ? (
+                  {cf?.file_type === 'image' ? (
+                    <a href={cf.public_url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={cf.public_url}
+                        alt={cf.original_name ?? 'Image'}
+                        className="max-w-full max-h-64 rounded-lg cursor-pointer"
+                      />
+                    </a>
+                  ) : cf?.file_type === 'audio' ? (
+                    <AudioPlayer url={cf.public_url} transcription={msg.transcription} inverted={isMine} />
+                  ) : cf?.file_type === 'file' ? (
+                    <a
+                      href={cf.public_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={cf.original_name}
+                      className={`flex items-center gap-2 underline break-all ${isMine ? 'text-white' : 'text-blue-600'}`}
+                    >
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span className="truncate max-w-[180px]">{cf.original_name ?? 'File'}</span>
+                    </a>
+                  ) : msg.tipo === 'audio' ? (
+                    // Legacy audio message (no chat_file) — kept as-is
                     <div className="flex items-center gap-2"><MicIcon /><span className="text-xs opacity-80">Audio</span></div>
                   ) : (
                     <p className="break-words whitespace-pre-wrap">{msg.content}</p>
                   )}
-                  {msg.transcription && <p className="text-xs mt-1 opacity-70 italic break-words">{msg.transcription}</p>}
+                  {cf && msg.content && !cf.public_url.startsWith('blob:') && (
+                    // Only show the text label for messages with both a file and text
+                    <p className="text-xs mt-1 opacity-80">{msg.content}</p>
+                  )}
+                  {msg.transcription && !cf && (
+                    <p className="text-xs mt-1 opacity-70 italic break-words">{msg.transcription}</p>
+                  )}
                   <div className={`flex items-center justify-end gap-1 mt-1 ${isMine ? 'text-blue-100' : 'text-gray-400'}`}>
                     <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                     {isMine && (
                       <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
                         <path d="M1 8l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
+                    )}
+                    {isMine && cf && !cf.synced && (
+                      <span className="text-[9px] opacity-70 ml-1" title="Pending sync to Bubble">⏳</span>
                     )}
                   </div>
                 </div>
@@ -436,38 +622,100 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="px-4 py-3 bg-white border-t border-gray-200 shrink-0 relative">
-          {showEmojiPicker && (
-            <div ref={emojiPickerRef}
-              className="absolute bottom-full mb-2 left-4 right-4 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 z-10">
-              <div className="grid grid-cols-8 gap-1">
-                {QUICK_EMOJIS.map(emoji => (
-                  <button key={emoji} type="button" onClick={() => insertEmoji(emoji)}
-                    className="text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
-                    {emoji}
-                  </button>
-                ))}
-              </div>
+        <div className="bg-white border-t border-gray-200 shrink-0 relative">
+          {pendingMedia && (
+            <MediaPreview
+              media={pendingMedia}
+              onRemove={() => {
+                URL.revokeObjectURL(pendingMedia.url)
+                setPendingMedia(null)
+              }}
+            />
+          )}
+
+          {recorder.isRecording && (
+            <div className="px-4 py-2 bg-red-50 border-b border-red-200 flex items-center gap-3">
+              <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-medium text-red-700">
+                Recording {formatRecordingTime(recorder.durationMs)}
+              </span>
+              <span className="ml-auto text-xs text-red-600">Release to send</span>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setShowEmojiPicker(v => !v)}
-              className="p-2.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors shrink-0"
-              aria-label="Open emoji picker">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </button>
-            <input ref={inputRef} type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Type a message..."
-              className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            <button onClick={handleSend} disabled={!newMessage.trim()}
-              className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:hover:bg-blue-600 shrink-0">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            </button>
+
+          <div className="px-4 py-3 relative">
+            <AttachmentMenu
+              open={showAttachMenu}
+              onSelect={handleFileSelected}
+              onClose={() => setShowAttachMenu(false)}
+            />
+            {showEmojiPicker && (
+              <div ref={emojiPickerRef}
+                className="absolute bottom-full mb-2 left-4 right-4 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 z-10">
+                <div className="grid grid-cols-8 gap-1">
+                  {QUICK_EMOJIS.map(emoji => (
+                    <button key={emoji} type="button" onClick={() => insertEmoji(emoji)}
+                      className="text-2xl w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setShowEmojiPicker(v => !v)}
+                className="p-2.5 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors shrink-0"
+                aria-label="Open emoji picker">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAttachMenu(v => !v)}
+                className={`p-2.5 rounded-full transition-colors shrink-0 ${
+                  showAttachMenu ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                aria-label="Attach file"
+                aria-expanded={showAttachMenu}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+              <input ref={inputRef} type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Type a message..."
+                className="flex-1 min-w-0 px-4 py-2.5 bg-gray-100 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              {newMessage.trim() || pendingMedia ? (
+                <button
+                  onClick={handleSend}
+                  disabled={sendingMedia}
+                  className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:hover:bg-blue-600 shrink-0"
+                  aria-label="Send"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onPointerDown={handleMicPress}
+                  onPointerUp={handleMicRelease}
+                  onPointerLeave={() => recorder.isRecording && recorder.cancel()}
+                  onPointerCancel={() => recorder.isRecording && recorder.cancel()}
+                  className={`p-2.5 rounded-full transition-colors shrink-0 select-none touch-none ${
+                    recorder.isRecording
+                      ? 'bg-red-500 text-white animate-pulse'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                  aria-label="Hold to record"
+                >
+                  <MicIcon />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
