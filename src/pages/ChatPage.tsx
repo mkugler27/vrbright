@@ -183,34 +183,35 @@ export default function ChatPage() {
 
     let lastMessageCount = unique.length
 
-    const startPolling = () => {
-      if (msgPollTimerRef.current) return
-      console.warn('[ChatPage] realtime failed, falling back to 3s polling')
-      msgPollTimerRef.current = setInterval(async () => {
-        const latest = await getMessages(conv.id)
-        if (latest.length > lastMessageCount) {
-          setMessages(prev => {
-            const known = new Set(prev.map(m => m.id))
-            const next = [...prev, ...latest.filter(m => !known.has(m.id))]
-            prevSizeRef.current = next.length
-            return next
-          })
-          lastMessageCount = latest.length
-          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-        }
-      }, 3000)
-    }
-
-    const stopPolling = () => {
-      if (msgPollTimerRef.current) {
-        clearInterval(msgPollTimerRef.current)
-        msgPollTimerRef.current = null
-        console.log('[ChatPage] realtime back, stopping polling')
+    const fetchAndMerge = async (source: string) => {
+      const latest = await getMessages(conv.id)
+      if (latest.length > lastMessageCount) {
+        setMessages(prev => {
+          const known = new Set(prev.map(m => m.id))
+          const next = [...prev, ...latest.filter(m => !known.has(m.id))]
+          prevSizeRef.current = next.length
+          return next
+        })
+        lastMessageCount = latest.length
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+        console.log(`[ChatPage] ${source}: got ${latest.length} messages (was ${lastMessageCount})`)
       }
     }
 
+    const startPolling = () => {
+      if (msgPollTimerRef.current) return
+      console.warn('[ChatPage] realtime failed, falling back to 3s polling')
+      msgPollTimerRef.current = setInterval(() => fetchAndMerge('polling'), 3000)
+    }
+
+    // Always run a 3s polling in the background. Realtime is best-effort.
+    // This guarantees messages arrive even when the realtime channel
+    // silently fails (e.g. RLS blocks the join, channel status is
+    // CHANNEL_ERROR, etc.).
+    startPolling()
+
     msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
-      stopPolling()
+      console.log('[ChatPage] realtime message received:', msg.id)
       // If message is from someone else, mark as read immediately
       // (user is viewing this conversation)
       if (msg.sender_id !== sbUser.id) {
@@ -228,16 +229,17 @@ export default function ChatPage() {
         enriched = { ...msg, sender: (senderData as any) ?? undefined }
       }
       // Realtime also doesn't include the joined chat_file. Fetch it if the
-      // message content suggests it has media (📷 / 🎙 / 📎).
-      const looksLikeMedia = enriched.content && /^[🎙📷📎]/.test(enriched.content.trim())
-      if (looksLikeMedia && !(enriched.chat_file && (enriched.chat_file as any).id)) {
-        const { data: cfRow } = await supabase
-          .from('chat_files')
-          .select('*')
-          .eq('message_id', enriched.id)
-          .maybeSingle()
-        if (cfRow) {
-          enriched = { ...enriched, chat_file: cfRow as any }
+      // message content suggests it has media (we use the content label).
+      if (enriched.content && /^(Image|Audio|Document|File)/.test(enriched.content.trim())) {
+        if (!(enriched.chat_file && (enriched.chat_file as any).id)) {
+          const { data: cfRow } = await supabase
+            .from('chat_files')
+            .select('*')
+            .eq('message_id', enriched.id)
+            .maybeSingle()
+          if (cfRow) {
+            enriched = { ...enriched, chat_file: cfRow as any }
+          }
         }
       }
       setMessages(prev => {
@@ -248,13 +250,6 @@ export default function ChatPage() {
       lastMessageCount = Math.max(lastMessageCount, prevSizeRef.current)
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     })
-
-    // If no new messages arrived via realtime within 4s, fall back to polling
-    setTimeout(() => {
-      if (lastMessageCount === unique.length && !msgPollTimerRef.current) {
-        startPolling()
-      }
-    }, 4000)
   }
 
   openConversationRef.current = openConversation
@@ -640,10 +635,6 @@ export default function ChatPage() {
                   ) : (
                     <p className="break-words whitespace-pre-wrap">{msg.content}</p>
                   )}
-                  {cf && msg.content && cf.public_url && !cf.public_url.startsWith('blob:') && (
-                    // Only show the text label for messages with both a file and text
-                    <p className="text-xs mt-1 opacity-80">{msg.content}</p>
-                  )}
                   {msg.transcription && !cf && (
                     <p className="text-xs mt-1 opacity-70 italic break-words">{msg.transcription}</p>
                   )}
@@ -655,7 +646,11 @@ export default function ChatPage() {
                       </svg>
                     )}
                     {isMine && cf && !cf.synced && (
-                      <span className="text-[9px] opacity-70 ml-1" title="Pending sync to Bubble">⏳</span>
+                      <svg className="w-3 h-3 opacity-70 ml-1" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-label="Pending sync to Bubble">
+                        <title>Pending sync to Bubble</title>
+                        <circle cx="12" cy="12" r="9" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+                      </svg>
                     )}
                   </div>
                 </div>
