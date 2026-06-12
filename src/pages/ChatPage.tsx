@@ -197,6 +197,30 @@ export default function ChatPage() {
         lastMessageCount = latest.length
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
         console.log(`[ChatPage] ${source}: merged, now ${lastMessageCount} msgs`)
+
+        // For any media message in this batch that didn't come back with
+        // its chat_file, refetch individually. This handles the race where
+        // the chat_files row is created a few ms after the message.
+        const mediaMissing = latest.filter(m => {
+          const content = m.content ?? ''
+          const isMedia = /^(Image|Audio|Document|File)/.test(content.trim())
+          return isMedia && !(m.chat_file && (m.chat_file as any).id)
+        })
+        if (mediaMissing.length > 0) {
+          console.log(`[ChatPage] refetching ${mediaMissing.length} media files`)
+          for (const m of mediaMissing) {
+            const { data: cfRow } = await supabase
+              .from('chat_files')
+              .select('*')
+              .eq('message_id', m.id)
+              .maybeSingle()
+            if (cfRow) {
+              setMessages(prev =>
+                prev.map(msg => msg.id === m.id ? { ...msg, chat_file: cfRow as any } : msg)
+              )
+            }
+          }
+        }
       }
     }
 
