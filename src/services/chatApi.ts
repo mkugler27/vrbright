@@ -183,6 +183,14 @@ export async function getMessages(conversationId: string, limit = 200): Promise<
   }
 
   console.log(`[chatApi] getMessages(${conversationId}): ${data?.length ?? 0} rows`)
+  if (data && data.length === 0) {
+    // Possible RLS issue — log so we can see it
+    const { data: cpCheck } = await supabase
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId)
+    console.log(`[chatApi] participants for conv ${conversationId}:`, cpCheck)
+  }
 
   const messages = (data ?? []).reverse() as Message[]
 
