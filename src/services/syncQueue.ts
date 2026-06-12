@@ -47,13 +47,19 @@ export async function getPendingForWO(workOrderId: string): Promise<SyncQueueIte
 // PROCESS QUEUE (when online)
 // ──────────────────────────────────────────────
 
-let processing = false
+// Vite HMR can re-import this module, losing the module-level `processing`
+// flag. Stash it on globalThis so concurrent processors across HMR
+// re-imports still see each other.
+const GLOBAL_KEY = '__vrbright_syncProcessing'
+if (typeof globalThis !== 'undefined' && !(GLOBAL_KEY in (globalThis as any))) {
+  ;(globalThis as any)[GLOBAL_KEY] = false
+}
 
 export async function processQueue(): Promise<{ ok: number; fail: number }> {
-  if (processing) return { ok: 0, fail: 0 }
+  if ((globalThis as any)[GLOBAL_KEY]) return { ok: 0, fail: 0 }
   if (!navigator.onLine) return { ok: 0, fail: 0 }
+  ;(globalThis as any)[GLOBAL_KEY] = true
 
-  processing = true
   let ok = 0
   let fail = 0
 
@@ -145,7 +151,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
 
     await setMeta('syncQueue_last_run', new Date().toISOString())
   } finally {
-    processing = false
+    ;(globalThis as any)[GLOBAL_KEY] = false
   }
 
   return { ok, fail }
