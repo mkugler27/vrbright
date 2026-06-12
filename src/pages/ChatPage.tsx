@@ -330,7 +330,13 @@ export default function ChatPage() {
           setMessages(prev =>
             prev.map(m => (m.id === tempId ? { ...message, chat_file: chatFile } : m))
           )
+          // Now safe to revoke the blob URL — the message is using the
+          // Supabase public URL from the real chat_file record.
+          URL.revokeObjectURL(media.url)
         } else {
+          // Offline: keep the blob URL alive so the optimistic message
+          // keeps showing the media. It will be replaced when sync runs
+          // (processPendingChatFiles) and the real chat_file arrives.
           await queueMediaOffline({
             conversationId: activeConversation.id,
             senderId: sbUser.id,
@@ -343,9 +349,10 @@ export default function ChatPage() {
         }
       } catch (e) {
         console.error('media send failed:', e)
+        // On failure, also keep the blob URL alive (don't revoke) so the
+        // user still sees the media in the optimistic message.
       } finally {
         setSendingMedia(false)
-        URL.revokeObjectURL(media.url)
       }
       return
     }
@@ -556,7 +563,7 @@ export default function ChatPage() {
             const senderInitials = senderName
               ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
               : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
-            const cf = msg.chat_file ?? null
+            const cf = msg.chat_file && (msg.chat_file as any).id ? msg.chat_file : null
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
                 {!isMine && senderAvatar && (
@@ -597,7 +604,7 @@ export default function ChatPage() {
                   ) : (
                     <p className="break-words whitespace-pre-wrap">{msg.content}</p>
                   )}
-                  {cf && msg.content && !cf.public_url.startsWith('blob:') && (
+                  {cf && msg.content && cf.public_url && !cf.public_url.startsWith('blob:') && (
                     // Only show the text label for messages with both a file and text
                     <p className="text-xs mt-1 opacity-80">{msg.content}</p>
                   )}
