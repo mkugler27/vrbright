@@ -1,52 +1,46 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserById } from '../services/chatApi'
-import { useAuth } from '../context/AuthContext'
-import { useActiveConversation } from '../context/ActiveConversationContext'
+import { useAuth } from './AuthContext'
+import { useActiveConversation } from './ActiveConversationContext'
 
-// Returns the number of conversations with unread messages.
-// - Excludes the currently active conversation (no badge when user is
-//   already viewing that chat).
-// - Sender updates their own last_read_at when sending, so they never
-//   see their own messages as unread.
-export function useUnreadCount(): { count: number; refresh: () => void } {
+interface UnreadContextValue {
+  count: number
+  refresh: () => Promise<void>
+}
+
+const UnreadContext = createContext<UnreadContextValue | null>(null)
+
+// Single source of truth for unread conversations. Mounted once at the
+// top of the app so every consumer (AppShell badge, DashboardHome card)
+// sees the same number without duplicating polling.
+export function UnreadProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { activeConversationId } = useActiveConversation()
   const [count, setCount] = useState(0)
-  const refreshKeyRef = useRef(0)
 
   const refresh = useCallback(async () => {
-    if (!user) return
-    if (!isSupabaseConfigured) return
+    if (!user || !isSupabaseConfigured) return
 
     try {
       const me = await getSupabaseUserById(user.id)
       if (!me) return
 
-      // Step 1: get my conversation participants
       const { data: myConvs, error: cpError } = await supabase
         .from('conversation_participants')
         .select('conversation_id, last_read_at')
         .eq('user_id', me.id)
 
-      if (cpError) {
-        console.warn('[unread] conversation_participants fetch failed:', cpError.message)
+      if (cpError || !myConvs || myConvs.length === 0) {
+        if (!cpError) setCount(0)
         return
       }
-      if (!myConvs || myConvs.length === 0) { setCount(0); return }
 
-      // Step 2: get last_message_at for each conversation (separate query
-      // to avoid the JOIN RLS issue we saw in getMessages)
       const convIds = myConvs.map(c => c.conversation_id)
-      const { data: convs, error: convError } = await supabase
+      const { data: convs } = await supabase
         .from('conversations')
         .select('id, last_message_at')
         .in('id', convIds)
-
-      if (convError) {
-        console.warn('[unread] conversations fetch failed:', convError.message)
-        return
-      }
 
       const lastMessageById = new Map<string, string | null>()
       for (const c of (convs ?? []) as any[]) {
@@ -62,25 +56,27 @@ export function useUnreadCount(): { count: number; refresh: () => void } {
         if (lastMessageAt > lastRead) unread++
       }
       setCount(unread)
-      refreshKeyRef.current += 1
     } catch (err) {
-      console.warn('unread count error:', err)
+      console.warn('[unread] refresh error:', err)
     }
   }, [user, activeConversationId])
 
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
-
     refresh()
-
-    // Always poll — realtime is best-effort but unreliable for badge updates.
-    // 5s interval is light and keeps the badge fresh.
     const pollInterval = setInterval(() => refresh(), 5000)
-
-    return () => {
-      clearInterval(pollInterval)
-    }
+    return () => clearInterval(pollInterval)
   }, [user, refresh])
 
-  return { count, refresh }
+  return (
+    <UnreadContext.Provider value={{ count, refresh }}>
+      {children}
+    </UnreadContext.Provider>
+  )
+}
+
+export function useUnreadCount(): UnreadContextValue {
+  const ctx = useContext(UnreadContext)
+  if (!ctx) throw new Error('useUnreadCount must be used within UnreadProvider')
+  return ctx
 }

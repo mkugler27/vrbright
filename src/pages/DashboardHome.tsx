@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useOpenWOCount } from '../hooks/useOpenWOCount';
-import { useUnreadCount } from '../hooks/useUnreadCount';
+import { useUnreadCount } from '../context/UnreadContext';
 
 interface ModuleCardData {
   to: string;
