@@ -202,7 +202,7 @@ export default function ChatPage() {
 
     const startPolling = () => {
       if (msgPollTimerRef.current) return
-      console.warn('[ChatPage] realtime failed, falling back to 3s polling')
+      console.log('[ChatPage] starting 3s background polling (realtime is best-effort)')
       msgPollTimerRef.current = setInterval(() => fetchAndMerge('polling'), 3000)
     }
 
@@ -211,22 +211,6 @@ export default function ChatPage() {
     // silently fails (e.g. RLS blocks the join, channel status is
     // CHANNEL_ERROR, etc.).
     startPolling()
-
-    // Diagnostic: listen to ALL postgres_changes (no filter) so we can see
-    // if the realtime is delivering anything at all.
-    const diagChannel = supabase
-      .channel('diag:all-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'messages' },
-        (payload) => {
-          console.log('[ChatPage] DIAG realtime payload:', payload)
-        }
-      )
-      .subscribe((status) => {
-        console.log('[ChatPage] DIAG channel status:', status)
-      })
-    diagChannelRef.current = diagChannel
 
     msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
       console.log('[ChatPage] realtime message received:', msg.id)
