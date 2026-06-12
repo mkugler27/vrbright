@@ -174,7 +174,21 @@ export async function getMessages(conversationId: string, limit = 50): Promise<M
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  return (data ?? []).reverse() as Message[]
+  // Supabase may return chat_file as an array (if FK isn't recognized as 1:1)
+  // or null/{} for messages without an attachment. Normalize to a single
+  // object or null so downstream code can rely on chat_file.file_type etc.
+  const normalized = (data ?? []).map((row: any) => {
+    const cf = row.chat_file
+    let single: any = null
+    if (Array.isArray(cf)) {
+      single = cf[0] ?? null
+    } else if (cf && typeof cf === 'object' && 'id' in cf) {
+      single = cf
+    }
+    return { ...row, chat_file: single }
+  })
+
+  return normalized.reverse() as Message[]
 }
 
 export async function sendMessage(
@@ -209,6 +223,16 @@ export async function sendMessage(
     return null
   }
 
+  // Normalize chat_file the same way getMessages does
+  const cf = (data as any).chat_file
+  let single: any = null
+  if (Array.isArray(cf)) {
+    single = cf[0] ?? null
+  } else if (cf && typeof cf === 'object' && 'id' in cf) {
+    single = cf
+  }
+  const message: Message = { ...(data as any), chat_file: single }
+
   // Unread is derived from `last_message_at > last_read_at`, so we only need
   // to bump `last_message` and `last_message_at` on the conversation.
   await supabase
@@ -227,7 +251,7 @@ export async function sendMessage(
     .eq('conversation_id', conversationId)
     .eq('user_id', senderId)
 
-  return data as Message
+  return message
 }
 
 export async function markConversationRead(conversationId: string, userId?: string): Promise<void> {

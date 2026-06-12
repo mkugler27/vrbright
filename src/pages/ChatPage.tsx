@@ -227,6 +227,19 @@ export default function ChatPage() {
           .single()
         enriched = { ...msg, sender: (senderData as any) ?? undefined }
       }
+      // Realtime also doesn't include the joined chat_file. Fetch it if the
+      // message content suggests it has media (📷 / 🎙 / 📎).
+      const looksLikeMedia = enriched.content && /^[🎙📷📎]/.test(enriched.content.trim())
+      if (looksLikeMedia && !(enriched.chat_file && (enriched.chat_file as any).id)) {
+        const { data: cfRow } = await supabase
+          .from('chat_files')
+          .select('*')
+          .eq('message_id', enriched.id)
+          .maybeSingle()
+        if (cfRow) {
+          enriched = { ...enriched, chat_file: cfRow as any }
+        }
+      }
       setMessages(prev => {
         prevSizeRef.current = prev.length
         if (prev.some(m => m.id === enriched.id)) return prev
