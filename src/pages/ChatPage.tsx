@@ -194,28 +194,15 @@ export default function ChatPage() {
       const latest = await getMessages(conv.id)
       if (latest.length > lastMessageCount) {
         setMessages(prev => {
-          // Drop any pending optimistic placeholders — the real messages
-          // are now in `latest` and will replace them by id.
+          // Build set of real ids to dedupe
           const realIds = new Set(latest.map(m => m.id))
+          // Keep any optimistic placeholder whose real counterpart hasn't
+          // arrived yet (we drop it explicitly when sendMediaMessage
+          // resolves, not here — polling can race with the upload and
+          // briefly see the real message without its chat_file, which
+          // would cause a Loading... flicker if we matched by content).
           const filtered = prev.filter(m => {
-            if (m.id.startsWith('tmp_')) {
-              if (realIds.has(m.id)) return false // exact id match (very rare)
-              // Match by sender + content + created_at proximity (~5s)
-              if (m.sender_id) {
-                const optimisticTs = new Date(m.created_at).getTime()
-                const matched = latest.some(real => {
-                  if (real.sender_id !== m.sender_id) return false
-                  if ((real.content ?? '') !== (m.content ?? '')) return false
-                  const realTs = new Date(real.created_at).getTime()
-                  return Math.abs(realTs - optimisticTs) < 5000
-                })
-                if (matched) {
-                  optimisticIdsRef.current.delete(m.id)
-                  return false
-                }
-              }
-              return true
-            }
+            if (m.id.startsWith('tmp_')) return true
             return !realIds.has(m.id)
           })
           const known = new Set(filtered.map(m => m.id))
@@ -696,10 +683,19 @@ export default function ChatPage() {
               ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
               : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
             const cf = msg.chat_file && (msg.chat_file as any).id ? msg.chat_file : null
-            // If the message has a media label as content and the chat_file
-            // hasn't loaded yet, show a placeholder instead of the raw text.
+            // The optimistic placeholder uses a tempId. Detect it so we
+            // can keep showing the local blob even if the real chat_file
+            // hasn't arrived yet — no spinner, no flicker.
+            const isOptimistic = typeof msg.id === 'string' && msg.id.startsWith('tmp_')
             const isMediaLabel = msg.content && /^(Image|Audio|Document|File)/.test(msg.content.trim())
-            const isLegacyAudio = msg.tipo === 'audio' && !cf
+            const isLegacyAudio = msg.tipo === 'audio' && !cf && !isOptimistic
+            // While waiting for the real chat_file, show a compact media
+            // card (using the local blob URL on the optimistic) instead
+            // of a spinner. This avoids the Loading… flicker.
+            const pendingFileType =
+              isOptimistic && msg.chat_file
+                ? (msg.chat_file as any).file_type as 'image' | 'audio' | 'file' | undefined
+                : undefined
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
                 {!isMine && senderAvatar && (
@@ -746,15 +742,62 @@ export default function ChatPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
                     </a>
+                  ) : pendingFileType === 'image' ? (
+                    // Optimistic image — show the local blob URL
+                    <a href={(msg.chat_file as any).public_url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={(msg.chat_file as any).public_url}
+                        alt={(msg.chat_file as any).original_name ?? 'Image'}
+                        className="max-w-full max-h-64 rounded-lg cursor-pointer"
+                      />
+                    </a>
+                  ) : pendingFileType === 'audio' ? (
+                    // Optimistic audio — use the local blob URL
+                    <AudioPlayer
+                      url={(msg.chat_file as any).public_url}
+                      transcription={msg.transcription}
+                      inverted={isMine}
+                    />
+                  ) : pendingFileType === 'file' ? (
+                    // Optimistic file — show a compact card
+                    <div className={`flex items-center gap-3 min-w-[200px] max-w-[260px] ${isMine ? 'text-white' : 'text-gray-800'}`}>
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${isMine ? 'bg-white/20' : 'bg-orange-100'}`}>
+                        <svg className={`w-5 h-5 ${isMine ? 'text-white' : 'text-orange-600'}`} fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${isMine ? 'text-white' : 'text-gray-800'}`}>
+                          {(msg.chat_file as any).original_name ?? 'File'}
+                        </p>
+                        <p className={`text-xs ${isMine ? 'text-blue-100' : 'text-gray-500'}`}>
+                          {(msg.chat_file as any).file_size
+                            ? formatFileSize((msg.chat_file as any).file_size)
+                            : 'Document'}
+                        </p>
+                      </div>
+                    </div>
                   ) : isLegacyAudio ? (
                     // Legacy audio message (no chat_file) — kept as-is
                     <div className="flex items-center gap-2"><MicIcon /><span className="text-xs opacity-80">Audio</span></div>
                   ) : isMediaLabel ? (
-                    // Media message still loading its chat_file — show
-                    // placeholder, not the raw "Image"/"Audio" text.
-                    <div className="flex items-center gap-2 opacity-70">
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs">Loading...</span>
+                    // Media message whose chat_file hasn't loaded yet
+                    // (no optimistic either — happens on the receiver's
+                    // first paint). Show a compact placeholder, not a
+                    // spinner, to avoid the Loading… flicker.
+                    <div className="flex items-center gap-2 opacity-80">
+                      {msg.content?.trim().startsWith('Image') ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2z M8 11a2 2 0 11.001-4.001A2 2 0 018 11zm9 7l-5-5-4 4" />
+                        </svg>
+                      ) : msg.content?.trim().startsWith('Audio') ? (
+                        <MicIcon />
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      )}
+                      <span className="text-xs">{msg.content?.trim() || 'File'}</span>
                     </div>
                   ) : (
                     <p className="break-words whitespace-pre-wrap">{msg.content}</p>
