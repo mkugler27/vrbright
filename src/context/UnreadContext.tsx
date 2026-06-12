@@ -48,13 +48,20 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       }
 
       let unread = 0
+      const debug: any[] = []
       for (const row of myConvs) {
         const lastMessageAt = lastMessageById.get(row.conversation_id)
         if (!lastMessageAt) continue
-        if (row.conversation_id === activeConversationId) continue
+        if (row.conversation_id === activeConversationId) {
+          debug.push({ conv: row.conversation_id.slice(0, 8), skip: 'active', lastMessageAt, lastRead: row.last_read_at })
+          continue
+        }
         const lastRead = row.last_read_at ?? '1970-01-01'
-        if (lastMessageAt > lastRead) unread++
+        const isUnread = lastMessageAt > lastRead
+        debug.push({ conv: row.conversation_id.slice(0, 8), lastMessageAt, lastRead, isUnread })
+        if (isUnread) unread++
       }
+      console.log('[unread] refresh:', { count: unread, active: activeConversationId?.slice(0, 8), debug })
       setCount(unread)
     } catch (err) {
       console.warn('[unread] refresh error:', err)

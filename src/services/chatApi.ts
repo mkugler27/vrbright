@@ -215,6 +215,8 @@ export async function getMessages(conversationId: string, limit = 200): Promise<
       return messages
     }
 
+    console.log(`[chatApi] getMessages: ${mediaMessageIds.length} media msgs, ${files?.length ?? 0} files fetched`)
+
     const byMessageId = new Map<string, ChatFile>()
     for (const cf of (files ?? []) as ChatFile[]) {
       byMessageId.set(cf.message_id, cf)

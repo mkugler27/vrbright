@@ -585,6 +585,10 @@ export default function ChatPage() {
               ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
               : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
             const cf = msg.chat_file && (msg.chat_file as any).id ? msg.chat_file : null
+            // If the message has a media label as content and the chat_file
+            // hasn't loaded yet, show a placeholder instead of the raw text.
+            const isMediaLabel = msg.content && /^(Image|Audio|Document|File)/.test(msg.content.trim())
+            const isLegacyAudio = msg.tipo === 'audio' && !cf
             return (
               <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}>
                 {!isMine && senderAvatar && (
@@ -631,9 +635,16 @@ export default function ChatPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
                     </a>
-                  ) : msg.tipo === 'audio' ? (
+                  ) : isLegacyAudio ? (
                     // Legacy audio message (no chat_file) — kept as-is
                     <div className="flex items-center gap-2"><MicIcon /><span className="text-xs opacity-80">Audio</span></div>
+                  ) : isMediaLabel ? (
+                    // Media message still loading its chat_file — show
+                    // placeholder, not the raw "Image"/"Audio" text.
+                    <div className="flex items-center gap-2 opacity-70">
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs">Loading...</span>
+                    </div>
                   ) : (
                     <p className="break-words whitespace-pre-wrap">{msg.content}</p>
                   )}
