@@ -370,17 +370,12 @@ export default function ChatPage() {
     const text = newMessage.trim()
     setNewMessage('')
 
-    try {
-      const msg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
-      console.log('[ChatPage] sendMessage returned:', msg)
-      if (msg) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === msg.id)) return prev
-          return [...prev, msg]
-        })
-      }
-    } catch (e) {
-      console.error('[ChatPage] sendMessage threw:', e)
+    const msg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
+    if (msg) {
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev
+        return [...prev, msg]
+      })
     }
 
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)

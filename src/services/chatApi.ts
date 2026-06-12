@@ -163,32 +163,61 @@ export async function createIndividualConversation(
 // ──────────────────────────────────────────────
 
 export async function getMessages(conversationId: string, limit = 50): Promise<Message[]> {
-  const { data } = await supabase
+  // Fetch messages + sender in one query. The chat_file join is intentionally
+  // NOT done here because the chat_files RLS subquery can fail under load,
+  // which kills the whole query. Instead, we fetch chat_files separately
+  // and merge them client-side. Cheaper and more reliable.
+  const { data, error } = await supabase
     .from('messages')
     .select(`
       *,
-      sender:users(id, nome, email, role, avatar_url),
-      chat_file:chat_files(*)
+      sender:users(id, nome, email, role, avatar_url)
     `)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  // Supabase may return chat_file as an array (if FK isn't recognized as 1:1)
-  // or null/{} for messages without an attachment. Normalize to a single
-  // object or null so downstream code can rely on chat_file.file_type etc.
-  const normalized = (data ?? []).map((row: any) => {
-    const cf = row.chat_file
-    let single: any = null
-    if (Array.isArray(cf)) {
-      single = cf[0] ?? null
-    } else if (cf && typeof cf === 'object' && 'id' in cf) {
-      single = cf
-    }
-    return { ...row, chat_file: single }
-  })
+  if (error) {
+    console.error('[chatApi] getMessages error:', error.message)
+    return []
+  }
 
-  return normalized.reverse() as Message[]
+  const messages = (data ?? []).reverse() as Message[]
+
+  // Find messages that might have a chat_file (based on content label),
+  // and fetch the chat_files for them in one query.
+  const mediaMessageIds = messages
+    .filter(m => m.content && /^(Image|Audio|Document|File|📷|🎙|📎)/.test(m.content.trim()))
+    .map(m => m.id)
+
+  if (mediaMessageIds.length === 0) {
+    return messages
+  }
+
+  try {
+    const { data: files, error: cfError } = await supabase
+      .from('chat_files')
+      .select('*')
+      .in('message_id', mediaMessageIds)
+
+    if (cfError) {
+      console.warn('[chatApi] chat_files fetch failed (non-fatal):', cfError.message)
+      return messages
+    }
+
+    const byMessageId = new Map<string, ChatFile>()
+    for (const cf of (files ?? []) as ChatFile[]) {
+      byMessageId.set(cf.message_id, cf)
+    }
+
+    return messages.map(m => ({
+      ...m,
+      chat_file: byMessageId.get(m.id) ?? null,
+    }))
+  } catch (e) {
+    console.warn('[chatApi] chat_files merge failed (non-fatal):', e)
+    return messages
+  }
 }
 
 export async function sendMessage(
@@ -213,8 +242,7 @@ export async function sendMessage(
     })
     .select(`
       *,
-      sender:users(id, nome, email, role, avatar_url),
-      chat_file:chat_files(*)
+      sender:users(id, nome, email, role, avatar_url)
     `)
     .single()
 
@@ -223,15 +251,8 @@ export async function sendMessage(
     return null
   }
 
-  // Normalize chat_file the same way getMessages does
-  const cf = (data as any).chat_file
-  let single: any = null
-  if (Array.isArray(cf)) {
-    single = cf[0] ?? null
-  } else if (cf && typeof cf === 'object' && 'id' in cf) {
-    single = cf
-  }
-  const message: Message = { ...(data as any), chat_file: single }
+  // chat_file is set by the caller (sendMediaMessage) — no join here
+  const message: Message = { ...(data as any), chat_file: null }
 
   // Unread is derived from `last_message_at > last_read_at`, so we only need
   // to bump `last_message` and `last_message_at` on the conversation.
