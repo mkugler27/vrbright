@@ -75,6 +75,11 @@ export default function ChatPage() {
   const diagChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const msgPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevSizeRef = useRef<number>(0)
+  // Temp ids of optimistic messages awaiting their real DB counterpart.
+  // When the real message arrives (via realtime or polling), we drop the
+  // optimistic one — otherwise the sender sees their own message twice
+  // (optimistic + realtime echo).
+  const optimisticIdsRef = useRef<Set<string>>(new Set())
 
   // ── Sync user on mount
   useEffect(() => {
@@ -166,6 +171,7 @@ export default function ChatPage() {
     setActiveConversation(conv)
     setActiveConversationId(conv.id) // sync to global context for badge
     setLoadingMessages(true)
+    optimisticIdsRef.current = new Set() // clear stale optimistics
 
     if (!user) return
     const sbUser = await getSupabaseUserById(user.id)
@@ -184,40 +190,80 @@ export default function ChatPage() {
 
     let lastMessageCount = unique.length
 
-    const fetchAndMerge = async (source: string) => {
+    const fetchAndMerge = async () => {
       const latest = await getMessages(conv.id)
-      console.log(`[ChatPage] ${source}: fetched ${latest.length} msgs (lastCount=${lastMessageCount})`)
       if (latest.length > lastMessageCount) {
         setMessages(prev => {
-          const known = new Set(prev.map(m => m.id))
-          const next = [...prev, ...latest.filter(m => !known.has(m.id))]
+          // Drop any pending optimistic placeholders — the real messages
+          // are now in `latest` and will replace them by id.
+          const realIds = new Set(latest.map(m => m.id))
+          const filtered = prev.filter(m => {
+            if (m.id.startsWith('tmp_')) {
+              if (realIds.has(m.id)) return false // exact id match (very rare)
+              // Match by sender + content + created_at proximity (~5s)
+              if (m.sender_id) {
+                const optimisticTs = new Date(m.created_at).getTime()
+                const matched = latest.some(real => {
+                  if (real.sender_id !== m.sender_id) return false
+                  if ((real.content ?? '') !== (m.content ?? '')) return false
+                  const realTs = new Date(real.created_at).getTime()
+                  return Math.abs(realTs - optimisticTs) < 5000
+                })
+                if (matched) {
+                  optimisticIdsRef.current.delete(m.id)
+                  return false
+                }
+              }
+              return true
+            }
+            return !realIds.has(m.id)
+          })
+          const known = new Set(filtered.map(m => m.id))
+          const next = [...filtered, ...latest.filter(m => !known.has(m.id))]
           prevSizeRef.current = next.length
           return next
         })
         lastMessageCount = latest.length
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-        console.log(`[ChatPage] ${source}: merged, now ${lastMessageCount} msgs`)
 
-        // For any media message in this batch that didn't come back with
-        // its chat_file, refetch individually. This handles the race where
-        // the chat_files row is created a few ms after the message.
+        // Refetch chat_files for media messages that didn't come back with
+        // one attached. The chat_files row may be created a few ms after
+        // the messages row, so the initial IN-query can miss it. Retry a
+        // few times with backoff to handle slow storage uploads.
         const mediaMissing = latest.filter(m => {
           const content = m.content ?? ''
           const isMedia = /^(Image|Audio|Document|File)/.test(content.trim())
           return isMedia && !(m.chat_file && (m.chat_file as any).id)
         })
         if (mediaMissing.length > 0) {
-          console.log(`[ChatPage] refetching ${mediaMissing.length} media files`)
-          for (const m of mediaMissing) {
+          const fetchOne = async (messageId: string): Promise<any> => {
             const { data: cfRow } = await supabase
               .from('chat_files')
               .select('*')
-              .eq('message_id', m.id)
+              .eq('message_id', messageId)
               .maybeSingle()
+            return cfRow
+          }
+          // First pass immediately
+          for (const m of mediaMissing) {
+            const cfRow = await fetchOne(m.id)
             if (cfRow) {
               setMessages(prev =>
-                prev.map(msg => msg.id === m.id ? { ...msg, chat_file: cfRow as any } : msg)
+                prev.map(msg => msg.id === m.id ? { ...msg, chat_file: cfRow } : msg)
               )
+            } else {
+              // Retry up to 3 times with 500ms / 1000ms / 2000ms delays
+              const delays = [500, 1000, 2000]
+              for (const d of delays) {
+                await new Promise(r => setTimeout(r, d))
+                const retry = await fetchOne(m.id)
+                if (retry) {
+                  setMessages(prev =>
+                    prev.map(msg => msg.id === m.id ? { ...msg, chat_file: retry } : msg)
+                  )
+                  break
+                }
+              }
             }
           }
         }
@@ -226,8 +272,7 @@ export default function ChatPage() {
 
     const startPolling = () => {
       if (msgPollTimerRef.current) return
-      console.log('[ChatPage] starting 3s background polling (realtime is best-effort)')
-      msgPollTimerRef.current = setInterval(() => fetchAndMerge('polling'), 3000)
+      msgPollTimerRef.current = setInterval(() => fetchAndMerge(), 3000)
     }
 
     // Always run a 3s polling in the background. Realtime is best-effort.
@@ -237,13 +282,46 @@ export default function ChatPage() {
     startPolling()
 
     msgChannelRef.current = subscribeToMessages(conv.id, async (msg: Message) => {
-      console.log('[ChatPage] realtime message received:', msg.id)
-      // If message is from someone else, mark as read immediately
-      // (user is viewing this conversation)
-      if (msg.sender_id !== sbUser.id) {
-        await markConversationRead(conv.id, sbUser.id)
-        refreshUnread()
+      // Drop realtime echo of our own messages — the optimistic placeholder
+      // in the sender's state will be replaced by the real one when
+      // `sendMediaMessage` / `sendMessage` resolves.
+      if (msg.sender_id === sbUser.id) {
+        // Still fetch chat_file for it (sender should see the real media URL
+        // once the upload finishes, not the local blob URL).
+        if (!(msg.chat_file && (msg.chat_file as any).id)) {
+          const fetchOne = async (id: string) => {
+            const { data: cfRow } = await supabase
+              .from('chat_files')
+              .select('*')
+              .eq('message_id', id)
+              .maybeSingle()
+            return cfRow
+          }
+          let cfRow: any = null
+          for (const d of [0, 500, 1000, 2000]) {
+            if (d) await new Promise(r => setTimeout(r, d))
+            cfRow = await fetchOne(msg.id)
+            if (cfRow) break
+          }
+          if (cfRow) {
+            setMessages(prev => prev.map(m => {
+              // Replace matching optimistic placeholder
+              if (m.id.startsWith('tmp_') && m.sender_id === msg.sender_id
+                  && (m.content ?? '') === (msg.content ?? '')) {
+                optimisticIdsRef.current.delete(m.id)
+                return { ...msg, chat_file: cfRow as any }
+              }
+              return m.id === msg.id ? { ...m, chat_file: cfRow as any } : m
+            }))
+          }
+        }
+        return
       }
+
+      // Message is from someone else — mark as read (user is viewing)
+      await markConversationRead(conv.id, sbUser.id)
+      refreshUnread()
+
       // Realtime payload doesn't include the joined sender — fetch it
       let enriched = msg
       if (!msg.sender) {
@@ -256,16 +334,20 @@ export default function ChatPage() {
       }
       // Realtime also doesn't include the joined chat_file. Always fetch
       // it from the DB so the player/card renders correctly on the
-      // receiving side.
+      // receiving side. Retry — the chat_files row may not exist yet
+      // because the sender is still uploading the blob.
       if (!(enriched.chat_file && (enriched.chat_file as any).id)) {
-        const { data: cfRow, error: cfErr } = await supabase
-          .from('chat_files')
-          .select('*')
-          .eq('message_id', enriched.id)
-          .maybeSingle()
-        if (cfErr) {
-          console.warn('[ChatPage] chat_files fetch failed:', cfErr.message)
-        } else if (cfRow) {
+        let cfRow: any = null
+        for (const d of [0, 500, 1000, 2000]) {
+          if (d) await new Promise(r => setTimeout(r, d))
+          const res = await supabase
+            .from('chat_files')
+            .select('*')
+            .eq('message_id', enriched.id)
+            .maybeSingle()
+          if (res.data) { cfRow = res.data; break }
+        }
+        if (cfRow) {
           enriched = { ...enriched, chat_file: cfRow as any }
         }
       }
@@ -351,6 +433,7 @@ export default function ChatPage() {
           created_at: new Date().toISOString(),
         },
       }
+      optimisticIdsRef.current.add(tempId)
       setMessages(prev => [...prev, optimistic])
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
 
@@ -365,10 +448,13 @@ export default function ChatPage() {
             originalName: media.name,
             blob: media.blob,
           })
-          // Replace optimistic message with the real one
-          setMessages(prev =>
-            prev.map(m => (m.id === tempId ? { ...message, chat_file: chatFile } : m))
-          )
+          optimisticIdsRef.current.delete(tempId)
+          // Replace optimistic message with the real one. Drop any duplicate
+          // the realtime echo may have added in the meantime.
+          setMessages(prev => {
+            const without = prev.filter(m => m.id !== message.id)
+            return [...without, { ...message, chat_file: chatFile }]
+          })
           // Now safe to revoke the blob URL — the message is using the
           // Supabase public URL from the real chat_file record.
           URL.revokeObjectURL(media.url)
@@ -388,6 +474,7 @@ export default function ChatPage() {
         }
       } catch (e) {
         console.error('media send failed:', e)
+        optimisticIdsRef.current.delete(tempId)
         // On failure, also keep the blob URL alive (don't revoke) so the
         // user still sees the media in the optimistic message.
       } finally {

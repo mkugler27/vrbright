@@ -182,16 +182,6 @@ export async function getMessages(conversationId: string, limit = 200): Promise<
     return []
   }
 
-  console.log(`[chatApi] getMessages(${conversationId}): ${data?.length ?? 0} rows`)
-  if (data && data.length === 0) {
-    // Possible RLS issue — log so we can see it
-    const { data: cpCheck } = await supabase
-      .from('conversation_participants')
-      .select('user_id')
-      .eq('conversation_id', conversationId)
-    console.log(`[chatApi] participants for conv ${conversationId}:`, cpCheck)
-  }
-
   const messages = (data ?? []).reverse() as Message[]
 
   // Find messages that might have a chat_file (based on content label),
@@ -214,8 +204,6 @@ export async function getMessages(conversationId: string, limit = 200): Promise<
       console.warn('[chatApi] chat_files fetch failed (non-fatal):', cfError.message)
       return messages
     }
-
-    console.log(`[chatApi] getMessages: ${mediaMessageIds.length} media msgs, ${files?.length ?? 0} files fetched`)
 
     const byMessageId = new Map<string, ChatFile>()
     for (const cf of (files ?? []) as ChatFile[]) {
