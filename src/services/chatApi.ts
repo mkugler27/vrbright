@@ -182,6 +182,8 @@ export async function getMessages(conversationId: string, limit = 50): Promise<M
     return []
   }
 
+  console.log(`[chatApi] getMessages(${conversationId}): ${data?.length ?? 0} rows`)
+
   const messages = (data ?? []).reverse() as Message[]
 
   // Find messages that might have a chat_file (based on content label),

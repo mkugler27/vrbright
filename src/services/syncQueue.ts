@@ -70,6 +70,14 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
 
       try {
         if (item.action === 'send_chat_file') {
+          // Idempotency check: re-read the item from IDB. If it was
+          // already deleted (by a concurrent processor), skip.
+          const current = await db.get('syncQueue', item.id)
+          if (!current) {
+            console.log(`[syncQueue] item ${item.id} already processed, skipping`)
+            continue
+          }
+
           // POST to Bubble workflow (wf/receive_file) with the public URL
           // + worker email. The workflow stores the reference in Bubble.
           // Workflow is public — no Authorization header.
@@ -94,6 +102,9 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
               .eq('id', item.chat_file_id)
           }
 
+          // Delete from queue only after a successful POST. The check
+          // at the top of the loop on the next processor run will skip
+          // already-processed items.
           await db.delete('syncQueue', item.id)
           ok++
           continue

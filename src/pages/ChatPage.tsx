@@ -185,6 +185,7 @@ export default function ChatPage() {
 
     const fetchAndMerge = async (source: string) => {
       const latest = await getMessages(conv.id)
+      console.log(`[ChatPage] ${source}: fetched ${latest.length} msgs (lastCount=${lastMessageCount})`)
       if (latest.length > lastMessageCount) {
         setMessages(prev => {
           const known = new Set(prev.map(m => m.id))
@@ -194,7 +195,7 @@ export default function ChatPage() {
         })
         lastMessageCount = latest.length
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-        console.log(`[ChatPage] ${source}: got ${latest.length} messages (was ${lastMessageCount})`)
+        console.log(`[ChatPage] ${source}: merged, now ${lastMessageCount} msgs`)
       }
     }
 
