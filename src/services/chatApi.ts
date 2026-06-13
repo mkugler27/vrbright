@@ -1,6 +1,12 @@
 import { supabase } from './supabase'
 import type { User } from './supabase'
 import type { ChatFile } from '../types'
+import {
+  saveCachedConversations,
+  getCachedConversations,
+  saveCachedMessages,
+  getCachedMessages
+} from './db'
 
 export type Conversation = {
   id: string
@@ -76,32 +82,47 @@ export async function getSupabaseUserByEmail(email: string): Promise<User | null
 // ──────────────────────────────────────────────
 
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
-  const { data } = await supabase
-    .from('conversation_participants')
-    .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants!inner(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
-    .eq('user_id', userId)
+  try {
+    const { data, error } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants!inner(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
+      .eq('user_id', userId)
 
-  if (!data) return []
+    if (error) throw new Error(error.message)
+    if (!data) return []
 
-  return data
-    .map((row: any) => {
-      const conv: any = row.conversations
-      const participants = conv.users?.map((p: any) => p.users).filter(Boolean) ?? []
-      const distinctUserIds = new Set(participants.map((p: any) => p.id))
-      if (distinctUserIds.size < 2) return null
-      let unread = 0
-      if (conv?.last_message_at) {
-        const lastRead = row.last_read_at ?? '1970-01-01'
-        unread = conv.last_message_at > lastRead ? 1 : 0
-      }
-      return {
-        ...conv,
-        unread_count: unread,
-        participants,
-        member_count: participants.length,
-      }
-    })
-    .filter(Boolean) as Conversation[]
+    const convs = data
+      .map((row: any) => {
+        const conv: any = row.conversations
+        const participants = conv.users?.map((p: any) => p.users).filter(Boolean) ?? []
+        const distinctUserIds = new Set(participants.map((p: any) => p.id))
+        if (distinctUserIds.size < 2) return null
+        let unread = 0
+        if (conv?.last_message_at) {
+          const lastRead = row.last_read_at ?? '1970-01-01'
+          unread = conv.last_message_at > lastRead ? 1 : 0
+        }
+        return {
+          ...conv,
+          unread_count: unread,
+          participants,
+          member_count: participants.length,
+        }
+      })
+      .filter(Boolean) as Conversation[]
+
+    saveCachedConversations(convs).catch(e => console.warn('Failed to cache conversations:', e))
+    return convs
+  } catch (err) {
+    console.warn('[chatApi] getConversationsForUser failed, falling back to cache:', err)
+    try {
+      const cached = await getCachedConversations()
+      return cached.filter(c => c.participants?.some(p => p.id === userId))
+    } catch (cacheErr) {
+      console.error('Failed to load cached conversations:', cacheErr)
+      return []
+    }
+  }
 }
 
 export async function getGroupsForUser(userId: string): Promise<Conversation[]> {
@@ -256,25 +277,34 @@ export async function searchUsersForGroup(
 // ──────────────────────────────────────────────
 
 export async function getMessages(conversationId: string, limit = 100): Promise<Message[]> {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .limit(limit)
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(limit)
 
-  if (error) {
-    console.error('[chatApi] getMessages error:', error.message)
-    return []
+    if (error) throw new Error(error.message)
+
+    const msgs = ((data ?? []) as any[]).map(m => {
+      const cf = m.chat_file
+      if (Array.isArray(cf)) m.chat_file = cf[0] ?? null
+      else if (cf && Object.keys(cf).length === 0) m.chat_file = null
+      return m
+    }) as Message[]
+
+    saveCachedMessages(conversationId, msgs).catch(e => console.warn('Failed to cache messages:', e))
+    return msgs
+  } catch (err) {
+    console.warn('[chatApi] getMessages failed, falling back to cache:', err)
+    try {
+      return await getCachedMessages(conversationId)
+    } catch (cacheErr) {
+      console.error('Failed to load cached messages:', cacheErr)
+      return []
+    }
   }
-
-  // PostgREST may return chat_file as an array — normalize to a single object or null
-  return ((data ?? []) as any[]).map(m => {
-    const cf = m.chat_file
-    if (Array.isArray(cf)) m.chat_file = cf[0] ?? null
-    else if (cf && Object.keys(cf).length === 0) m.chat_file = null
-    return m
-  }) as Message[]
 }
 
 export async function getChatFile(messageId: string): Promise<ChatFile | null> {
@@ -456,4 +486,15 @@ export function subscribeToConversations(
       () => onUpdate()
     )
     .subscribe()
+}
+
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
 }

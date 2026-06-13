@@ -12,6 +12,7 @@ import {
   subscribeToConversations,
   markConversationRead,
   upsertUser,
+  generateUUID,
   type Conversation,
   type Message,
 } from '../services/chatApi'
@@ -31,6 +32,9 @@ import { AudioPlayer } from '../components/chat/AudioPlayer'
 import { AttachmentMenu } from '../components/chat/AttachmentMenu'
 import { MediaPreview, type MediaPreviewItem } from '../components/chat/MediaPreview'
 import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
+import { ConfirmationModal } from '../components/ui/ConfirmationModal'
+import { saveCachedMessages, getDB } from '../services/db'
+import { enqueueChatMessage } from '../services/syncQueue'
 import type { ChatFileType } from '../types'
 
 type Tab = 'chats' | 'groups'
@@ -94,6 +98,20 @@ export default function ChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
   const [showGroupSettings, setShowGroupSettings] = useState(false)
+  const [pendingMessageIds, setPendingMessageIds] = useState<Set<string>>(new Set())
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    confirmLabel?: string
+    isDestructive?: boolean
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  })
 
   const [newMessage, setNewMessage] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -132,9 +150,20 @@ export default function ChatPage() {
       setLoadingConvs(true)
       setError(null)
       try {
-        const sbUser = await getSupabaseUserById(userId)
+        let sbUser = await getSupabaseUserById(userId)
         if (!sbUser) {
-          throw new Error('User profile not found in Supabase. Please sign out and sign in again.')
+          if (user && user.id === userId) {
+            sbUser = {
+              id: user.id,
+              nome: user.nome,
+              email: user.email,
+              tipo_user_bubble: user.tipo_user_bubble,
+              avatar_url: user.profile_picture,
+              bubble_id: user.bubble_id
+            }
+          } else {
+            throw new Error('User profile not found. Please sign out and sign in again.')
+          }
         }
         if (cancelled) return
         setMySupabaseId(sbUser.id)
@@ -220,16 +249,35 @@ export default function ChatPage() {
     setActiveConversationId(conv.id)
     setMessages([])
     setLoadingMessages(true)
-    setConnectionStatus('ok')
-    setShowGroupSettings(false)
-
     if (!user) return
-    const sbUser = await getSupabaseUserById(user.id)
-    if (!sbUser) return
+    let sbUser = await getSupabaseUserById(user.id)
+    if (!sbUser) {
+      sbUser = {
+        id: user.id,
+        nome: user.nome,
+        email: user.email,
+        tipo_user_bubble: user.tipo_user_bubble,
+        avatar_url: user.profile_picture,
+        bubble_id: user.bubble_id
+      }
+    }
 
     const msgs = await getMessages(conv.id, 100)
     setMessages(msgs)
     setLoadingMessages(false)
+
+    try {
+      const db = await getDB()
+      const queueItems = await db.getAll('syncQueue')
+      const pendingIds = new Set(
+        queueItems
+          .filter(item => item.action === 'send_chat_message' && item.payload.conversation_id === conv.id)
+          .map(item => item.payload.id as string)
+      )
+      setPendingMessageIds(pendingIds)
+    } catch (e) {
+      console.warn('Failed to load pending message IDs:', e)
+    }
 
     await markConversationRead(conv.id, sbUser.id)
     setDms(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c))
@@ -261,7 +309,20 @@ export default function ChatPage() {
             if (cf) { enriched = { ...enriched, chat_file: cf }; break }
           }
         }
-        setMessages(prev => prev.some(m => m.id === enriched.id) ? prev : [...prev, enriched])
+        setMessages(prev => {
+          if (prev.some(m => m.id === enriched.id)) {
+            return prev.map(m => m.id === enriched.id ? enriched : m)
+          }
+          return [...prev, enriched]
+        })
+        setPendingMessageIds(prev => {
+          if (prev.has(enriched.id)) {
+            const next = new Set(prev)
+            next.delete(enriched.id)
+            return next
+          }
+          return prev
+        })
         if (enriched.sender_id !== sbUser.id) {
           await markConversationRead(conv.id, sbUser.id)
           refreshUnread()
@@ -308,11 +369,62 @@ export default function ChatPage() {
     }
   }, [setActiveConversationId])
 
+  async function handleOfflineSend(sbUser: any, textContent: string, dateIso: string) {
+    const msgId = generateUUID()
+    const optimisticMsg: Message = {
+      id: msgId,
+      conversation_id: activeConversation!.id,
+      sender_id: sbUser.id,
+      content: textContent,
+      tipo: 'text',
+      audio_url: null,
+      transcription: null,
+      bubble_id: null,
+      created_at: dateIso,
+      sender: {
+        id: sbUser.id,
+        nome: user!.nome,
+        email: user!.email,
+        avatar_url: user!.profile_picture,
+        tipo_user_bubble: user!.tipo_user_bubble
+      }
+    }
+
+    setMessages(prev => [...prev, optimisticMsg])
+    setPendingMessageIds(prev => new Set(prev).add(msgId))
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+    const updatedConv = {
+      ...activeConversation!,
+      last_message: textContent,
+      last_message_at: dateIso
+    }
+    setActiveConversation(updatedConv)
+    setDms(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
+    setGroups(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
+
+    try {
+      await saveCachedMessages(activeConversation!.id, [...messages, optimisticMsg])
+      await enqueueChatMessage(msgId, activeConversation!.id, sbUser.id, textContent, dateIso)
+    } catch (e) {
+      console.error('Failed to save/queue offline message:', e)
+    }
+  }
+
   // ── Send message
   async function handleSend() {
     if (!user || !activeConversation || sending) return
-    const sbUser = await getSupabaseUserById(user.id)
-    if (!sbUser) return
+    let sbUser = await getSupabaseUserById(user.id)
+    if (!sbUser) {
+      sbUser = {
+        id: user.id,
+        nome: user.nome,
+        email: user.email,
+        tipo_user_bubble: user.tipo_user_bubble,
+        avatar_url: user.profile_picture,
+        bubble_id: user.bubble_id
+      }
+    }
 
     if (pendingMedia) {
       const media = pendingMedia
@@ -356,18 +468,24 @@ export default function ChatPage() {
     const text = newMessage.trim()
     if (!text) return
     setNewMessage('')
-    setSending(true)
-    try {
-      const sentMsg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
-      if (sentMsg) {
-        setMessages(prev => prev.some(m => m.id === sentMsg.id) ? prev : [...prev, sentMsg])
-        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    
+    const createdIso = new Date().toISOString()
+    if (isOnline) {
+      setSending(true)
+      try {
+        const sentMsg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
+        if (sentMsg) {
+          setMessages(prev => prev.some(m => m.id === sentMsg.id) ? prev : [...prev, sentMsg])
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+        }
+      } catch (e) {
+        console.warn('Online sendMessage failed, falling back to offline enqueue:', e)
+        await handleOfflineSend(sbUser, text, createdIso)
+      } finally {
+        setSending(false)
       }
-    } catch (e) {
-      console.error('send failed:', e)
-      setNewMessage(text)
-    } finally {
-      setSending(false)
+    } else {
+      await handleOfflineSend(sbUser, text, createdIso)
     }
   }
 
@@ -419,18 +537,28 @@ export default function ChatPage() {
   async function handleDelete(msg: Message) {
     if (!user || !activeConversation) return
     if (msg.sender_id !== mySupabaseId) return
-    if (!confirm('Delete this message?')) return
-    try {
-      await deleteMessage({
-        messageId: msg.id,
-        currentUserId: mySupabaseId,
-        currentUserEmail: user.email,
-      })
-      // realtime DELETE handler will also remove from state
-    } catch (e: any) {
-      console.error('delete failed:', e)
-      alert(e?.message ?? 'Delete failed')
-    }
+    
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Delete Message',
+      message: 'Are you sure you want to delete this message? This action cannot be undone.',
+      confirmLabel: 'Delete',
+      isDestructive: true,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        try {
+          await deleteMessage({
+            messageId: msg.id,
+            currentUserId: mySupabaseId,
+            currentUserEmail: user.email,
+          })
+          // realtime DELETE handler will also remove from state
+        } catch (e: any) {
+          console.error('delete failed:', e)
+          alert(e?.message ?? 'Delete failed')
+        }
+      }
+    })
   }
 
   // ── Helpers
@@ -565,6 +693,14 @@ export default function ChatPage() {
             </button>
           )}
         </div>
+        {!isOnline && (
+          <div className="bg-orange-500 text-white text-[11px] font-semibold py-1 px-4 text-center shrink-0 flex items-center justify-center gap-1.5 animate-pulse">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Offline Mode — messages will sync when online
+          </div>
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -636,9 +772,17 @@ export default function ChatPage() {
                   <div className={`flex items-center justify-end gap-1 mt-1 ${isMine ? 'text-blue-100' : 'text-gray-400'}`}>
                     <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                     {isMine && (
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
-                        <path d="M1 8l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      pendingMessageIds.has(msg.id) ? (
+                        <svg className="w-3 h-3 opacity-70 ml-0.5 animate-pulse" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-label="Pending sync to Supabase">
+                          <title>Pending sync to Supabase</title>
+                          <circle cx="12" cy="12" r="9" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none">
+                          <path d="M1 8l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )
                     )}
                     {isMine && cf && !cf.synced && (
                       <svg className="w-3 h-3 opacity-70 ml-1" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-label="Pending sync to Bubble">
@@ -767,6 +911,15 @@ export default function ChatPage() {
             setGroups(prev => prev.filter(g => g.id !== convId))
           }}
         />
+        <ConfirmationModal
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          confirmLabel={confirmConfig.confirmLabel}
+          isDestructive={confirmConfig.isDestructive}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        />
       </div>
     )
   }
@@ -791,6 +944,14 @@ export default function ChatPage() {
           )}
         </div>
       </div>
+      {!isOnline && (
+        <div className="bg-orange-500 text-white text-[11px] font-semibold py-1 px-4 text-center shrink-0 flex items-center justify-center gap-1.5 animate-pulse">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Offline Mode — messages will sync when online
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white shrink-0">

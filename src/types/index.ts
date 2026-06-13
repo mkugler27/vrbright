@@ -40,7 +40,8 @@ export type SyncAction =
   | 'upload_photo'
   | 'complete_wo'
   | 'send_chat_file'
-  | 'send_chat_file_delete';
+  | 'send_chat_file_delete'
+  | 'send_chat_message';
 
 export interface SyncQueueItem {
   id: string;

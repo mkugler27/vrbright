@@ -1,8 +1,18 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Photo, SyncQueueItem, PendingChatFile } from '../types';
 import type { WorkOrderRow } from './workingOrdersApi';
+import type { Conversation, Message } from './chatApi';
 
 interface VRBrightDB extends DBSchema {
+  chatConversations: {
+    key: string;
+    value: Conversation;
+  };
+  chatMessages: {
+    key: string;
+    value: Message;
+    indexes: { 'by-conversation': string };
+  };
   workOrders: {
     key: string;
     value: unknown;
@@ -59,7 +69,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 5, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 6, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -81,6 +91,11 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
       if (oldVersion < 5) {
         const store = db.createObjectStore('pendingChatFiles', { keyPath: 'id' });
         store.createIndex('by-created', 'created_at');
+      }
+      if (oldVersion < 6) {
+        db.createObjectStore('chatConversations', { keyPath: 'id' });
+        const store = db.createObjectStore('chatMessages', { keyPath: 'id' });
+        store.createIndex('by-conversation', 'conversation_id');
       }
     },
   });
@@ -155,4 +170,53 @@ export async function getWODetail(woId: string): Promise<{ data: WorkOrderRow; c
   const entry = await db.get('woDetail', woId);
   if (!entry) return null;
   return { data: entry.data as WorkOrderRow, cached_at: entry.cached_at };
+}
+
+// Chat conversations cache
+export async function saveCachedConversations(convs: Conversation[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('chatConversations', 'readwrite');
+  for (const c of convs) {
+    await tx.store.put(c);
+  }
+  await tx.done;
+}
+
+export async function getCachedConversations(): Promise<Conversation[]> {
+  const db = await getDB();
+  return db.getAll('chatConversations');
+}
+
+// Chat messages cache (stores last 100 messages per conversation)
+export async function saveCachedMessages(convId: string, msgs: Message[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('chatMessages', 'readwrite');
+  for (const m of msgs) {
+    await tx.store.put(m);
+  }
+  await tx.done;
+
+  // Trim to 100 messages for this conversation to prevent storage bloat
+  const allMsgs = await getCachedMessages(convId);
+  if (allMsgs.length > 100) {
+    const sorted = allMsgs.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    const toDelete = sorted.slice(0, sorted.length - 100);
+    const deleteTx = db.transaction('chatMessages', 'readwrite');
+    for (const m of toDelete) {
+      await deleteTx.store.delete(m.id);
+    }
+    await deleteTx.done;
+  }
+}
+
+export async function getCachedMessages(convId: string): Promise<Message[]> {
+  const db = await getDB();
+  const list = await db.getAllFromIndex('chatMessages', 'by-conversation', convId);
+  return list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+export async function clearChatCache(): Promise<void> {
+  const db = await getDB();
+  await db.clear('chatConversations');
+  await db.clear('chatMessages');
 }

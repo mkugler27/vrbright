@@ -28,6 +28,33 @@ export async function enqueueUpdate(
   await db.put('syncQueue', item)
 }
 
+export async function enqueueChatMessage(
+  messageId: string,
+  conversationId: string,
+  senderId: string,
+  content: string,
+  createdIso: string
+): Promise<void> {
+  const db = await getDB()
+  const id = `msg_${messageId}`
+  const item: SyncQueueItem = {
+    id,
+    action: 'send_chat_message',
+    payload: {
+      id: messageId,
+      conversation_id: conversationId,
+      sender_id: senderId,
+      content,
+      tipo: 'text',
+      created_at: createdIso,
+    },
+    attempts: 0,
+    max_attempts: 5,
+    created_at: new Date().toISOString(),
+  }
+  await db.put('syncQueue', item)
+}
+
 // ──────────────────────────────────────────────
 // QUEUE LENGTH / STATUS
 // ──────────────────────────────────────────────
@@ -75,6 +102,42 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
       }
 
       try {
+        if (item.action === 'send_chat_message') {
+          const current = await db.get('syncQueue', item.id)
+          if (!current) continue
+
+          const { error: msgErr } = await supabase
+            .from('messages')
+            .insert({
+              id: item.payload.id,
+              conversation_id: item.payload.conversation_id,
+              sender_id: item.payload.sender_id,
+              content: item.payload.content,
+              tipo: item.payload.tipo,
+              created_at: item.payload.created_at,
+            })
+
+          if (msgErr) {
+            const isDuplicate = msgErr.code === '23505' || msgErr.message?.includes('duplicate key')
+            if (!isDuplicate) {
+              throw new Error(`Supabase offline message insert failed: ${msgErr.message}`)
+            }
+          }
+
+          // Update conversations last_message
+          await supabase
+            .from('conversations')
+            .update({
+              last_message: item.payload.content,
+              last_message_at: item.payload.created_at,
+            })
+            .eq('id', item.payload.conversation_id)
+
+          await db.delete('syncQueue', item.id)
+          ok++
+          continue
+        }
+
         if (item.action === 'send_chat_file_delete') {
           const current = await db.get('syncQueue', item.id)
           if (!current) continue
