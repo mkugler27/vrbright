@@ -9,6 +9,7 @@ import {
 } from '../../services/chatApi'
 import type { User } from '../../services/supabase'
 import { canCreateGroups } from '../../services/teamSync'
+import { ConfirmationModal } from '../ui/ConfirmationModal'
 
 function getInitials(name: string): string {
   return name.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
@@ -49,6 +50,20 @@ export function GroupSettingsModal({
 
   const [leaving, setLeaving] = useState(false)
   const [removingUserIds, setRemovingUserIds] = useState<Set<string>>(new Set())
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    confirmLabel?: string
+    isDestructive?: boolean
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  })
 
   const isManager = useMemo(() => canCreateGroups(currentUserRole), [currentUserRole])
 
@@ -165,44 +180,62 @@ export function GroupSettingsModal({
 
   async function handleRemoveMember(user: User) {
     if (removingUserIds.has(user.id)) return
-    if (!confirm(`Are you sure you want to remove ${user.nome} from the group?`)) return
     
-    setRemovingUserIds(prev => new Set(prev).add(user.id))
-    try {
-      await removeGroupMember(conversation.id, user.id)
-      const updatedMembers = members.filter(m => m.id !== user.id)
-      setMembers(updatedMembers)
-      onUpdate({
-        ...conversation,
-        participants: updatedMembers,
-        member_count: updatedMembers.length
-      })
-    } catch (err) {
-      console.error('Failed to remove member:', err)
-      alert('Could not remove member. Please try again.')
-    } finally {
-      setRemovingUserIds(prev => {
-        const next = new Set(prev)
-        next.delete(user.id)
-        return next
-      })
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Remove Participant',
+      message: `Are you sure you want to remove ${user.nome} from the group?`,
+      confirmLabel: 'Remove',
+      isDestructive: true,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        setRemovingUserIds(prev => new Set(prev).add(user.id))
+        try {
+          await removeGroupMember(conversation.id, user.id)
+          const updatedMembers = members.filter(m => m.id !== user.id)
+          setMembers(updatedMembers)
+          onUpdate({
+            ...conversation,
+            participants: updatedMembers,
+            member_count: updatedMembers.length
+          })
+        } catch (err) {
+          console.error('Failed to remove member:', err)
+          alert('Could not remove member. Please try again.')
+        } finally {
+          setRemovingUserIds(prev => {
+            const next = new Set(prev)
+            next.delete(user.id)
+            return next
+          })
+        }
+      }
+    })
   }
 
   async function handleLeaveGroup() {
     if (!currentUserId) return
-    if (!confirm('Are you sure you want to leave this group? You will no longer receive or view messages here.')) return
     
-    setLeaving(true)
-    try {
-      await removeGroupMember(conversation.id, currentUserId)
-      onLeave(conversation.id)
-      onClose()
-    } catch (err) {
-      console.error('Failed to leave group:', err)
-      alert('Could not leave group. Please try again.')
-      setLeaving(false)
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Leave Group',
+      message: 'Are you sure you want to leave this group? You will no longer receive or view messages here.',
+      confirmLabel: 'Leave',
+      isDestructive: true,
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        setLeaving(true)
+        try {
+          await removeGroupMember(conversation.id, currentUserId)
+          onLeave(conversation.id)
+          onClose()
+        } catch (err) {
+          console.error('Failed to leave group:', err)
+          alert('Could not leave group. Please try again.')
+          setLeaving(false)
+        }
+      }
+    })
   }
 
   return (
@@ -400,6 +433,16 @@ export function GroupSettingsModal({
           </button>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmLabel={confirmConfig.confirmLabel}
+        isDestructive={confirmConfig.isDestructive}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   )
 }

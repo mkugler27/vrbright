@@ -8,6 +8,7 @@ import {
   getTeamLastSync,
   clearTeamCache,
 } from '../services/db';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 
 function normalizeImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
@@ -200,6 +201,7 @@ export function TeamPage() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -261,8 +263,12 @@ export function TeamPage() {
     }
   };
 
-  const handleClearCache = async () => {
-    if (!confirm('Clear cached team data?')) return;
+  const handleClearCache = () => {
+    setShowConfirm(true);
+  };
+
+  const executeClearCache = async () => {
+    setShowConfirm(false);
     await clearTeamCache();
     setTeam([]);
     setLastSync(null);
@@ -434,6 +440,16 @@ export function TeamPage() {
             </button>
           </div>
         )}
+
+        <ConfirmationModal
+          isOpen={showConfirm}
+          title="Clear Cache"
+          message="Are you sure you want to clear the cached team data? This will force a full refresh on next visit."
+          confirmLabel="Clear Cache"
+          isDestructive={true}
+          onConfirm={executeClearCache}
+          onCancel={() => setShowConfirm(false)}
+        />
       </div>
     </div>
   );
