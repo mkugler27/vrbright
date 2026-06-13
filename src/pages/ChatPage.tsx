@@ -122,6 +122,7 @@ export default function ChatPage() {
   // ── Load conversations + subscribe to list changes
   useEffect(() => {
     if (!user) return
+    const userId = user.id
     let cancelled = false
     let convChannel: ReturnType<typeof supabase.channel> | null = null
 
@@ -129,7 +130,7 @@ export default function ChatPage() {
       setLoadingConvs(true)
       setError(null)
       try {
-        const sbUser = await getSupabaseUserById(user.id)
+        const sbUser = await getSupabaseUserById(userId)
         if (!sbUser) {
           throw new Error('User profile not found in Supabase. Please sign out and sign in again.')
         }

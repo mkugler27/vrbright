@@ -4,7 +4,6 @@ import { supabase } from '../services/supabase'
 import {
   createIndividualConversation,
   getSupabaseUserById,
-  upsertUser,
 } from '../services/chatApi'
 import { useAuth } from '../context/AuthContext'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
