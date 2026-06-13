@@ -53,6 +53,7 @@ export async function upsertUser(
 }
 
 export async function getSupabaseUserById(supabaseId: string): Promise<User | null> {
+  if (!navigator.onLine) return null
   try {
     const { data, error } = await supabase
       .from('users')
@@ -67,6 +68,7 @@ export async function getSupabaseUserById(supabaseId: string): Promise<User | nu
 }
 
 export async function getSupabaseUserByEmail(email: string): Promise<User | null> {
+  if (!navigator.onLine) return null
   try {
     const { data, error } = await supabase
       .from('users')
@@ -86,6 +88,7 @@ export async function getSupabaseUserByEmail(email: string): Promise<User | null
 
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
   try {
+    if (!navigator.onLine) throw new Error('Offline')
     const { data, error } = await supabase
       .from('conversation_participants')
       .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants!inner(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
@@ -284,6 +287,7 @@ export async function updateGroupConversation(
 
 export async function getGroupMembers(convId: string): Promise<User[]> {
   try {
+    if (!navigator.onLine) throw new Error('Offline')
     const { data, error } = await supabase
       .from('conversation_participants')
       .select('user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)')
@@ -322,6 +326,7 @@ export async function searchUsersForGroup(
   excludeUserId: string
 ): Promise<User[]> {
   try {
+    if (!navigator.onLine) throw new Error('Offline')
     const q = query.trim()
     let req = supabase
       .from('users')
@@ -362,6 +367,7 @@ export async function searchUsersForGroup(
 
 export async function getChatContacts(excludeUserId: string): Promise<User[]> {
   try {
+    if (!navigator.onLine) throw new Error('Offline')
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -393,6 +399,7 @@ export async function getChatContacts(excludeUserId: string): Promise<User[]> {
 
 export async function getMessages(conversationId: string, limit = 100): Promise<Message[]> {
   try {
+    if (!navigator.onLine) throw new Error('Offline')
     const { data, error } = await supabase
       .from('messages')
       .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
