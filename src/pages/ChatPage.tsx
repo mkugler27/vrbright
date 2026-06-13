@@ -100,6 +100,7 @@ export default function ChatPage() {
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
   const [showGroupSettings, setShowGroupSettings] = useState(false)
   const [pendingMessageIds, setPendingMessageIds] = useState<Set<string>>(new Set())
+  const [deletingMessageIds, setDeletingMessageIds] = useState<Set<string>>(new Set())
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean
     title: string
@@ -337,7 +338,15 @@ export default function ChatPage() {
       },
       (deletedId: string) => {
         console.log('[chatPage] Realtime message delete event received:', deletedId)
-        setMessages(prev => prev.filter(m => m.id !== deletedId))
+        setDeletingMessageIds(prev => new Set(prev).add(deletedId))
+        setTimeout(() => {
+          setMessages(prev => prev.filter(m => m.id !== deletedId))
+          setDeletingMessageIds(prev => {
+            const next = new Set(prev)
+            next.delete(deletedId)
+            return next
+          })
+        }, 300)
       },
       (status) => {
         console.log('[chatPage] Realtime status change:', status)
@@ -600,13 +609,21 @@ export default function ChatPage() {
       isDestructive: true,
       onConfirm: async () => {
         setConfirmConfig(prev => ({ ...prev, isOpen: false }))
+        setDeletingMessageIds(prev => new Set(prev).add(msg.id))
+        setTimeout(() => {
+          setMessages(prev => prev.filter(m => m.id !== msg.id))
+          setDeletingMessageIds(prev => {
+            const next = new Set(prev)
+            next.delete(msg.id)
+            return next
+          })
+        }, 300)
         try {
           await deleteMessage({
             messageId: msg.id,
             currentUserId: mySupabaseId,
             currentUserEmail: user.email,
           })
-          // realtime DELETE handler will also remove from state
         } catch (e: any) {
           console.error('delete failed:', e)
           alert(e?.message ?? 'Delete failed')
@@ -772,7 +789,7 @@ export default function ChatPage() {
             return (
               <div
                 key={msg.id}
-                className={`flex ${isMine ? 'justify-end' : 'justify-start'} ${!isMine && senderAvatar ? 'items-end' : ''}`}
+                className={`flex ${isMine ? 'justify-end origin-right' : 'justify-start origin-left'} ${!isMine && senderAvatar ? 'items-end' : ''} transition-all duration-300 ease-out ${deletingMessageIds.has(msg.id) ? 'opacity-0 scale-90 translate-y-2' : 'opacity-100 scale-100 translate-y-0'}`}
                 onContextMenu={(e) => {
                   if (isMine) {
                     e.preventDefault()
