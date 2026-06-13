@@ -196,6 +196,18 @@ export async function createGroupConversation(
   return conv.id
 }
 
+export async function updateGroupConversation(
+  convId: string,
+  nome: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('conversations')
+    .update({ nome: nome.trim() })
+    .eq('id', convId)
+  if (error) throw new Error(error.message)
+}
+
+
 export async function getGroupMembers(convId: string): Promise<User[]> {
   const { data } = await supabase
     .from('conversation_participants')

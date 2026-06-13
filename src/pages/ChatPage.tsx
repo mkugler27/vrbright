@@ -30,6 +30,7 @@ import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { AudioPlayer } from '../components/chat/AudioPlayer'
 import { AttachmentMenu } from '../components/chat/AttachmentMenu'
 import { MediaPreview, type MediaPreviewItem } from '../components/chat/MediaPreview'
+import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
 import type { ChatFileType } from '../types'
 
 type Tab = 'chats' | 'groups'
@@ -92,6 +93,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
+  const [showGroupSettings, setShowGroupSettings] = useState(false)
 
   const [newMessage, setNewMessage] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -219,6 +221,7 @@ export default function ChatPage() {
     setMessages([])
     setLoadingMessages(true)
     setConnectionStatus('ok')
+    setShowGroupSettings(false)
 
     if (!user) return
     const sbUser = await getSupabaseUserById(user.id)
@@ -291,6 +294,7 @@ export default function ChatPage() {
     setActiveConversationId(null)
     setMessages([])
     setConnectionStatus('ok')
+    setShowGroupSettings(false)
   }
 
   // ── Cleanup on unmount
@@ -549,6 +553,17 @@ export default function ChatPage() {
           {connectionStatus === 'reconnecting' && (
             <span className="text-xs text-orange-500 font-medium">Reconnecting…</span>
           )}
+          {activeConversation.tipo === 'group' && (
+            <button
+              onClick={() => setShowGroupSettings(true)}
+              className="p-1.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors shrink-0"
+              aria-label="Group Settings"
+            >
+              <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063.852l-.708 2.836a.75.75 0 001.063.852l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Messages */}
@@ -736,6 +751,22 @@ export default function ChatPage() {
             )}
           </div>
         </div>
+
+        <GroupSettingsModal
+          isOpen={showGroupSettings}
+          onClose={() => setShowGroupSettings(false)}
+          conversation={activeConversation}
+          currentUserId={mySupabaseId}
+          currentUserRole={user?.tipo_user_bubble}
+          onUpdate={(updatedConv) => {
+            setActiveConversation(updatedConv)
+            setGroups(prev => prev.map(g => g.id === updatedConv.id ? updatedConv : g))
+          }}
+          onLeave={(convId) => {
+            closeConversation()
+            setGroups(prev => prev.filter(g => g.id !== convId))
+          }}
+        />
       </div>
     )
   }
