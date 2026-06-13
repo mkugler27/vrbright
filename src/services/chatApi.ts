@@ -35,7 +35,7 @@ export type Message = {
 
 export async function upsertUser(
   supabaseId: string,
-  profile: { nome: string; email: string; role: string; avatar_url?: string; bubble_id?: string; tipo_user_bubble?: string }
+  profile: { nome: string; email: string; avatar_url?: string; bubble_id?: string; tipo_user_bubble?: string }
 ): Promise<void> {
   await supabase.from('users').upsert(
     { id: supabaseId, ...profile },
@@ -78,14 +78,7 @@ export async function getSupabaseUserByEmail(email: string): Promise<User | null
 export async function getConversationsForUser(userId: string): Promise<Conversation[]> {
   const { data } = await supabase
     .from('conversation_participants')
-    .select(`
-      conversation_id,
-      last_read_at,
-      conversations (
-        id, tipo, nome, bubble_group_id, last_message, last_message_at, created_at,
-        users:conversation_participants!inner(user_id, users(id, bubble_id, nome, email, role, avatar_url, tipo_user_bubble))
-      )
-    `)
+    .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants!inner(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
     .eq('user_id', userId)
 
   if (!data) return []
@@ -206,7 +199,7 @@ export async function createGroupConversation(
 export async function getGroupMembers(convId: string): Promise<User[]> {
   const { data } = await supabase
     .from('conversation_participants')
-    .select('user_id, users(id, bubble_id, nome, email, role, avatar_url, tipo_user_bubble)')
+    .select('user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)')
     .eq('conversation_id', convId)
 
   if (!data) return []
@@ -253,11 +246,7 @@ export async function searchUsersForGroup(
 export async function getMessages(conversationId: string, limit = 100): Promise<Message[]> {
   const { data, error } = await supabase
     .from('messages')
-    .select(`
-      *,
-      sender:users(id, nome, email, role, avatar_url, tipo_user_bubble),
-      chat_file:chat_files(*)
-    `)
+    .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(limit)
@@ -267,7 +256,13 @@ export async function getMessages(conversationId: string, limit = 100): Promise<
     return []
   }
 
-  return (data ?? []) as Message[]
+  // PostgREST may return chat_file as an array — normalize to a single object or null
+  return ((data ?? []) as any[]).map(m => {
+    const cf = m.chat_file
+    if (Array.isArray(cf)) m.chat_file = cf[0] ?? null
+    else if (cf && Object.keys(cf).length === 0) m.chat_file = null
+    return m
+  }) as Message[]
 }
 
 export async function getChatFile(messageId: string): Promise<ChatFile | null> {
@@ -279,6 +274,20 @@ export async function getChatFile(messageId: string): Promise<ChatFile | null> {
 
   if (error) {
     console.warn('[chatApi] getChatFile error:', error.message)
+    return null
+  }
+  return (data as ChatFile) ?? null
+}
+
+export async function getChatFileById(id: string): Promise<ChatFile | null> {
+  const { data, error } = await supabase
+    .from('chat_files')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) {
+    console.warn('[chatApi] getChatFileById error:', error.message)
     return null
   }
   return (data as ChatFile) ?? null
@@ -304,11 +313,7 @@ export async function sendMessage(
       transcription: transcription ?? null,
       bubble_id: bubbleId ?? null,
     })
-    .select(`
-      *,
-      sender:users(id, nome, email, role, avatar_url, tipo_user_bubble),
-      chat_file:chat_files(*)
-    `)
+    .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
     .single()
 
   if (error) {
@@ -355,19 +360,47 @@ export function subscribeToMessages(
   onDeleted: (id: string) => void,
   onStatus?: (status: ChannelStatus, err?: any) => void
 ) {
+  supabase.auth.getSession().then(({ data }) => {
+    console.log('[chatApi] subscribeToMessages auth session check:', data.session ? `Authenticated as ${data.session.user.email}` : 'No active session (anonymous)')
+  })
+
   const channel = supabase
-    .channel(`messages:${conversationId}`, {
-      config: { broadcast: { self: false }, presence: { key: '' } },
-    })
+    .channel(`messages:${conversationId}`)
     .on(
       'postgres_changes',
       {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
       },
-      (payload) => onNewMessage(payload.new as Message)
+      (payload) => {
+        console.log('[chatApi] postgres_changes messages INSERT payload:', payload)
+        const msg = payload.new as Message
+        if (msg.conversation_id === conversationId) {
+          console.log('[chatApi] message INSERT (client-side matched)', msg)
+          onNewMessage(msg)
+        } else {
+          console.warn('[chatApi] message INSERT conversationId mismatch:', msg.conversation_id, 'expected:', conversationId)
+        }
+      }
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_files',
+      },
+      async (payload) => {
+        console.log('[chatApi] postgres_changes chat_files INSERT payload:', payload)
+        const newFile = payload.new as { id?: string; message_id?: string }
+        if (!newFile?.id) return
+        const cf = await getChatFileById(newFile.id)
+        if (cf) {
+          console.log('[chatApi] chat_file resolved and matched:', cf)
+          onNewMessage({ id: cf.message_id, chat_file: cf } as unknown as Message)
+        }
+      }
     )
     .on(
       'postgres_changes',
@@ -375,18 +408,23 @@ export function subscribeToMessages(
         event: 'DELETE',
         schema: 'public',
         table: 'messages',
-        filter: `conversation_id=eq.${conversationId}`,
       },
-      (payload) => onDeleted((payload.old as any).id)
+      (payload) => {
+        console.log('[chatApi] postgres_changes messages DELETE payload:', payload)
+        onDeleted((payload.old as any).id)
+      }
     )
 
   if (onStatus) {
-    channel.subscribe((status, err) => onStatus(status as ChannelStatus, err))
+    channel.subscribe((status, err) => {
+      console.log('[chatApi] channel status', status, err?.message ?? '')
+      onStatus(status as ChannelStatus, err)
+    })
   } else {
-    channel.subscribe()
+    channel.subscribe((status, err) => console.log('[chatApi] channel status', status, err?.message ?? ''))
   }
 
-  return channel
+  return channel;
 }
 
 export function subscribeToConversations(

@@ -98,6 +98,7 @@ export default function ChatPage() {
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [pendingMedia, setPendingMedia] = useState<MediaPreviewItem | null>(null)
   const [sending, setSending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const recorder = useAudioRecorder()
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -112,7 +113,6 @@ export default function ChatPage() {
     upsertUser(user.id, {
       nome: user.nome,
       email: user.email,
-      role: user.role,
       avatar_url: user.profile_picture,
       bubble_id: user.bubble_id,
       tipo_user_bubble: user.tipo_user_bubble,
@@ -127,34 +127,40 @@ export default function ChatPage() {
 
     async function load() {
       setLoadingConvs(true)
-      if (!user) return
-      const sbUser = await getSupabaseUserById(user.id)
-      if (!sbUser || cancelled) {
-        setLoadingConvs(false)
-        return
-      }
-      if (!cancelled) setMySupabaseId(sbUser.id)
-
-      const [dmList, groupList] = await Promise.all([
-        getDMsForUser(sbUser.id),
-        getGroupsForUser(sbUser.id),
-      ])
-      if (cancelled) return
-      setDms(dmList)
-      setGroups(groupList)
-      setLoadingConvs(false)
-
-      convChannel = subscribeToConversations(sbUser.id, async () => {
+      setError(null)
+      try {
+        const sbUser = await getSupabaseUserById(user.id)
+        if (!sbUser) {
+          throw new Error('User profile not found in Supabase. Please sign out and sign in again.')
+        }
         if (cancelled) return
-        const [dmList2, groupList2] = await Promise.all([
+        setMySupabaseId(sbUser.id)
+
+        const [dmList, groupList] = await Promise.all([
           getDMsForUser(sbUser.id),
           getGroupsForUser(sbUser.id),
         ])
         if (cancelled) return
-        setDms(dmList2)
-        setGroups(groupList2)
-      })
-      convChannelRef.current = convChannel
+        setDms(dmList)
+        setGroups(groupList)
+
+        convChannel = subscribeToConversations(sbUser.id, async () => {
+          if (cancelled) return
+          const [dmList2, groupList2] = await Promise.all([
+            getDMsForUser(sbUser.id),
+            getGroupsForUser(sbUser.id),
+          ])
+          if (cancelled) return
+          setDms(dmList2)
+          setGroups(groupList2)
+        })
+        convChannelRef.current = convChannel
+      } catch (err: any) {
+        console.error('Error loading conversations:', err)
+        setError(err.message || String(err))
+      } finally {
+        if (!cancelled) setLoadingConvs(false)
+      }
     }
 
     load()
@@ -229,12 +235,26 @@ export default function ChatPage() {
     const channel = subscribeToMessages(
       conv.id,
       async (msg: Message) => {
-        let enriched = msg
-        if (isMediaMessage(msg) && !msg.chat_file) {
+        console.log('[chatPage] Realtime message event received:', msg)
+        // chat_file insert path: msg has only { id, chat_file } from the chat_files subscribe
+        if (msg.chat_file && !msg.content) {
+          setMessages(prev =>
+            prev.map(m => m.id === msg.id ? { ...m, chat_file: msg.chat_file } : m)
+          )
+          return
+        }
+        let enriched = { ...msg }
+        if (!enriched.sender) {
+          const senderProfile = conv.participants?.find(p => p.id === enriched.sender_id)
+          if (senderProfile) {
+            enriched.sender = senderProfile
+          }
+        }
+        if (isMediaMessage(enriched) && !enriched.chat_file) {
           for (let i = 0; i < 2; i++) {
             await new Promise(r => setTimeout(r, 600))
             const cf = await getChatFile(msg.id)
-            if (cf) { enriched = { ...msg, chat_file: cf }; break }
+            if (cf) { enriched = { ...enriched, chat_file: cf }; break }
           }
         }
         setMessages(prev => prev.some(m => m.id === enriched.id) ? prev : [...prev, enriched])
@@ -245,9 +265,11 @@ export default function ChatPage() {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
       },
       (deletedId: string) => {
+        console.log('[chatPage] Realtime message delete event received:', deletedId)
         setMessages(prev => prev.filter(m => m.id !== deletedId))
       },
       (status) => {
+        console.log('[chatPage] Realtime status change:', status)
         if (status === 'SUBSCRIBED') setConnectionStatus('ok')
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           setConnectionStatus('reconnecting')
@@ -293,7 +315,7 @@ export default function ChatPage() {
       setSending(true)
       try {
         if (isOnline) {
-          await sendMediaMessage({
+          const res = await sendMediaMessage({
             conversationId: activeConversation.id,
             senderId: sbUser.id,
             senderEmail: user.email,
@@ -302,6 +324,10 @@ export default function ChatPage() {
             originalName: media.name,
             blob: media.blob,
           })
+          if (res?.message) {
+            setMessages(prev => prev.some(m => m.id === res.message.id) ? prev : [...prev, res.message])
+            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+          }
         } else {
           await queueMediaOffline({
             conversationId: activeConversation.id,
@@ -327,7 +353,11 @@ export default function ChatPage() {
     setNewMessage('')
     setSending(true)
     try {
-      await sendMessage(activeConversation.id, sbUser.id, text, 'text')
+      const sentMsg = await sendMessage(activeConversation.id, sbUser.id, text, 'text')
+      if (sentMsg) {
+        setMessages(prev => prev.some(m => m.id === sentMsg.id) ? prev : [...prev, sentMsg])
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      }
     } catch (e) {
       console.error('send failed:', e)
       setNewMessage(text)
@@ -636,7 +666,7 @@ export default function ChatPage() {
             </div>
           )}
           {showAttachMenu && (
-            <div className="mb-2">
+            <div className="relative mb-2">
               <AttachmentMenu
                 open
                 onSelect={file => handleFileSelected(file)}
@@ -751,6 +781,11 @@ export default function ChatPage() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {error && (
+          <div className="p-4 mx-4 my-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
+            Error: {error}
+          </div>
+        )}
         {activeTab === 'chats' ? dmView : groupView}
       </div>
     </div>

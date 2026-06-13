@@ -28,7 +28,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
 
       const { data: myConvs, error: cpError } = await supabase
         .from('conversation_participants')
-        .select('conversation_id, last_read_at')
+        .select('conversation_id,last_read_at')
         .eq('user_id', me.id)
 
       if (cpError || !myConvs || myConvs.length === 0) {
@@ -39,7 +39,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       const convIds = myConvs.map(c => c.conversation_id)
       const { data: convs } = await supabase
         .from('conversations')
-        .select('id, last_message_at')
+        .select('id,last_message_at')
         .in('id', convIds)
 
       const lastMessageById = new Map<string, string | null>()

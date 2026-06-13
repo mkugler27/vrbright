@@ -4,10 +4,9 @@ export interface AuthUser {
   id: string;           // Supabase Auth uid
   email: string;
   nome: string;
-  role: 'worker' | 'supervisor' | 'admin';
+  tipo_user_bubble?: string;  // Owner, Director, Manager, Supervisor, Worker, Helper, Trainee
   profile_picture?: string;
   bubble_id?: string;
-  tipo_user_bubble?: string;
 }
 
 interface AuthContextType {
@@ -23,7 +22,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<AuthUser | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
+      if (!stored) return null;
+      const parsed = JSON.parse(stored);
+      if (!parsed || !parsed.id || parsed.id === 'undefined' || parsed.id === 'null') {
+        localStorage.removeItem(STORAGE_KEY);
+        return null;
+      }
+      return parsed;
     } catch {
       return null;
     }

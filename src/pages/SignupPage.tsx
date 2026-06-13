@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { supabase } from '../services/supabase'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { fetchBubbleUserByEmail } from '../services/teamApi'
 
 export function SignupPage() {
   const [nome, setNome] = useState('')
@@ -49,18 +50,43 @@ export function SignupPage() {
         return
       }
 
-      // Create profile in users table (role always 'worker' — admin decides via Bubble)
+      // Create profile in users table — tipo_user_bubble is set right after
+      // by looking up the email in Bubble.
       const { error: profileError } = await supabase.from('users').insert({
         id: authData.user.id,
         nome: nome.trim(),
         email,
-        role: 'worker',
       })
 
       if (profileError) {
         console.error('Profile insert error:', profileError)
         // Auth user was created; profile might be retried later
         // For now, warn but continue
+      }
+
+      // Look up this user in Bubble by email — get tipo_user + profile_picture
+      try {
+        console.log('[signup] Looking up Bubble user for:', email)
+        const bubble = await fetchBubbleUserByEmail(email)
+        console.log('[signup] Bubble returned:', bubble)
+        if (bubble?.tipo_user || bubble?.profile_picture) {
+          const updates: Record<string, string> = {}
+          if (bubble.tipo_user) updates.tipo_user_bubble = bubble.tipo_user
+          if (bubble.profile_picture) updates.avatar_url = bubble.profile_picture
+          const { error: updateError } = await supabase
+            .from('users')
+            .update(updates)
+            .eq('id', authData.user.id)
+          if (updateError) {
+            console.error('[signup] Failed to update Bubble fields:', updateError)
+          } else {
+            console.log('[signup] Updated user with:', updates)
+          }
+        } else {
+          console.warn('[signup] User not found in Bubble:', email)
+        }
+      } catch (syncErr) {
+        console.warn('[signup] Bubble lookup error:', syncErr)
       }
 
       setSuccess(true)

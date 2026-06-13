@@ -23,6 +23,7 @@ export default function NewChatPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // Sync current user and load contacts
   useEffect(() => {
@@ -30,86 +31,107 @@ export default function NewChatPage() {
     const myId = user.id
     const myNome = user.nome
     const myEmail = user.email
-    const myRole = user.role
     let cancelled = false
 
     async function load() {
       setLoading(true)
+      setError(null)
+      try {
+        // 1) Ensure current user exists in Supabase
+        if (navigator.onLine) {
+          const { error: upsertErr } = await supabase.from('users').upsert(
+            { id: myId, nome: myNome, email: myEmail },
+            { onConflict: 'id' }
+          )
+          if (upsertErr) console.warn('upsertUser failed:', upsertErr)
+        }
 
-      // 1) Ensure current user exists in Supabase
-      if (navigator.onLine) {
-        await upsertUser(myId, { nome: myNome, email: myEmail, role: myRole })
-      }
+        // 2) Get my Supabase user (should already exist)
+        const { data: me, error: meError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', myId)
+          .single()
+        if (meError) throw new Error(`Could not load your profile: ${meError.message}`)
+        if (!me) throw new Error('Your profile is missing in the database.')
 
-      // 2) Get my Supabase user (should already exist)
-      const me = await getSupabaseUserById(myId)
-      if (!me) { setLoading(false); return }
+        // 3) Load all users except me
+        const { data: allUsers, error: allUsersError } = await supabase
+          .from('users')
+          .select('*')
+          .neq('id', me.id)
+          .order('nome', { ascending: true })
+        if (allUsersError) throw new Error(`Could not load users list: ${allUsersError.message}`)
 
-      // 3) Load all users except me
-      const { data: allUsers } = await supabase
-        .from('users')
-        .select('*')
-        .neq('id', me.id)
-        .order('nome', { ascending: true })
+        if (cancelled) return
 
-      if (cancelled) return
+        // 4) For each user, get their last conversation's last_message_at
+        const userList: UserWithStatus[] = (allUsers ?? []).map(u => ({
+          ...u,
+          last_message_at: null,
+          conversation_id: null,
+        }))
 
-      // 4) For each user, get their last conversation's last_message_at
-      const userList: UserWithStatus[] = (allUsers ?? []).map(u => ({
-        ...u,
-        last_message_at: null,
-        conversation_id: null,
-      }))
-
-      // Fetch last interactions in parallel
-      const enriched = await Promise.all(userList.map(async u => {
-        const { data: sharedConvs } = await supabase
-          .from('conversation_participants')
-          .select(`
-            conversation_id,
-            conversations!inner (id, last_message_at, tipo)
-          `)
-          .eq('user_id', me.id)
-
-        let lastInteraction: string | null = null
-        let sharedConvId: string | null = null
-
-        for (const sc of sharedConvs ?? []) {
-          const { data: otherP } = await supabase
+        // Fetch last interactions in parallel
+        const enriched = await Promise.all(userList.map(async u => {
+          const { data: sharedConvs, error: sharedError } = await supabase
             .from('conversation_participants')
-            .select('conversation_id')
-            .eq('conversation_id', (sc as any).conversation_id)
-            .eq('user_id', u.id)
-            .limit(1)
+            .select('conversation_id,conversations!inner(id,last_message_at,tipo)')
+            .eq('user_id', me.id)
+          if (sharedError) {
+            console.error('sharedConvs error:', sharedError)
+            return { ...u, last_message_at: null, conversation_id: null }
+          }
 
-          if (otherP && otherP.length > 0) {
-            const c: any = (sc as any).conversations
-            if (c?.last_message_at && (!lastInteraction || c.last_message_at > lastInteraction)) {
-              lastInteraction = c.last_message_at
-              sharedConvId = c.id
+          let lastInteraction: string | null = null
+          let sharedConvId: string | null = null
+
+          for (const sc of sharedConvs ?? []) {
+            const { data: otherP, error: otherError } = await supabase
+              .from('conversation_participants')
+              .select('conversation_id')
+              .eq('conversation_id', (sc as any).conversation_id)
+              .eq('user_id', u.id)
+              .limit(1)
+
+            if (otherError) {
+              console.error('otherP error:', otherError)
+              continue
+            }
+
+            if (otherP && otherP.length > 0) {
+              const c: any = (sc as any).conversations
+              if (c?.last_message_at && (!lastInteraction || c.last_message_at > lastInteraction)) {
+                lastInteraction = c.last_message_at
+                sharedConvId = c.id
+              }
             }
           }
-        }
 
-        return {
-          ...u,
-          last_message_at: lastInteraction,
-          conversation_id: sharedConvId,
-        }
-      }))
-
-      if (!cancelled) {
-        // Sort: users with recent interactions first, then by name
-        enriched.sort((a, b) => {
-          if (a.last_message_at && b.last_message_at) {
-            return b.last_message_at.localeCompare(a.last_message_at)
+          return {
+            ...u,
+            last_message_at: lastInteraction,
+            conversation_id: sharedConvId,
           }
-          if (a.last_message_at) return -1
-          if (b.last_message_at) return 1
-          return a.nome.localeCompare(b.nome)
-        })
-        setUsers(enriched)
-        setLoading(false)
+        }))
+
+        if (!cancelled) {
+          // Sort: users with recent interactions first, then by name
+          enriched.sort((a, b) => {
+            if (a.last_message_at && b.last_message_at) {
+              return b.last_message_at.localeCompare(a.last_message_at)
+            }
+            if (a.last_message_at) return -1
+            if (b.last_message_at) return 1
+            return a.nome.localeCompare(b.nome)
+          })
+          setUsers(enriched)
+        }
+      } catch (err: any) {
+        console.error('Error loading contacts:', err)
+        setError(err?.message || String(err))
+      } finally {
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -197,6 +219,11 @@ export default function NewChatPage() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
+        {error && (
+          <div className="p-4 mx-4 my-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
+            Error: {error}
+          </div>
+        )}
         {loading && (
           <div className="space-y-3 p-4">
             {[1, 2, 3, 4, 5].map(i => (
@@ -250,7 +277,7 @@ export default function NewChatPage() {
                 <p className="text-xs text-gray-500 truncate mt-0.5">
                   {u.last_message_at
                     ? `Last chat ${formatTime(u.last_message_at)}`
-                    : u.role === 'admin' ? 'Admin' : 'Tap to start chatting'}
+                    : u.tipo_user_bubble === 'Owner' || u.tipo_user_bubble === 'Director' ? u.tipo_user_bubble : 'Tap to start chatting'}
                 </p>
               </div>
 

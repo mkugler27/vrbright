@@ -4,10 +4,8 @@ import { Button } from '../components/ui/Button'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { supabase } from '../services/supabase'
 import { getSupabaseUserByEmail } from '../services/chatApi'
-import { fetchUserProfileByEmail } from '../services/authApi'
-import { BUBBLE_TOKEN } from '../config/api'
+import { fetchBubbleUserByEmail } from '../services/teamApi'
 import { useAuth } from '../context/AuthContext'
-import { syncBubbleRolesToUsers } from '../services/teamSync'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -51,51 +49,29 @@ export function LoginPage() {
       }
 
       let profilePicture = profile.avatar_url
+      let tipoUserBubble = profile.tipo_user_bubble
       try {
-        const bubbleProfile = await fetchUserProfileByEmail(email, BUBBLE_TOKEN)
-        if (bubbleProfile?.profile_picture) {
-          profilePicture = bubbleProfile.profile_picture
+        const bubble = await fetchBubbleUserByEmail(email)
+        if (bubble?.profile_picture) {
+          profilePicture = bubble.profile_picture
+        }
+        if (bubble?.tipo_user) {
+          tipoUserBubble = bubble.tipo_user
+          // Persist any new Bubble data to Supabase (only updates own row → RLS OK)
+          const updates: Record<string, string> = { tipo_user_bubble: bubble.tipo_user }
+          if (bubble.profile_picture) updates.avatar_url = bubble.profile_picture
+          await supabase.from('users').update(updates).eq('id', profile.id)
         }
       } catch {
         // best-effort
       }
 
-      // Sync Bubble roles → Supabase users in the background.
-      // Fire-and-forget; failures are non-fatal.
-      syncBubbleRolesToUsers()
-        .then(({ synced }) => {
-          if (synced > 0) {
-            // Re-fetch the current user's row so the cached AuthUser
-            // gets the new tipo_user_bubble value.
-            return getSupabaseUserByEmail(email)
-          }
-          return null
-        })
-        .then(updated => {
-          if (updated) {
-            try {
-              const stored = localStorage.getItem('vrbright_user')
-              if (stored) {
-                const u = JSON.parse(stored)
-                u.tipo_user_bubble = (updated as any).tipo_user_bubble
-                localStorage.setItem('vrbright_user', JSON.stringify(u))
-              }
-            } catch {
-              // ignore
-            }
-          }
-        })
-        .catch(() => {
-          // ignore
-        })
-
       setUser({
         id: profile.id,
         email: profile.email,
         nome: profile.nome,
-        role: profile.role as 'worker' | 'supervisor' | 'admin',
         profile_picture: profilePicture,
-        tipo_user_bubble: (profile as any).tipo_user_bubble,
+        tipo_user_bubble: tipoUserBubble,
       })
 
       navigate('/')

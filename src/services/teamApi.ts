@@ -19,6 +19,42 @@ interface UserListResponse {
   };
 }
 
+/**
+ * Look up a single Bubble user by their email address and return their
+ * tipo_user + profile_picture. Returns undefined fields if not found in Bubble.
+ * Note: Bubble's constraint on the nested email field returns 400, so we fetch
+ * all users and filter client-side.
+ */
+export async function fetchBubbleUserByEmail(
+  email: string
+): Promise<{ tipo_user?: string; profile_picture?: string } | undefined> {
+  const response = await fetch(`${API_BASE}/obj/user`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${BUBBLE_TOKEN}`,
+    },
+  });
+
+  if (!response.ok) {
+    console.warn(`fetchBubbleUserByEmail: ${response.status}`);
+    return undefined;
+  }
+
+  const data = (await response.json()) as UserListResponse;
+  const user = data.response.results.find(u => {
+    const auth = u.authentication as { email?: { email?: string } } | undefined;
+    return auth?.email?.email?.toLowerCase() === email.toLowerCase();
+  });
+
+  if (!user) return undefined;
+
+  return {
+    tipo_user: (user.tipo_user as string) || undefined,
+    profile_picture: (user.profile_picture as string) || undefined,
+  };
+}
+
 export async function fetchActiveTeam(): Promise<TeamMember[]> {
   const constraints = JSON.stringify([
     { key: 'user_ativo_txt', constraint_type: 'equals', value: 'yes' },

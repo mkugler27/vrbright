@@ -1,34 +1,29 @@
 import { supabase } from './supabase'
-import { fetchActiveTeam } from './teamApi'
+import { fetchBubbleUserByEmail } from './teamApi'
 
 /**
- * Sync Bubble `tipo_user` (Owner, Director, Manager, …) into the
- * Supabase `users.tipo_user_bubble` column. Idempotent — safe to call
- * on every login. Failures are non-fatal; the user is still logged in
- * even if the sync throws.
+ * Sync this single user's Bubble `tipo_user` (and avatar) into Supabase.
+ * Idempotent and safe to call on every login. Failures are non-fatal.
+ *
+ * Note: we don't sync the full team list from the client — RLS on the
+ * `users` table only allows users to update their own row. So each
+ * user fetches their own profile from Bubble.
  */
-export async function syncBubbleRolesToUsers(): Promise<{ synced: number }> {
-  const team = await fetchActiveTeam()
-
-  const rows = team
-    .filter(m => m.email && m.tipo_user)
-    .map(m => ({
-      email: m.email!.toLowerCase(),
-      tipo_user_bubble: m.tipo_user!,
-    }))
-
-  if (rows.length === 0) return { synced: 0 }
-
-  const { error } = await supabase
-    .from('users')
-    .upsert(rows, { onConflict: 'email', count: 'exact' })
-
-  if (error) {
-    console.warn('teamSync: upsert failed:', error.message)
-    return { synced: 0 }
+export async function syncMyBubbleRole(
+  userId: string,
+  email: string
+): Promise<void> {
+  try {
+    const bubble = await fetchBubbleUserByEmail(email)
+    if (!bubble) return
+    const updates: Record<string, string> = {}
+    if (bubble.tipo_user) updates.tipo_user_bubble = bubble.tipo_user
+    if (bubble.profile_picture) updates.avatar_url = bubble.profile_picture
+    if (Object.keys(updates).length === 0) return
+    await supabase.from('users').update(updates).eq('id', userId)
+  } catch (e) {
+    console.warn('teamSync: my-role sync failed:', e)
   }
-
-  return { synced: rows.length }
 }
 
 export function canCreateGroups(tipoUserBubble: string | undefined | null): boolean {
