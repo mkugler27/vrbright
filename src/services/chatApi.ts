@@ -464,19 +464,23 @@ export async function sendMessage(
   tipo: 'text' | 'audio' = 'text',
   audioUrl?: string,
   transcription?: string,
-  bubbleId?: string
+  bubbleId?: string,
+  id?: string
 ): Promise<Message | null> {
+  const payload: any = {
+    conversation_id: conversationId,
+    sender_id: senderId,
+    content,
+    tipo,
+    audio_url: audioUrl ?? null,
+    transcription: transcription ?? null,
+    bubble_id: bubbleId ?? null,
+  }
+  if (id) payload.id = id;
+
   const { data, error } = await supabase
     .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      sender_id: senderId,
-      content,
-      tipo,
-      audio_url: audioUrl ?? null,
-      transcription: transcription ?? null,
-      bubble_id: bubbleId ?? null,
-    })
+    .insert(payload)
     .select('*,sender:users(id,nome,email,avatar_url,tipo_user_bubble),chat_file:chat_files(*)')
     .single()
 

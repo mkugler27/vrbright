@@ -452,15 +452,63 @@ export default function ChatPage() {
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
           }
         } else {
-          await queueMediaOffline({
-            conversationId: activeConversation.id,
-            senderId: sbUser.id,
-            senderEmail: user.email,
-            fileType: media.type,
-            mimeType: media.mimeType,
-            originalName: media.name,
-            blob: media.blob,
-          })
+          const msgId = generateUUID()
+          const createdIso = new Date().toISOString()
+          const optimisticMsg: Message = {
+            id: msgId,
+            conversation_id: activeConversation.id,
+            sender_id: sbUser.id,
+            sender: sbUser as any,
+            content: media.type === 'audio' ? 'Audio' : (media.name || 'File'),
+            tipo: media.type === 'audio' ? 'audio' : 'text',
+            audio_url: null,
+            transcription: null,
+            bubble_id: null,
+            created_at: createdIso,
+            chat_file: {
+              id: 'temp_cf_' + msgId,
+              message_id: msgId,
+              sender_id: sbUser.id,
+              bucket: 'chat-media',
+              storage_path: 'pending',
+              public_url: URL.createObjectURL(media.blob),
+              file_type: media.type,
+              mime_type: media.mimeType,
+              original_name: media.name,
+              file_size: media.blob.size,
+              synced: false,
+              created_at: createdIso,
+            } as any
+          }
+
+          setMessages(prev => [...prev, optimisticMsg])
+          setPendingMessageIds(prev => new Set(prev).add(msgId))
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+
+          const updatedConv = {
+            ...activeConversation,
+            last_message: optimisticMsg.content,
+            last_message_at: createdIso
+          }
+          setActiveConversation(updatedConv)
+          setDms(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
+          setGroups(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
+
+          try {
+            await saveCachedMessages(activeConversation.id, [...messages, optimisticMsg])
+            await queueMediaOffline({
+              messageId: msgId,
+              conversationId: activeConversation.id,
+              senderId: sbUser.id,
+              senderEmail: user.email,
+              fileType: media.type,
+              mimeType: media.mimeType,
+              originalName: media.name,
+              blob: media.blob,
+            })
+          } catch (e) {
+            console.error('Failed to queue offline media:', e)
+          }
         }
       } catch (e) {
         console.error('media send failed:', e)

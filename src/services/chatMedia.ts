@@ -172,6 +172,7 @@ function defaultContent(fileType: ChatFileType, originalName?: string): string {
 }
 
 export interface SendMediaOptions {
+  messageId?: string;
   conversationId: string;
   senderId: string;
   senderEmail: string;
@@ -189,7 +190,16 @@ export interface SendMediaResult {
 export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMediaResult> {
   // 1) Create the message row first
   const content = defaultContent(opts.fileType, opts.originalName);
-  const message = await sendMessage(opts.conversationId, opts.senderId, content, 'text');
+  const message = await sendMessage(
+    opts.conversationId,
+    opts.senderId,
+    content,
+    'text',
+    undefined,
+    undefined,
+    undefined,
+    opts.messageId
+  );
   if (!message) throw new Error('sendMessage returned null');
 
   // 2) Upload blob to Supabase Storage
@@ -237,7 +247,7 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
 
 export async function queueMediaOffline(opts: SendMediaOptions): Promise<string> {
   const db = await getDB();
-  const id = `pcf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const id = opts.messageId ?? `pcf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const entry: PendingChatFile = {
     id,
     conversation_id: opts.conversationId,
@@ -263,6 +273,7 @@ export async function processPendingChatFiles(): Promise<{ ok: number; fail: num
   for (const item of items) {
     try {
       await sendMediaMessage({
+        messageId: item.id,
         conversationId: item.conversation_id,
         senderId: item.sender_id,
         senderEmail: item.sender_email,
