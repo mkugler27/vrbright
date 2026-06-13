@@ -5,8 +5,11 @@ import {
   saveCachedConversations,
   getCachedConversations,
   saveCachedMessages,
-  getCachedMessages
+  getCachedMessages,
+  saveCachedUsers,
+  getCachedUsers
 } from './db'
+import { enqueueCreateConversation } from './syncQueue'
 
 export type Conversation = {
   id: string
@@ -112,6 +115,15 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
       .filter(Boolean) as Conversation[]
 
     saveCachedConversations(convs).catch(e => console.warn('Failed to cache conversations:', e))
+
+    // Pre-cache all conversation participants in chatUsers store
+    const participants = convs
+      .flatMap(c => c.participants ?? [])
+      .filter((p, index, self) => self.findIndex(u => u.id === p.id) === index)
+    if (participants.length > 0) {
+      saveCachedUsers(participants).catch(e => console.warn('Failed to cache conversation users:', e))
+    }
+
     return convs
   } catch (err) {
     console.warn('[chatApi] getConversationsForUser failed, falling back to cache:', err)
@@ -147,43 +159,84 @@ export async function getDMsForUser(userId: string): Promise<Conversation[]> {
     })
 }
 
+async function handleOfflineCreateConv(convId: string, userA_id: string, userB_id: string): Promise<string | null> {
+  try {
+    const userA = await getSupabaseUserById(userA_id)
+    const userB = await getSupabaseUserById(userB_id)
+    
+    const newConv: Conversation = {
+      id: convId,
+      tipo: 'individual',
+      nome: null,
+      bubble_group_id: null,
+      last_message: null,
+      last_message_at: null,
+      unread_count: 0,
+      created_at: new Date().toISOString(),
+      participants: [userA!, userB!].filter(Boolean) as User[],
+      member_count: 2
+    }
+
+    const cachedConvs = await getCachedConversations()
+    await saveCachedConversations([...cachedConvs, newConv])
+    await enqueueCreateConversation(convId, userA_id, userB_id)
+    return convId
+  } catch (err) {
+    console.error('Failed to create conversation offline:', err)
+    return null
+  }
+}
+
 export async function createIndividualConversation(
   userA_id: string,
   userB_id: string
 ): Promise<string | null> {
   if (userA_id === userB_id) return null
 
-  const { data: existing } = await supabase
-    .from('conversation_participants')
-    .select('conversation_id')
-    .eq('user_id', userA_id)
-
-  if (existing && existing.length > 0) {
-    const convIds = existing.map((p: any) => p.conversation_id)
-    const { data } = await supabase
+  if (navigator.onLine) {
+    const { data: existing } = await supabase
       .from('conversation_participants')
       .select('conversation_id')
-      .in('conversation_id', convIds)
-      .eq('user_id', userB_id)
-      .eq('conversation_id', convIds[0])
+      .eq('user_id', userA_id)
 
-    if (data && data.length > 0) return data[0].conversation_id
+    if (existing && existing.length > 0) {
+      const convIds = existing.map((p: any) => p.conversation_id)
+      const { data } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .in('conversation_id', convIds)
+        .eq('user_id', userB_id)
+        .eq('conversation_id', convIds[0])
+
+      if (data && data.length > 0) return data[0].conversation_id
+    }
   }
 
-  const { data: conv, error: convErr } = await supabase
-    .from('conversations')
-    .insert({ tipo: 'individual' })
-    .select('id')
-    .single()
+  const convId = generateUUID()
 
-  if (convErr || !conv) return null
+  if (navigator.onLine) {
+    try {
+      const { data: conv, error: convErr } = await supabase
+        .from('conversations')
+        .insert({ id: convId, tipo: 'individual' })
+        .select('id')
+        .single()
 
-  await supabase.from('conversation_participants').insert([
-    { conversation_id: conv.id, user_id: userA_id },
-    { conversation_id: conv.id, user_id: userB_id },
-  ])
+      if (convErr || !conv) throw new Error(convErr?.message || 'Failed to create conv')
 
-  return conv.id
+      await supabase.from('conversation_participants').insert([
+        { conversation_id: conv.id, user_id: userA_id },
+        { conversation_id: conv.id, user_id: userB_id },
+      ])
+
+      return conv.id
+    } catch (err) {
+      console.warn('Online createConversation failed, falling back to offline enqueue:', err)
+      return await handleOfflineCreateConv(convId, userA_id, userB_id)
+    }
+  } else {
+    return await handleOfflineCreateConv(convId, userA_id, userB_id)
+  }
 }
 
 export async function createGroupConversation(
@@ -230,13 +283,25 @@ export async function updateGroupConversation(
 
 
 export async function getGroupMembers(convId: string): Promise<User[]> {
-  const { data } = await supabase
-    .from('conversation_participants')
-    .select('user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)')
-    .eq('conversation_id', convId)
+  try {
+    const { data, error } = await supabase
+      .from('conversation_participants')
+      .select('user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)')
+      .eq('conversation_id', convId)
 
-  if (!data) return []
-  return data.map((row: any) => row.users).filter(Boolean) as User[]
+    if (error) throw new Error(error.message)
+    const list = (data ?? []).map((row: any) => row.users).filter(Boolean) as User[]
+    return list
+  } catch (err) {
+    console.warn('[chatApi] getGroupMembers failed, falling back to cache:', err)
+    try {
+      const cachedConvs = await getCachedConversations()
+      const found = cachedConvs.find(c => c.id === convId)
+      return found?.participants ?? []
+    } catch {
+      return []
+    }
+  }
 }
 
 export async function addGroupMembers(convId: string, userIds: string[]): Promise<void> {
@@ -256,20 +321,70 @@ export async function searchUsersForGroup(
   query: string,
   excludeUserId: string
 ): Promise<User[]> {
-  const q = query.trim()
-  let req = supabase
-    .from('users')
-    .select('*')
-    .neq('id', excludeUserId)
-    .order('nome', { ascending: true })
-    .limit(20)
+  try {
+    const q = query.trim()
+    let req = supabase
+      .from('users')
+      .select('*')
+      .neq('id', excludeUserId)
+      .order('nome', { ascending: true })
+      .limit(20)
 
-  if (q) {
-    req = req.or(`nome.ilike.%${q}%,email.ilike.%${q}%`)
+    if (q) {
+      req = req.or(`nome.ilike.%${q}%,email.ilike.%${q}%`)
+    }
+
+    const { data, error } = await req
+    if (error) throw new Error(error.message)
+    const list = (data ?? []) as User[]
+
+    saveCachedUsers(list).catch(e => console.warn(e))
+    return list
+  } catch (err) {
+    console.warn('[chatApi] searchUsersForGroup failed, falling back to cache:', err)
+    try {
+      const cached = await getCachedUsers()
+      const filtered = cached.filter(u => u.id !== excludeUserId)
+      if (query.trim()) {
+        const lowerQ = query.toLowerCase()
+        return filtered.filter(u => 
+          u.nome.toLowerCase().includes(lowerQ) || 
+          (u.email ?? '').toLowerCase().includes(lowerQ)
+        ).slice(0, 20)
+      }
+      return filtered.slice(0, 20)
+    } catch (cacheErr) {
+      console.error(cacheErr)
+      return []
+    }
   }
+}
 
-  const { data } = await req
-  return (data ?? []) as User[]
+export async function getChatContacts(excludeUserId: string): Promise<User[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .neq('id', excludeUserId)
+      .order('nome', { ascending: true })
+
+    if (error) throw new Error(error.message)
+    const list = (data ?? []) as User[]
+
+    saveCachedUsers(list).catch(e => console.warn(e))
+    return list
+  } catch (err) {
+    console.warn('[chatApi] getChatContacts failed, falling back to cache:', err)
+    try {
+      const cached = await getCachedUsers()
+      return cached
+        .filter(u => u.id !== excludeUserId)
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+    } catch (cacheErr) {
+      console.error(cacheErr)
+      return []
+    }
+  }
 }
 
 // ──────────────────────────────────────────────

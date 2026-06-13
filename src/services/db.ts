@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Photo, SyncQueueItem, PendingChatFile } from '../types';
 import type { WorkOrderRow } from './workingOrdersApi';
 import type { Conversation, Message } from './chatApi';
+import type { User } from './supabase';
 
 interface VRBrightDB extends DBSchema {
   chatConversations: {
@@ -12,6 +13,10 @@ interface VRBrightDB extends DBSchema {
     key: string;
     value: Message;
     indexes: { 'by-conversation': string };
+  };
+  chatUsers: {
+    key: string;
+    value: User;
   };
   workOrders: {
     key: string;
@@ -69,7 +74,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 6, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 7, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -96,6 +101,9 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
         db.createObjectStore('chatConversations', { keyPath: 'id' });
         const store = db.createObjectStore('chatMessages', { keyPath: 'id' });
         store.createIndex('by-conversation', 'conversation_id');
+      }
+      if (oldVersion < 7) {
+        db.createObjectStore('chatUsers', { keyPath: 'id' });
       }
     },
   });
@@ -219,4 +227,19 @@ export async function clearChatCache(): Promise<void> {
   const db = await getDB();
   await db.clear('chatConversations');
   await db.clear('chatMessages');
+  await db.clear('chatUsers');
+}
+
+export async function saveCachedUsers(users: User[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('chatUsers', 'readwrite');
+  for (const u of users) {
+    await tx.store.put(u);
+  }
+  await tx.done;
+}
+
+export async function getCachedUsers(): Promise<User[]> {
+  const db = await getDB();
+  return db.getAll('chatUsers');
 }

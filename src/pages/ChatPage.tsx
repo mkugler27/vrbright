@@ -13,6 +13,7 @@ import {
   markConversationRead,
   upsertUser,
   generateUUID,
+  getChatContacts,
   type Conversation,
   type Message,
 } from '../services/chatApi'
@@ -175,6 +176,11 @@ export default function ChatPage() {
         if (cancelled) return
         setDms(dmList)
         setGroups(groupList)
+
+        // Pre-cache all chat contacts in the background if online
+        if (navigator.onLine) {
+          getChatContacts(sbUser.id).catch(e => console.warn('[ChatPage] Failed to pre-cache contacts:', e))
+        }
 
         convChannel = subscribeToConversations(sbUser.id, async () => {
           if (cancelled) return
@@ -674,8 +680,14 @@ export default function ChatPage() {
             <p className="font-semibold text-gray-800 text-sm truncate">
               {getParticipantNames(activeConversation)}
             </p>
-            <p className="text-xs text-gray-500 capitalize">
-              {activeConversation.tipo === 'group' ? 'Group' : 'Direct message'}
+            <p className="text-xs text-gray-500 capitalize flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`} />
+              <span>{activeConversation.tipo === 'group' ? 'Group' : 'Direct message'}</span>
+              {!isOnline && (
+                <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider scale-90 origin-left">
+                  Offline
+                </span>
+              )}
             </p>
           </div>
           {connectionStatus === 'reconnecting' && (
@@ -693,14 +705,6 @@ export default function ChatPage() {
             </button>
           )}
         </div>
-        {!isOnline && (
-          <div className="bg-orange-500 text-white text-[11px] font-semibold py-1 px-4 text-center shrink-0 flex items-center justify-center gap-1.5 animate-pulse">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            Offline Mode — messages will sync when online
-          </div>
-        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -929,7 +933,20 @@ export default function ChatPage() {
     <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shrink-0">
-        <h1 className="text-xl font-bold text-gray-800">Chat</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-xl font-bold text-gray-800">Chat</h1>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}
+              title={isOnline ? 'Online' : 'Offline'}
+            />
+            {!isOnline && (
+              <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                Offline
+              </span>
+            )}
+          </div>
+        </div>
         <div className="flex items-center gap-1">
           {(activeTab === 'chats' || (activeTab === 'groups' && canCreateGroups(user?.tipo_user_bubble))) && (
             <button
@@ -944,14 +961,6 @@ export default function ChatPage() {
           )}
         </div>
       </div>
-      {!isOnline && (
-        <div className="bg-orange-500 text-white text-[11px] font-semibold py-1 px-4 text-center shrink-0 flex items-center justify-center gap-1.5 animate-pulse">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          Offline Mode — messages will sync when online
-        </div>
-      )}
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white shrink-0">

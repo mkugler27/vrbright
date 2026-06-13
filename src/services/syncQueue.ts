@@ -55,6 +55,28 @@ export async function enqueueChatMessage(
   await db.put('syncQueue', item)
 }
 
+export async function enqueueCreateConversation(
+  conversationId: string,
+  userA_id: string,
+  userB_id: string
+): Promise<void> {
+  const db = await getDB()
+  const id = `conv_${conversationId}`
+  const item: SyncQueueItem = {
+    id,
+    action: 'create_conversation',
+    payload: {
+      id: conversationId,
+      userA_id,
+      userB_id,
+    },
+    attempts: 0,
+    max_attempts: 5,
+    created_at: new Date().toISOString(),
+  }
+  await db.put('syncQueue', item)
+}
+
 // ──────────────────────────────────────────────
 // QUEUE LENGTH / STATUS
 // ──────────────────────────────────────────────
@@ -102,6 +124,44 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
       }
 
       try {
+        if (item.action === 'create_conversation') {
+          const current = await db.get('syncQueue', item.id)
+          if (!current) continue
+
+          const convId = item.payload.id as string
+          const userA = item.payload.userA_id as string
+          const userB = item.payload.userB_id as string
+
+          const { error: convErr } = await supabase
+            .from('conversations')
+            .insert({ id: convId, tipo: 'individual' })
+
+          if (convErr) {
+            const isDuplicate = convErr.code === '23505' || convErr.message?.includes('duplicate key')
+            if (!isDuplicate) {
+              throw new Error(`Create conversation offline failed: ${convErr.message}`)
+            }
+          }
+
+          const { error: partErr } = await supabase
+            .from('conversation_participants')
+            .insert([
+              { conversation_id: convId, user_id: userA },
+              { conversation_id: convId, user_id: userB }
+            ])
+
+          if (partErr) {
+            const isDuplicate = partErr.code === '23505' || partErr.message?.includes('duplicate key')
+            if (!isDuplicate) {
+              throw new Error(`Create participants offline failed: ${partErr.message}`)
+            }
+          }
+
+          await db.delete('syncQueue', item.id)
+          ok++
+          continue
+        }
+
         if (item.action === 'send_chat_message') {
           const current = await db.get('syncQueue', item.id)
           if (!current) continue

@@ -41,7 +41,8 @@ export type SyncAction =
   | 'complete_wo'
   | 'send_chat_file'
   | 'send_chat_file_delete'
-  | 'send_chat_message';
+  | 'send_chat_message'
+  | 'create_conversation';
 
 export interface SyncQueueItem {
   id: string;
