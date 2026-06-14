@@ -11,10 +11,11 @@ interface WOWizardProps {
   conversation: Conversation;
   onAttachPhoto: (tag: string) => void;
   onSendSystemMessage?: (text: string) => void;
+  onWOStarted?: () => void;
   onClose: () => void;
 }
 
-export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onClose }: WOWizardProps) {
+export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onWOStarted, onClose }: WOWizardProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<WizardStep>('PHOTOS_REPAIR');
   const [notes, setNotes] = useState('');
@@ -58,6 +59,7 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onC
     if (woData.status === 'NOT STARTED') {
       // Call updateStatus to change to IN PROGRESS and patch bubble
       await updateStatus('IN PROGRESS');
+      if (onWOStarted) onWOStarted();
       // Wait a tiny bit so the state updates before we update raw_data
       await new Promise(r => setTimeout(r, 100));
     }

@@ -11,7 +11,6 @@ export function WOListView({ onSelect }: WOListViewProps) {
   const { user } = useAuth();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showLockAlert, setShowLockAlert] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -70,22 +69,14 @@ export function WOListView({ onSelect }: WOListViewProps) {
     );
   }
 
-  // Verifica se existe alguma WO "IN PROGRESS"
-  const hasInProgressWO = woConvs.some(conv => conv.work_orders?.status === 'IN PROGRESS');
-
   return (
     <div className="flex flex-col">
-      {woConvs.map(conv => {
+      {woConvs.map((conv) => {
         const wo = conv.work_orders;
-        const raw = wo.raw_data || {};
-        
-        // Status Colors
+        const raw = typeof wo.raw_data === 'string' ? JSON.parse(wo.raw_data) : wo.raw_data || {};
         const isCompleted = wo.status === 'COMPLETED';
         const isInProgress = wo.status === 'IN PROGRESS';
         const isNotStarted = wo.status === 'NOT STARTED';
-        
-        // Bloqueia a WO se ela não foi iniciada e já existe outra em andamento
-        const isLocked = hasInProgressWO && isNotStarted;
         
         const statusColor = isCompleted 
           ? 'bg-green-100 text-green-700' 
@@ -96,16 +87,8 @@ export function WOListView({ onSelect }: WOListViewProps) {
         return (
           <button
             key={conv.id}
-            onClick={() => {
-              if (isLocked) {
-                setShowLockAlert(true);
-                return;
-              }
-              onSelect(conv as Conversation);
-            }}
-            className={`w-full text-left p-4 border-b border-gray-100 flex flex-col gap-2 transition-colors ${
-              isLocked ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'
-            }`}
+            onClick={() => onSelect(conv as Conversation)}
+            className={`w-full text-left p-4 border-b border-gray-100 flex flex-col gap-2 transition-colors hover:bg-gray-50`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -143,29 +126,6 @@ export function WOListView({ onSelect }: WOListViewProps) {
           </button>
         );
       })}
-
-      {/* Custom Lock Modal */}
-      {showLockAlert && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mb-4 mx-auto">
-              <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Service in Progress</h3>
-            <p className="text-gray-500 text-center text-sm mb-6 leading-relaxed">
-              You must finish your current <b>"IN PROGRESS"</b> Work Order before starting a new one.
-            </p>
-            <button 
-              onClick={() => setShowLockAlert(false)}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl transition-colors shadow-sm shadow-blue-200"
-            >
-              Understood
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

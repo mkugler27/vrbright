@@ -36,7 +36,7 @@ import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
 import { ConfirmationModal } from '../components/ui/ConfirmationModal'
 import { saveCachedMessages, getDB } from '../services/db'
 import { enqueueChatMessage } from '../services/syncQueue'
-import { syncWorkingOrders } from '../services/woSync'
+import { syncWorkingOrders, patchWOInBubble } from '../services/woSync'
 import { WOListView } from '../components/chat/WOListView'
 import { WOWizard } from '../components/chat/WOWizard'
 import type { ChatFileType } from '../types'
@@ -1000,6 +1000,29 @@ export default function ChatPage() {
                 sbUser = { id: user.id, nome: user.nome, email: user.email, tipo_user_bubble: user.tipo_user_bubble, avatar_url: user.profile_picture, bubble_id: user.bubble_id };
               }
               handleOfflineSend(sbUser as any, text, new Date().toISOString());
+            }}
+            onWOStarted={async () => {
+              if (!user) return;
+              const myWoConvs = groups.filter(g => 
+                g.tipo === 'wo' && 
+                g.work_orders?.status === 'IN PROGRESS' && 
+                g.work_orders.id !== activeConversation.wo_id
+              );
+              for (const old of myWoConvs) {
+                if (!old.work_orders) continue;
+                
+                await supabase.from('work_orders').update({ status: 'COMPLETED' }).eq('id', old.work_orders.id);
+                if (old.work_orders.bubble_id) {
+                  patchWOInBubble(old.work_orders.bubble_id, { status: 'COMPLETED' }).catch(console.error);
+                }
+                
+                setGroups(prev => prev.map(g => {
+                  if (g.id === old.id && g.work_orders) {
+                    return { ...g, work_orders: { ...g.work_orders, status: 'COMPLETED' } };
+                  }
+                  return g;
+                }));
+              }
             }}
             onClose={() => {
               // Optionally close conversation when done
