@@ -968,6 +968,14 @@ export default function ChatPage() {
                setNewMessage(tag + ' ');
                setShowAttachMenu(true);
             }}
+            onSendSystemMessage={async (text) => {
+              if (!user) return;
+              let sbUser = await getSupabaseUserById(user.id);
+              if (!sbUser) {
+                sbUser = { id: user.id, nome: user.nome, email: user.email, tipo_user_bubble: user.tipo_user_bubble, avatar_url: user.profile_picture, bubble_id: user.bubble_id };
+              }
+              saveAndQueueOfflineMessage(sbUser as any, text);
+            }}
             onClose={() => {
               // Optionally close conversation when done
               closeConversation();

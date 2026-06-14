@@ -10,10 +10,11 @@ type WizardStep = 'PHOTOS_REPAIR' | 'PHOTOS_DAMAGED' | 'PHOTOS_SPRINKLER' | 'EXT
 interface WOWizardProps {
   conversation: Conversation;
   onAttachPhoto: (tag: string) => void;
+  onSendSystemMessage?: (text: string) => void;
   onClose: () => void;
 }
 
-export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps) {
+export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onClose }: WOWizardProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<WizardStep>('PHOTOS_REPAIR');
   const [notes, setNotes] = useState('');
@@ -75,15 +76,19 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
   async function handleNoPhoto(stepName: string, nextStep: WizardStep) {
     if (!user || !woData) return;
     
-    // Dispara uma mensagem pro chat avisando que não teve foto
-    const msgId = crypto.randomUUID();
-    await enqueueChatMessage(
-      msgId,
-      conversation.id,
-      user.id,
-      `[NO ${stepName} PHOTOS]`,
-      new Date().toISOString()
-    );
+    // Dispara uma mensagem pro chat avisando que não teve foto de forma otimista
+    if (onSendSystemMessage) {
+      onSendSystemMessage(`[NO ${stepName} PHOTOS]`);
+    } else {
+      const msgId = crypto.randomUUID();
+      await enqueueChatMessage(
+        msgId,
+        conversation.id,
+        user.id,
+        `[NO ${stepName} PHOTOS]`,
+        new Date().toISOString()
+      );
+    }
     
     // Avança para o próximo passo
     await handleNextStep(nextStep);
