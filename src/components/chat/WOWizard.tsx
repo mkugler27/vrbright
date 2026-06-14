@@ -47,15 +47,21 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
     if (!woData) return;
     await supabase.from('work_orders').update({ status: newStatus }).eq('id', woData.id);
     setWoData({ ...woData, status: newStatus });
+    // Patch to bubble asynchronously
+    patchWOInBubble(woData.bubble_id, { status: newStatus }).catch(console.error);
   }
 
   async function handleNextStep(next: WizardStep) {
     if (!woData) return;
     
-    const updates: any = {};
-    if (woData.status === 'PENDING') {
-      updates.status = 'IN PROGRESS';
+    if (woData.status === 'PENDING' || woData.status === 'NOT STARTED') {
+      // Call updateStatus to change to IN PROGRESS and patch bubble
+      await updateStatus('IN PROGRESS');
+      // Wait a tiny bit so the state updates before we update raw_data
+      await new Promise(r => setTimeout(r, 100));
     }
+    
+    const updates: any = {};
     
     // Salvar o passo na WO para lembrar caso o Worker feche o app
     const raw = woData.raw_data || {};
@@ -142,7 +148,9 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
           <div className="flex gap-2">
             <button 
               onClick={() => {
-                if (woData?.status === 'PENDING') updateStatus('IN PROGRESS');
+                if (woData?.status === 'PENDING' || woData?.status === 'NOT STARTED') {
+                  updateStatus('IN PROGRESS');
+                }
                 onAttachPhoto('[REPAIR]');
               }}
               className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center justify-center gap-2"
