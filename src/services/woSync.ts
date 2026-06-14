@@ -73,6 +73,7 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
             worker_email: workerEmail,
             status: r.status || 'NOT STARTED',
             codigo_id: r.codigo_id?.toString() || '',
+            data: r.data || null,
             raw_data: r,
           })
           .eq('id', existingWO.id)
@@ -89,6 +90,7 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
             worker_email: workerEmail,
             status: r.status || 'NOT STARTED',
             codigo_id: r.codigo_id?.toString() || '',
+            data: r.data || null,
             raw_data: r,
           })
           .select()

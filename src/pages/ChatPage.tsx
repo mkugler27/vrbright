@@ -91,7 +91,7 @@ export default function ChatPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('chats')
   const [woTab] = useState<WoTab>('today')
-  const [, setWoList] = useState<unknown[]>([])
+  const [woList, setWoList] = useState<any[]>([])
 
   const [dms, setDms] = useState<Conversation[]>([])
   const [groups, setGroups] = useState<Conversation[]>([])
@@ -817,7 +817,7 @@ export default function ChatPage() {
           )}
           {activeTab === 'chats' && dmView}
           {activeTab === 'groups' && groupView}
-          {activeTab === 'works' && <WOListView onSelect={openConversation} />}
+          {activeTab === 'works' && <WOListView currentUserId={mySupabaseId} onSelect={openConversation} onWoConvsLoaded={setWoList} />}
         </div>
       </div>
 
@@ -990,8 +990,7 @@ export default function ChatPage() {
           <WOWizard 
             conversation={activeConversation}
             isLastWO={
-              groups.filter(g => 
-                g.tipo === 'wo' && 
+              woList.filter(g => 
                 g.id !== activeConversation.id &&
                 (g.work_orders?.status === 'NOT STARTED' || g.work_orders?.status === 'IN PROGRESS')
               ).length === 0

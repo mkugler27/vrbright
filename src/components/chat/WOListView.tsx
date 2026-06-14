@@ -5,9 +5,12 @@ import { type Conversation } from '../../services/chatApi';
 
 interface WOListViewProps {
   onSelect: (conv: Conversation) => void;
+  currentUserId?: string | null;
+  className?: string;
+  onWoConvsLoaded?: (convs: any[]) => void;
 }
 
-export function WOListView({ onSelect }: WOListViewProps) {
+export function WOListView({ onSelect, currentUserId, className = '', onWoConvsLoaded }: WOListViewProps) {
   const { user } = useAuth();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +36,11 @@ export function WOListView({ onSelect }: WOListViewProps) {
         // Wait, RLS already filters work_orders by worker_email for workers.
         // For Admins, RLS would need to allow all. We assume RLS is correct.
         // Also, inner join behavior in Postgrest might return null work_orders if RLS blocks.
-        const validWOs = data?.filter(c => c.work_orders) || [];
-        setWoConvs(validWOs);
+        if (data) {
+          const validWOs = data.filter(c => c.work_orders);
+          setWoConvs(validWOs);
+          if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
+        }
       }
       setLoading(false);
     }
