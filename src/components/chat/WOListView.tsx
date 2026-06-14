@@ -17,7 +17,7 @@ function FilterPopover({
   allLabel,
   icon,
 }: {
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; dotColor?: string }[];
   value: string;
   onChange: (v: string) => void;
   allLabel: string;
@@ -39,6 +39,9 @@ function FilterPopover({
 
   const selectedOption = options.find(o => o.value === value);
   const currentLabel = value === 'ALL' ? allLabel : (selectedOption?.label || value);
+  const currentDot = value !== 'ALL' && selectedOption?.dotColor ? (
+    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedOption.dotColor}`} />
+  ) : null;
 
   return (
     <div ref={ref} className="relative flex-1">
@@ -51,7 +54,7 @@ function FilterPopover({
         className="w-full flex items-center justify-between gap-2 bg-white border border-gray-200 hover:border-blue-400 rounded-xl px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all"
       >
         <div className="flex items-center gap-2 overflow-hidden">
-          {icon}
+          {currentDot || icon}
           <span className="truncate">{currentLabel}</span>
         </div>
         <svg
@@ -100,6 +103,9 @@ function FilterPopover({
                   value === opt.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
+                {opt.dotColor && (
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${opt.dotColor}`} />
+                )}
                 <span className="flex-1 truncate">{opt.label}</span>
                 {value === opt.value && (
                   <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -212,9 +218,9 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
               value={filterStatus}
               onChange={setFilterStatus}
               options={[
-                { label: 'Not Started', value: 'NOT STARTED' },
-                { label: 'In Progress', value: 'IN PROGRESS' },
-                { label: 'Completed', value: 'COMPLETED' },
+                { label: 'Not Started', value: 'NOT STARTED', dotColor: 'bg-yellow-400' },
+                { label: 'In Progress', value: 'IN PROGRESS', dotColor: 'bg-blue-500' },
+                { label: 'Completed', value: 'COMPLETED', dotColor: 'bg-green-500' },
               ]}
               icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
             />
