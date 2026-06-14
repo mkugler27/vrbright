@@ -1009,7 +1009,7 @@ export default function ChatPage() {
             }}
             onWOStarted={async () => {
               if (!user) return;
-              const myWoConvs = groups.filter(g => 
+              const myWoConvs = woList.filter(g => 
                 g.tipo === 'wo' && 
                 g.work_orders?.status === 'IN PROGRESS' && 
                 g.work_orders.id !== activeConversation.wo_id
