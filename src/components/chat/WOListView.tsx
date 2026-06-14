@@ -24,7 +24,7 @@ export function WOListView({ onSelect }: WOListViewProps) {
           work_orders (*)
         `)
         .eq('tipo', 'wo')
-        .order('updated_at', { ascending: false });
+        .order('created_at', { ascending: false });
         
       if (error) {
         console.error('[WOListView] Error loading WO conversations:', error);
@@ -69,6 +69,9 @@ export function WOListView({ onSelect }: WOListViewProps) {
     );
   }
 
+  // Verifica se existe alguma WO "IN PROGRESS"
+  const hasInProgressWO = woConvs.some(conv => conv.work_orders?.status === 'IN PROGRESS');
+
   return (
     <div className="flex flex-col">
       {woConvs.map(conv => {
@@ -78,6 +81,10 @@ export function WOListView({ onSelect }: WOListViewProps) {
         // Status Colors
         const isCompleted = wo.status === 'COMPLETED';
         const isInProgress = wo.status === 'IN PROGRESS';
+        const isNotStarted = wo.status === 'NOT STARTED';
+        
+        // Bloqueia a WO se ela não foi iniciada e já existe outra em andamento
+        const isLocked = hasInProgressWO && isNotStarted;
         
         const statusColor = isCompleted 
           ? 'bg-green-100 text-green-700' 
@@ -88,8 +95,16 @@ export function WOListView({ onSelect }: WOListViewProps) {
         return (
           <button
             key={conv.id}
-            onClick={() => onSelect(conv as Conversation)}
-            className="w-full text-left p-4 border-b border-gray-100 hover:bg-gray-50 flex flex-col gap-2 transition-colors"
+            onClick={() => {
+              if (isLocked) {
+                alert('You must finish your "IN PROGRESS" Work Order before starting a new one.');
+                return;
+              }
+              onSelect(conv as Conversation);
+            }}
+            className={`w-full text-left p-4 border-b border-gray-100 flex flex-col gap-2 transition-colors ${
+              isLocked ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-gray-50'
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
