@@ -199,7 +199,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
       {isAdmin && (
         <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
           <div className="text-xs font-bold text-gray-500 uppercase px-1">Filtros de Administração</div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <FilterPopover 
               allLabel="Todos os Workers"
               value={filterWorker}

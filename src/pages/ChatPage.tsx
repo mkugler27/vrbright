@@ -754,7 +754,7 @@ export default function ChatPage() {
     <div className="flex h-full w-full bg-gray-50 overflow-hidden">
       
       {/* LEFT PANE (LIST VIEW) */}
-      <div className={`flex-col h-full bg-gray-50 border-r border-gray-200 w-full md:w-80 lg:w-96 shrink-0 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex-col h-full bg-gray-50 border-r border-gray-200 w-full md:w-96 lg:w-[440px] xl:w-[500px] shrink-0 ${activeConversation ? 'hidden md:flex' : 'flex'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200 shrink-0">
           <div className="flex items-center gap-2">
