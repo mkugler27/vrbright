@@ -48,8 +48,15 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
 
   async function updateStatus(newStatus: string) {
     if (!woData) return;
+    const isStarting = woData.status === 'NOT STARTED' && newStatus === 'IN PROGRESS';
+    
     await supabase.from('work_orders').update({ status: newStatus }).eq('id', woData.id);
     setWoData({ ...woData, status: newStatus });
+    
+    if (isStarting && onWOStarted) {
+      onWOStarted();
+    }
+    
     // Patch to bubble asynchronously
     patchWOInBubble(woData.bubble_id, { status: newStatus }).catch(console.error);
   }
@@ -58,9 +65,7 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
     if (!woData) return;
     
     if (woData.status === 'NOT STARTED') {
-      // Call updateStatus to change to IN PROGRESS and patch bubble
       await updateStatus('IN PROGRESS');
-      if (onWOStarted) onWOStarted();
       // Wait a tiny bit so the state updates before we update raw_data
       await new Promise(r => setTimeout(r, 100));
     }
@@ -138,8 +143,8 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
       
       {/* HEADER INDICATOR */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-          WO Steps
+        <span className="text-sm font-extrabold text-blue-900 tracking-wide">
+          CURRENT WO: #{woData?.codigo_id || '---'}
         </span>
         <div className="flex gap-1">
           <div className={`h-1.5 w-6 rounded-full ${step === 'PHOTOS_REPAIR' ? 'bg-blue-600' : 'bg-gray-200'}`} />
