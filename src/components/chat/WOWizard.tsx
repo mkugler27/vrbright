@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
 import { type Conversation } from '../../services/chatApi';
 import { patchWOInBubble } from '../../services/woSync';
+import { useAuth } from '../../context/AuthContext';
+import { enqueueChatMessage } from '../../services/syncQueue';
 
 type WizardStep = 'PHOTOS_REPAIR' | 'PHOTOS_DAMAGED' | 'PHOTOS_SPRINKLER' | 'EXTRA_AND_NOTES' | 'COMPLETED';
 
@@ -12,6 +14,7 @@ interface WOWizardProps {
 }
 
 export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<WizardStep>('PHOTOS_REPAIR');
   const [notes, setNotes] = useState('');
   const [woData, setWoData] = useState<any>(null);
@@ -32,6 +35,8 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
         setNotes(data.notes_extra || '');
         if (data.status === 'COMPLETED') {
           setStep('COMPLETED');
+        } else if (data.raw_data?.wizard_step) {
+          setStep(data.raw_data.wizard_step);
         }
       }
     }
@@ -45,11 +50,37 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
   }
 
   async function handleNextStep(next: WizardStep) {
-    // If it's the first interaction, move to IN PROGRESS
-    if (woData?.status === 'PENDING') {
-      await updateStatus('IN PROGRESS');
+    if (!woData) return;
+    
+    const updates: any = {};
+    if (woData.status === 'PENDING') {
+      updates.status = 'IN PROGRESS';
     }
+    
+    // Salvar o passo na WO para lembrar caso o Worker feche o app
+    const raw = woData.raw_data || {};
+    updates.raw_data = { ...raw, wizard_step: next };
+
+    await supabase.from('work_orders').update(updates).eq('id', woData.id);
+    setWoData({ ...woData, ...updates });
     setStep(next);
+  }
+
+  async function handleNoPhoto(stepName: string, nextStep: WizardStep) {
+    if (!user || !woData) return;
+    
+    // Dispara uma mensagem pro chat avisando que não teve foto
+    const msgId = crypto.randomUUID();
+    await enqueueChatMessage(
+      msgId,
+      conversation.id,
+      user.id,
+      `[NO ${stepName} PHOTOS]`,
+      new Date().toISOString()
+    );
+    
+    // Avança para o próximo passo
+    await handleNextStep(nextStep);
   }
 
   async function handleSave() {
@@ -120,7 +151,7 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
               Add Photo
             </button>
             <button 
-              onClick={() => handleNextStep('PHOTOS_DAMAGED')}
+              onClick={() => handleNoPhoto('REPAIR', 'PHOTOS_DAMAGED')}
               className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-medium text-sm transition-colors"
             >
               Next / No Repair
@@ -142,7 +173,7 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
               Add Photo
             </button>
             <button 
-              onClick={() => handleNextStep('PHOTOS_SPRINKLER')}
+              onClick={() => handleNoPhoto('DAMAGED', 'PHOTOS_SPRINKLER')}
               className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-medium text-sm transition-colors"
             >
               Next / No Damaged
@@ -164,7 +195,7 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
               Add Photo
             </button>
             <button 
-              onClick={() => handleNextStep('EXTRA_AND_NOTES')}
+              onClick={() => handleNoPhoto('SPRINKLER', 'EXTRA_AND_NOTES')}
               className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg font-medium text-sm transition-colors"
             >
               Next / No Sprinkler
