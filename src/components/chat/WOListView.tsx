@@ -14,6 +14,10 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
   const { user } = useAuth();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const [filterWorker, setFilterWorker] = useState<string>('ALL');
+  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const isAdmin = user?.tipo_user_bubble === 'Admin';
 
   useEffect(() => {
     if (!user) return;
@@ -75,9 +79,52 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
     );
   }
 
+  const uniqueWorkers = Array.from(new Set(woConvs.map(c => c.work_orders?.worker_email).filter(Boolean)));
+  
+  const filteredConvs = woConvs.filter(c => {
+    const wo = c.work_orders;
+    if (!wo) return false;
+    if (filterWorker !== 'ALL' && wo.worker_email !== filterWorker) return false;
+    if (filterStatus !== 'ALL' && wo.status !== filterStatus) return false;
+    return true;
+  });
+
   return (
     <div className="flex flex-col">
-      {woConvs.map((conv) => {
+      {isAdmin && (
+        <div className="bg-gray-100 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
+          <div className="text-xs font-bold text-gray-500 uppercase">Filtros de Administração</div>
+          <div className="flex gap-2">
+            <select 
+              value={filterWorker} 
+              onChange={e => setFilterWorker(e.target.value)}
+              className="flex-1 text-sm border border-gray-300 rounded-md shadow-sm p-1.5 bg-white text-gray-700 outline-none focus:border-blue-500"
+            >
+              <option value="ALL">Todos os Workers</option>
+              {uniqueWorkers.map(w => (
+                <option key={w as string} value={w as string}>{w}</option>
+              ))}
+            </select>
+            <select 
+              value={filterStatus} 
+              onChange={e => setFilterStatus(e.target.value)}
+              className="flex-1 text-sm border border-gray-300 rounded-md shadow-sm p-1.5 bg-white text-gray-700 outline-none focus:border-blue-500"
+            >
+              <option value="ALL">Qualquer Status</option>
+              <option value="NOT STARTED">Not Started</option>
+              <option value="IN PROGRESS">In Progress</option>
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </div>
+        </div>
+      )}
+      
+      {filteredConvs.length === 0 && (
+        <div className="p-8 text-center text-gray-500 text-sm">
+          Nenhuma Work Order atende a estes filtros.
+        </div>
+      )}
+      {filteredConvs.map((conv) => {
         const wo = conv.work_orders;
         const raw = typeof wo.raw_data === 'string' ? JSON.parse(wo.raw_data) : wo.raw_data || {};
         const isCompleted = wo.status === 'COMPLETED';
@@ -107,6 +154,12 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
                 {wo.data ? new Date(wo.data).toLocaleDateString() : ''}
               </span>
             </div>
+            
+            {isAdmin && wo.worker_email && (
+              <div className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit mt-1">
+                Resp: {wo.worker_email}
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <p className="text-sm text-gray-600 font-medium">

@@ -988,8 +988,8 @@ export default function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* WOWizard for Work Orders */}
-        {activeConversation.tipo === 'wo' && (
+        {/* WOWizard for Work Orders (Only for Workers) */}
+        {activeConversation.tipo === 'wo' && user?.tipo_user_bubble !== 'Admin' && (
           <WOWizard 
             conversation={activeConversation}
             isLastWO={
@@ -1038,6 +1038,19 @@ export default function ChatPage() {
               closeConversation();
             }}
           />
+        )}
+
+        {/* WO Banner for Admins */}
+        {activeConversation.tipo === 'wo' && user?.tipo_user_bubble === 'Admin' && (
+          <div className="bg-blue-50 border-t border-blue-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 shadow-sm z-10">
+            <div className="flex items-center gap-2 mb-2 sm:mb-0">
+              <span className="text-xs font-bold bg-blue-600 text-white px-2 py-1 rounded">WO #{activeConversation.work_orders?.codigo_id}</span>
+              <span className="text-sm font-semibold text-blue-900">{activeConversation.work_orders?.status}</span>
+            </div>
+            <div className="text-xs text-blue-700">
+              <span className="font-semibold">Worker:</span> {activeConversation.work_orders?.worker_email}
+            </div>
+          </div>
         )}
 
         {/* Pending media preview */}
