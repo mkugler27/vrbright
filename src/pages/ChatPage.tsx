@@ -974,7 +974,7 @@ export default function ChatPage() {
               if (!sbUser) {
                 sbUser = { id: user.id, nome: user.nome, email: user.email, tipo_user_bubble: user.tipo_user_bubble, avatar_url: user.profile_picture, bubble_id: user.bubble_id };
               }
-              saveAndQueueOfflineMessage(sbUser as any, text);
+              handleOfflineSend(sbUser as any, text, new Date().toISOString());
             }}
             onClose={() => {
               // Optionally close conversation when done
