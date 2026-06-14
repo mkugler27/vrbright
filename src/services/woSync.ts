@@ -50,17 +50,23 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
 
     console.log(`[WO Sync] Encontradas ${results.length} WOs para sincronizar.`);
 
+    // Busca o ID do usuário para adicionar como participante depois
+    const { data: userData } = await supabase.from('users').select('id').eq('email', workerEmail).maybeSingle();
+    const workerUserId = userData?.id;
+
     for (const r of results) {
       // 2. SALVAR NO SUPABASE
       const bubbleId = r._id;
       
       // Checa se a WO já existe
-      const { data: existingWO } = await supabase
+      const { data: existingWO, error: checkError } = await supabase
         .from('work_orders')
         .select('id')
         .eq('bubble_id', bubbleId)
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (checkError) console.error('[WO Sync] Erro ao checar WO existente:', checkError);
         
       let woData;
       let woError;
@@ -78,7 +84,7 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
           })
           .eq('id', existingWO.id)
           .select()
-          .single();
+          .maybeSingle();
         woData = res.data;
         woError = res.error;
       } else {
@@ -94,7 +100,7 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
             raw_data: r,
           })
           .select()
-          .single();
+          .maybeSingle();
         woData = res.data;
         woError = res.error;
       }
@@ -110,20 +116,32 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
         .from('conversations')
         .select('id')
         .eq('wo_id', woData.id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
       if (!convData) {
         // Criar nova conversa
-        const { error: convError } = await supabase
+        const { data: newConv, error: convError } = await supabase
           .from('conversations')
           .insert({
             tipo: 'wo',
             nome: `WO ${woData.codigo_id}`,
             wo_id: woData.id
-          });
+          })
+          .select()
+          .maybeSingle();
 
         if (convError) {
           console.error('[WO Sync] Erro ao criar conversa da WO:', convError);
+        } else if (newConv && workerUserId) {
+          // Adiciona o Worker como participante dessa conversa
+          const { error: partError } = await supabase
+            .from('conversation_participants')
+            .insert({ conversation_id: newConv.id, user_id: workerUserId });
+            
+          if (partError && partError.code !== '23505') { // Ignora se já for participante
+            console.error('[WO Sync] Erro ao adicionar participante:', partError);
+          }
         }
       }
 
