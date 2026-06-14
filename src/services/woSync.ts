@@ -53,17 +53,49 @@ export async function syncWorkingOrders({ workerEmail }: SyncWOOptions) {
     for (const r of results) {
       // 2. SALVAR NO SUPABASE
       const bubbleId = r._id;
-      const { data: woData, error: woError } = await supabase
+      
+      // Checa se a WO já existe
+      const { data: existingWO } = await supabase
         .from('work_orders')
-        .upsert({
-          bubble_id: bubbleId,
-          worker_email: workerEmail,
-          status: r.status || 'PENDING',
-          codigo_id: r.codigo_id?.toString() || '',
-          raw_data: r,
-        }, { onConflict: 'bubble_id' })
-        .select()
+        .select('id')
+        .eq('bubble_id', bubbleId)
+        .limit(1)
         .single();
+        
+      let woData;
+      let woError;
+      
+      if (existingWO) {
+        // Atualiza
+        const res = await supabase
+          .from('work_orders')
+          .update({
+            worker_email: workerEmail,
+            status: r.status || 'NOT STARTED',
+            codigo_id: r.codigo_id?.toString() || '',
+            raw_data: r,
+          })
+          .eq('id', existingWO.id)
+          .select()
+          .single();
+        woData = res.data;
+        woError = res.error;
+      } else {
+        // Insere
+        const res = await supabase
+          .from('work_orders')
+          .insert({
+            bubble_id: bubbleId,
+            worker_email: workerEmail,
+            status: r.status || 'NOT STARTED',
+            codigo_id: r.codigo_id?.toString() || '',
+            raw_data: r,
+          })
+          .select()
+          .single();
+        woData = res.data;
+        woError = res.error;
+      }
 
       if (woError || !woData) {
         console.error('[WO Sync] Erro ao salvar WO no Supabase:', woError);
