@@ -12,10 +12,11 @@ interface WOWizardProps {
   onAttachPhoto: (tag: string) => void;
   onSendSystemMessage?: (text: string) => void;
   onWOStarted?: () => void;
+  isLastWO?: boolean;
   onClose: () => void;
 }
 
-export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onWOStarted, onClose }: WOWizardProps) {
+export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onWOStarted, isLastWO, onClose }: WOWizardProps) {
   const { user } = useAuth();
   const [step, setStep] = useState<WizardStep>('PHOTOS_REPAIR');
   const [notes, setNotes] = useState('');
@@ -239,17 +240,24 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
             className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
           />
 
-          <button 
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {saving ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              'SAVE & COMPLETE WO'
-            )}
-          </button>
+          {isLastWO ? (
+            <button 
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {saving ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                'SAVE & COMPLETE WO'
+              )}
+            </button>
+          ) : (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-center">
+              <p className="text-sm text-blue-800 font-bold">All set here! ✨</p>
+              <p className="text-xs text-blue-600 mt-1">Go back and select your next Work Order to automatically complete this one.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

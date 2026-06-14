@@ -989,6 +989,13 @@ export default function ChatPage() {
         {activeConversation.tipo === 'wo' && (
           <WOWizard 
             conversation={activeConversation}
+            isLastWO={
+              groups.filter(g => 
+                g.tipo === 'wo' && 
+                g.id !== activeConversation.id &&
+                (g.work_orders?.status === 'NOT STARTED' || g.work_orders?.status === 'IN PROGRESS')
+              ).length === 0
+            }
             onAttachPhoto={(tag) => {
                setNewMessage(tag + ' ');
                setShowAttachMenu(true);
