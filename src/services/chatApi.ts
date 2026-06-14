@@ -13,7 +13,7 @@ import { enqueueCreateConversation } from './syncQueue'
 
 export type Conversation = {
   id: string
-  tipo: 'individual' | 'group'
+  tipo: 'individual' | 'group' | 'wo'
   nome: string | null
   bubble_group_id: string | null
   last_message: string | null
@@ -22,6 +22,7 @@ export type Conversation = {
   created_at: string
   participants?: User[]
   member_count?: number
+  wo_id?: string
 }
 
 export type Message = {

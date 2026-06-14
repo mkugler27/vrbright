@@ -36,9 +36,12 @@ import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
 import { ConfirmationModal } from '../components/ui/ConfirmationModal'
 import { saveCachedMessages, getDB } from '../services/db'
 import { enqueueChatMessage } from '../services/syncQueue'
+import { syncWorkingOrders } from '../services/woSync'
+import { WOListView } from '../components/chat/WOListView'
+import { WOWizard } from '../components/chat/WOWizard'
 import type { ChatFileType } from '../types'
 
-type Tab = 'chats' | 'groups'
+type Tab = 'chats' | 'groups' | 'works'
 type WoTab = 'today' | 'other'
 
 const QUICK_EMOJIS = [
@@ -152,16 +155,20 @@ export default function ChatPage() {
       setLoadingConvs(true)
       setError(null)
       try {
+        // Dispara a sincronização de WOs em background
+        if (navigator.onLine && user && user.email) {
+          syncWorkingOrders({ workerEmail: user.email }).catch(console.error)
+        }
         let sbUser = await getSupabaseUserById(userId)
         if (!sbUser) {
           if (user && user.id === userId) {
             sbUser = {
-              id: user.id,
-              nome: user.nome,
-              email: user.email,
-              tipo_user_bubble: user.tipo_user_bubble,
-              avatar_url: user.profile_picture,
-              bubble_id: user.bubble_id
+              id: user!.id,
+              nome: user!.nome,
+              email: user!.email,
+              tipo_user_bubble: user!.tipo_user_bubble,
+              avatar_url: user!.profile_picture,
+              bubble_id: user!.bubble_id
             }
           } else {
             throw new Error('User profile not found. Please sign out and sign in again.')
@@ -781,6 +788,12 @@ export default function ChatPage() {
           >
             Groups
           </button>
+          <button
+            onClick={() => setActiveTab('works')}
+            className={`flex-1 py-2.5 text-sm font-semibold ${activeTab === 'works' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+          >
+            Works
+          </button>
         </div>
 
         {/* WO tab content (left here to satisfy the import chain — unused) */}
@@ -793,7 +806,9 @@ export default function ChatPage() {
               Error: {error}
             </div>
           )}
-          {activeTab === 'chats' ? dmView : groupView}
+          {activeTab === 'chats' && dmView}
+          {activeTab === 'groups' && groupView}
+          {activeTab === 'works' && <WOListView onSelect={openConversation} />}
         </div>
       </div>
 
@@ -944,6 +959,21 @@ export default function ChatPage() {
           })}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* WOWizard for Work Orders */}
+        {activeConversation.tipo === 'wo' && (
+          <WOWizard 
+            conversation={activeConversation}
+            onAttachPhoto={(tag) => {
+               setNewMessage(tag + ' ');
+               setShowAttachMenu(true);
+            }}
+            onClose={() => {
+              // Optionally close conversation when done
+              closeConversation();
+            }}
+          />
+        )}
 
         {/* Pending media preview */}
         {pendingMedia && (
