@@ -448,10 +448,15 @@ export default function ChatPage() {
       }
     }
 
-    if (pendingMedia) {
       const media = pendingMedia
       setPendingMedia(null)
       setSending(true)
+      
+      // Salva o texto e limpa a caixa
+      const currentText = newMessage.trim()
+      setNewMessage('')
+      setShowAttachMenu(false)
+      
       try {
         if (isOnline) {
           const res = await sendMediaMessage({
@@ -462,6 +467,7 @@ export default function ChatPage() {
             mimeType: media.mimeType,
             originalName: media.name,
             blob: media.blob,
+            content: currentText,
           })
           if (res?.message) {
             setMessages(prev => prev.some(m => m.id === res.message.id) ? prev : [...prev, res.message])
@@ -470,12 +476,13 @@ export default function ChatPage() {
         } else {
           const msgId = generateUUID()
           const createdIso = new Date().toISOString()
+          const optimisticContent = currentText !== '' ? currentText : (media.type === 'audio' ? 'Audio' : (media.name || 'File'))
           const optimisticMsg: Message = {
             id: msgId,
             conversation_id: activeConversation.id,
             sender_id: sbUser.id,
             sender: sbUser as any,
-            content: media.type === 'audio' ? 'Audio' : (media.name || 'File'),
+            content: optimisticContent,
             tipo: media.type === 'audio' ? 'audio' : 'text',
             audio_url: null,
             transcription: null,
@@ -521,6 +528,7 @@ export default function ChatPage() {
               mimeType: media.mimeType,
               originalName: media.name,
               blob: media.blob,
+              content: optimisticContent,
             })
           } catch (e) {
             console.error('Failed to queue offline media:', e)

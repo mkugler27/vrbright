@@ -180,6 +180,7 @@ export interface SendMediaOptions {
   mimeType: string;
   originalName?: string;
   blob: Blob;
+  content?: string;
 }
 
 export interface SendMediaResult {
@@ -189,7 +190,7 @@ export interface SendMediaResult {
 
 export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMediaResult> {
   // 1) Create the message row first
-  const content = defaultContent(opts.fileType, opts.originalName);
+  const content = opts.content && opts.content.trim() !== '' ? opts.content : defaultContent(opts.fileType, opts.originalName);
   const message = await sendMessage(
     opts.conversationId,
     opts.senderId,
@@ -258,6 +259,7 @@ export async function queueMediaOffline(opts: SendMediaOptions): Promise<string>
     mime_type: opts.mimeType,
     original_name: opts.originalName,
     file_size: opts.blob.size,
+    content: opts.content,
     created_at: new Date().toISOString(),
   };
   await db.put('pendingChatFiles', entry);
@@ -281,6 +283,7 @@ export async function processPendingChatFiles(): Promise<{ ok: number; fail: num
         mimeType: item.mime_type,
         originalName: item.original_name,
         blob: item.blob,
+        content: item.content,
       });
       await db.delete('pendingChatFiles', item.id);
       ok++;

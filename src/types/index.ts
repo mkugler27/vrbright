@@ -95,6 +95,7 @@ export interface PendingChatFile {
   file_type: ChatFileType;
   mime_type: string;
   original_name?: string;
-  file_size: number;
+  file_size?: number;
+  content?: string;
   created_at: string;
 }
