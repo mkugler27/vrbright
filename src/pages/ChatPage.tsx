@@ -448,6 +448,7 @@ export default function ChatPage() {
       }
     }
 
+    if (pendingMedia) {
       const media = pendingMedia
       setPendingMedia(null)
       setSending(true)
