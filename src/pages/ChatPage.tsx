@@ -892,9 +892,25 @@ export default function ChatPage() {
                     <p className="text-[10px] font-semibold text-gray-500 mb-0.5">{senderName}</p>
                   )}
                   {cf?.file_type === 'image' ? (
-                    <a href={cf.public_url} target="_blank" rel="noopener noreferrer">
-                      <img src={cf.public_url} alt={cf.original_name ?? 'Image'} className="max-w-full max-h-64 rounded-lg cursor-pointer" />
-                    </a>
+                    <div className="relative flex flex-col gap-1.5">
+                      <div className="relative inline-block">
+                        <a href={cf.public_url} target="_blank" rel="noopener noreferrer">
+                          <img src={cf.public_url} alt={cf.original_name ?? 'Image'} className="max-w-full max-h-64 rounded-lg cursor-pointer" />
+                        </a>
+                        {/* Tag Overlay */}
+                        {msg.content?.match(/^\[(.*?)\]/)?.[1] && (
+                          <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm border border-white/10 pointer-events-none">
+                            {msg.content.match(/^\[(.*?)\]/)?.[1]}
+                          </div>
+                        )}
+                      </div>
+                      {/* Extra Text Below Image */}
+                      {msg.content?.replace(/^\[.*?\]\s*/, '').trim() && (
+                        <p className="text-sm break-words whitespace-pre-wrap px-1">
+                          {msg.content.replace(/^\[.*?\]\s*/, '').trim()}
+                        </p>
+                      )}
+                    </div>
                   ) : cf?.file_type === 'audio' ? (
                     <AudioPlayer url={cf.public_url} transcription={msg.transcription} inverted={isMine} />
                   ) : cf?.file_type === 'file' ? (
