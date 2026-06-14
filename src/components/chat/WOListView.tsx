@@ -179,7 +179,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
   if (woConvs.length === 0) {
     return (
       <div className="p-8 text-center text-gray-500 text-sm">
-        Nenhuma Work Order encontrada.
+        No Work Orders found.
       </div>
     );
   }
@@ -198,17 +198,17 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
     <div className="flex flex-col">
       {isAdmin && (
         <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
-          <div className="text-xs font-bold text-gray-500 uppercase px-1">Filtros de Administração</div>
+          <div className="text-xs font-bold text-gray-500 uppercase px-1">Admin Filters</div>
           <div className="flex flex-wrap gap-2">
             <FilterPopover 
-              allLabel="Todos os Workers"
+              allLabel="All Workers"
               value={filterWorker}
               onChange={setFilterWorker}
               options={uniqueWorkers.map(w => ({ label: w as string, value: w as string }))}
               icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
             />
             <FilterPopover 
-              allLabel="Todos os Status"
+              allLabel="All Statuses"
               value={filterStatus}
               onChange={setFilterStatus}
               options={[
@@ -224,7 +224,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
       
       {filteredConvs.length === 0 && (
         <div className="p-8 text-center text-gray-500 text-sm">
-          Nenhuma Work Order atende a estes filtros.
+          No Work Orders match these filters.
         </div>
       )}
       {filteredConvs.map((conv) => {
@@ -260,7 +260,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
             
             {isAdmin && wo.worker_email && (
               <div className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit mt-1">
-                Resp: {wo.worker_email}
+                Worker: {wo.worker_email}
               </div>
             )}
 
