@@ -125,6 +125,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
   const { user } = useAuth();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [workerNames, setWorkerNames] = useState<Record<string, string>>({});
   
   const [filterWorker, setFilterWorker] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -134,15 +135,17 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
     if (!user) return;
     
     async function load() {
-      // Fetch conversations of type 'wo' and join with work_orders
-      const { data, error } = await supabase
-        .from('conversations')
-        .select(`
-          *,
-          work_orders (*)
-        `)
-        .eq('tipo', 'wo')
-        .order('created_at', { ascending: false });
+      const [ { data, error }, { data: usersData } ] = await Promise.all([
+        supabase
+          .from('conversations')
+          .select(`
+            *,
+            work_orders (*)
+          `)
+          .eq('tipo', 'wo')
+          .order('created_at', { ascending: false }),
+        supabase.from('users').select('email, nome')
+      ]);
         
       if (error) {
         console.error('[WOListView] Error loading WO conversations:', error);
@@ -151,6 +154,14 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
         // Wait, RLS already filters work_orders by worker_email for workers.
         // For Admins, RLS would need to allow all. We assume RLS is correct.
         // Also, inner join behavior in Postgrest might return null work_orders if RLS blocks.
+        if (usersData) {
+          const names: Record<string, string> = {};
+          usersData.forEach(u => {
+            if (u.email) names[u.email.toLowerCase()] = u.nome || u.email;
+          });
+          setWorkerNames(names);
+        }
+
         if (data) {
           const validWOs = data.filter(c => c.work_orders);
           setWoConvs(validWOs);
@@ -190,12 +201,12 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
     );
   }
 
-  const uniqueWorkers = Array.from(new Set(woConvs.map(c => c.work_orders?.worker_email).filter(Boolean)));
+  const uniqueWorkers = Array.from(new Set(woConvs.map(c => c.work_orders?.worker_email?.toLowerCase()).filter(Boolean)));
   
   const filteredConvs = woConvs.filter(c => {
     const wo = c.work_orders;
     if (!wo) return false;
-    if (filterWorker !== 'ALL' && wo.worker_email !== filterWorker) return false;
+    if (filterWorker !== 'ALL' && wo.worker_email?.toLowerCase() !== filterWorker) return false;
     if (filterStatus !== 'ALL' && wo.status !== filterStatus) return false;
     return true;
   });
@@ -210,7 +221,10 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
               allLabel="All Workers"
               value={filterWorker}
               onChange={setFilterWorker}
-              options={uniqueWorkers.map(w => ({ label: w as string, value: w as string }))}
+              options={uniqueWorkers.map(w => {
+                const email = w as string;
+                return { label: workerNames[email] || email, value: email };
+              })}
               icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
             />
             <FilterPopover 
@@ -266,7 +280,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
             
             {isAdmin && wo.worker_email && (
               <div className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded w-fit mt-1">
-                Worker: {wo.worker_email}
+                Worker: {workerNames[wo.worker_email.toLowerCase()] || wo.worker_email}
               </div>
             )}
 
