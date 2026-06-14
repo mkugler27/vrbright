@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { type Conversation } from '../../services/chatApi';
@@ -8,6 +8,111 @@ interface WOListViewProps {
   currentUserId?: string | null;
   className?: string;
   onWoConvsLoaded?: (convs: any[]) => void;
+}
+
+function FilterPopover({
+  options,
+  value,
+  onChange,
+  allLabel,
+  icon,
+}: {
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  icon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [open]);
+
+  const selectedOption = options.find(o => o.value === value);
+  const currentLabel = value === 'ALL' ? allLabel : (selectedOption?.label || value);
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        className="w-full flex items-center justify-between gap-2 bg-white border border-gray-200 hover:border-blue-400 rounded-xl px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all"
+      >
+        <div className="flex items-center gap-2 overflow-hidden">
+          {icon}
+          <span className="truncate">{currentLabel}</span>
+        </div>
+        <svg
+          className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20 animate-slideDown max-h-64 overflow-y-auto">
+          <div className="p-1.5 flex flex-col gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                onChange('ALL');
+                setOpen(false);
+              }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left text-sm font-medium transition-colors ${
+                value === 'ALL' ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="flex-1 truncate">{allLabel}</span>
+              {value === 'ALL' && (
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+            
+            {options.length > 0 && <div className="h-px bg-gray-100 my-1" />}
+
+            {options.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-medium transition-colors ${
+                  value === opt.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span className="flex-1 truncate">{opt.label}</span>
+                {value === opt.value && (
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function WOListView({ onSelect, currentUserId, className = '', onWoConvsLoaded }: WOListViewProps) {
@@ -92,29 +197,27 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
   return (
     <div className="flex flex-col">
       {isAdmin && (
-        <div className="bg-gray-100 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
-          <div className="text-xs font-bold text-gray-500 uppercase">Filtros de Administração</div>
+        <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
+          <div className="text-xs font-bold text-gray-500 uppercase px-1">Filtros de Administração</div>
           <div className="flex gap-2">
-            <select 
-              value={filterWorker} 
-              onChange={e => setFilterWorker(e.target.value)}
-              className="flex-1 text-sm border border-gray-300 rounded-md shadow-sm p-1.5 bg-white text-gray-700 outline-none focus:border-blue-500"
-            >
-              <option value="ALL">Todos os Workers</option>
-              {uniqueWorkers.map(w => (
-                <option key={w as string} value={w as string}>{w}</option>
-              ))}
-            </select>
-            <select 
-              value={filterStatus} 
-              onChange={e => setFilterStatus(e.target.value)}
-              className="flex-1 text-sm border border-gray-300 rounded-md shadow-sm p-1.5 bg-white text-gray-700 outline-none focus:border-blue-500"
-            >
-              <option value="ALL">Qualquer Status</option>
-              <option value="NOT STARTED">Not Started</option>
-              <option value="IN PROGRESS">In Progress</option>
-              <option value="COMPLETED">Completed</option>
-            </select>
+            <FilterPopover 
+              allLabel="Todos os Workers"
+              value={filterWorker}
+              onChange={setFilterWorker}
+              options={uniqueWorkers.map(w => ({ label: w as string, value: w as string }))}
+              icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+            />
+            <FilterPopover 
+              allLabel="Todos os Status"
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { label: 'Not Started', value: 'NOT STARTED' },
+                { label: 'In Progress', value: 'IN PROGRESS' },
+                { label: 'Completed', value: 'COMPLETED' },
+              ]}
+              icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+            />
           </div>
         </div>
       )}
