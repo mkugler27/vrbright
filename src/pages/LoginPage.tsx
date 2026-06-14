@@ -84,10 +84,11 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header / Branding */}
-      <div className="bg-gradient-to-r from-primary-dark to-primary px-6 pt-12 pb-10 flex items-center justify-between">
-        <div>
+    <div className="min-h-dvh bg-gray-100 md:bg-gray-200 flex flex-col items-center justify-center md:py-12">
+      <div className="w-full max-w-md mx-auto bg-gray-50 min-h-dvh md:min-h-0 md:rounded-3xl md:shadow-2xl overflow-hidden flex flex-col relative">
+        {/* Header / Branding */}
+        <div className="bg-gradient-to-r from-primary-dark to-primary px-6 pt-12 pb-10 flex items-center justify-between shrink-0">
+          <div>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
               <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -215,6 +216,7 @@ export function LoginPage() {
           VRBright v1.0 &mdash; &copy; {new Date().getFullYear()}
         </p>
       </div>
+    </div>
     </div>
   )
 }
