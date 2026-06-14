@@ -422,6 +422,7 @@ export default function ChatPage() {
       last_message_at: dateIso
     }
     setActiveConversation(updatedConv)
+    await markConversationRead(activeConversation!.id, sbUser.id)
     setDms(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
     setGroups(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
 
@@ -517,6 +518,8 @@ export default function ChatPage() {
           setActiveConversation(updatedConv)
           setDms(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
           setGroups(prev => prev.map(c => c.id === updatedConv.id ? updatedConv : c))
+
+          markConversationRead(activeConversation.id, sbUser.id).catch(console.error)
 
           try {
             await saveCachedMessages(activeConversation.id, [...messages, optimisticMsg])

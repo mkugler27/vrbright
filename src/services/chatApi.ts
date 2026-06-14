@@ -498,6 +498,9 @@ export async function sendMessage(
     })
     .eq('id', conversationId)
 
+  // Auto-mark as read for the sender
+  await markConversationRead(conversationId, senderId)
+
   await supabase
     .from('conversation_participants')
     .update({ last_read_at: new Date().toISOString() })
