@@ -54,7 +54,7 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
   async function handleNextStep(next: WizardStep) {
     if (!woData) return;
     
-    if (woData.status === 'PENDING' || woData.status === 'NOT STARTED') {
+    if (woData.status === 'NOT STARTED') {
       // Call updateStatus to change to IN PROGRESS and patch bubble
       await updateStatus('IN PROGRESS');
       // Wait a tiny bit so the state updates before we update raw_data
@@ -148,7 +148,7 @@ export function WOWizard({ conversation, onAttachPhoto, onClose }: WOWizardProps
           <div className="flex gap-2">
             <button 
               onClick={() => {
-                if (woData?.status === 'PENDING' || woData?.status === 'NOT STARTED') {
+                if (woData?.status === 'NOT STARTED') {
                   updateStatus('IN PROGRESS');
                 }
                 onAttachPhoto('[REPAIR]');
