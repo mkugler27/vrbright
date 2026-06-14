@@ -21,7 +21,7 @@ export function WOListView({ onSelect }: WOListViewProps) {
         .from('conversations')
         .select(`
           *,
-          work_orders:wo_id (*)
+          work_orders (*)
         `)
         .eq('tipo', 'wo')
         .order('updated_at', { ascending: false });
