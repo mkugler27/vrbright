@@ -17,7 +17,7 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
   
   const [filterWorker, setFilterWorker] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  const isAdmin = user?.tipo_user_bubble === 'Admin';
+  const isAdmin = ['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '');
 
   useEffect(() => {
     if (!user) return;

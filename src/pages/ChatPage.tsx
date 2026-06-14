@@ -989,7 +989,7 @@ export default function ChatPage() {
         </div>
 
         {/* WOWizard for Work Orders (Only for Workers) */}
-        {activeConversation.tipo === 'wo' && user?.tipo_user_bubble !== 'Admin' && (
+        {activeConversation.tipo === 'wo' && !['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '') && (
           <WOWizard 
             conversation={activeConversation}
             isLastWO={
@@ -1041,7 +1041,7 @@ export default function ChatPage() {
         )}
 
         {/* WO Banner for Admins */}
-        {activeConversation.tipo === 'wo' && user?.tipo_user_bubble === 'Admin' && (
+        {activeConversation.tipo === 'wo' && ['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '') && (
           <div className="bg-blue-50 border-t border-blue-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 shadow-sm z-10">
             <div className="flex items-center gap-2 mb-2 sm:mb-0">
               <span className="text-xs font-bold bg-blue-600 text-white px-2 py-1 rounded">WO #{activeConversation.work_orders?.codigo_id}</span>
