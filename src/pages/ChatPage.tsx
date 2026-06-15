@@ -849,7 +849,7 @@ export default function ChatPage() {
               )}
             </p>
           </div>
-          {connectionStatus === 'reconnecting' && (
+          {connectionStatus === 'reconnecting' && isOnline && (
             <span className="text-xs text-orange-500 font-medium">Reconnecting…</span>
           )}
           {activeConversation.tipo === 'group' && (

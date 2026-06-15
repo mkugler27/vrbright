@@ -140,7 +140,9 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
       if (isManualSync) alert("You are offline. Cannot sync right now.");
         try {
           const cached = await getCachedConversations();
-          const validWOs = cached.filter(c => c.tipo === 'wo' && c.work_orders);
+          const validWOs = cached
+            .filter(c => c.tipo === 'wo' && c.work_orders)
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
           setWoConvs(validWOs);
           if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
         } catch (e) {
