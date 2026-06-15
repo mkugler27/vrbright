@@ -138,15 +138,25 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
     if (!user) return;
     if (isManualSync) setLoading(true);
     
+    const applySort = (wos: any[]) => {
+      return [...wos].sort((a, b) => {
+        const aUnread = (a.unread_count || 0) > 0 ? 1 : 0;
+        const bUnread = (b.unread_count || 0) > 0 ? 1 : 0;
+        if (aUnread !== bUnread) return bUnread - aUnread;
+        const aTime = a.last_message_at ? new Date(a.last_message_at).getTime() : new Date(a.created_at).getTime();
+        const bTime = b.last_message_at ? new Date(b.last_message_at).getTime() : new Date(b.created_at).getTime();
+        return bTime - aTime;
+      });
+    };
+
     if (!navigator.onLine) {
       if (isManualSync) alert("You are offline. Cannot sync right now.");
         try {
           const cached = await getCachedConversations();
-          const validWOs = cached
-            .filter(c => c.tipo === 'wo' && c.work_orders)
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-          setWoConvs(validWOs);
-          if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
+          const validWOs = cached.filter(c => c.tipo === 'wo' && c.work_orders);
+          const sorted = applySort(validWOs);
+          setWoConvs(sorted);
+          if (onWoConvsLoaded) onWoConvsLoaded(sorted);
         } catch (e) {
           console.warn('Failed to load WO cache', e);
         }
@@ -191,9 +201,10 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
               participants: workerEmail ? [{ email: workerEmail, nome: workerName }] : []
             };
           });
-          setWoConvs(validWOs);
-          saveCachedConversations(validWOs).catch(console.warn);
-          if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
+          const sorted = applySort(validWOs);
+          setWoConvs(sorted);
+          saveCachedConversations(sorted).catch(console.warn);
+          if (onWoConvsLoaded) onWoConvsLoaded(sorted);
         }
       }
       setLoading(false);
