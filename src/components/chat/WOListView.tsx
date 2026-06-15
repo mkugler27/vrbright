@@ -132,11 +132,12 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const isAdmin = ['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '');
 
-  useEffect(() => {
+  const loadData = async (isManualSync = false) => {
     if (!user) return;
+    if (isManualSync) setLoading(true);
     
-    async function load() {
-      if (!navigator.onLine) {
+    if (!navigator.onLine) {
+      if (isManualSync) alert("You are offline. Cannot sync right now.");
         try {
           const cached = await getCachedConversations();
           const validWOs = cached.filter(c => c.tipo === 'wo' && c.work_orders);
@@ -189,12 +190,15 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
       setLoading(false);
     }
     
-    load();
+  useEffect(() => {
+    if (!user) return;
+    
+    loadData();
 
     // Subscribe to changes in work_orders
     const channel = supabase.channel('public:work_orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders' }, () => {
-        load();
+        loadData();
       })
       .subscribe();
 
@@ -231,6 +235,18 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
 
   return (
     <div className="flex flex-col">
+      <div className="bg-white border-b border-gray-100 p-2 flex justify-end sticky top-0 z-20">
+        <button 
+          onClick={() => loadData(true)} 
+          disabled={loading} 
+          className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
+        >
+          <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {loading ? 'Syncing...' : 'Sync'}
+        </button>
+      </div>
       {isAdmin && (
         <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
           <div className="text-xs font-bold text-gray-500 uppercase px-1">Admin Filters</div>
