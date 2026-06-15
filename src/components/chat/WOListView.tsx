@@ -3,6 +3,7 @@ import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { saveCachedConversations, getCachedConversations } from '../../services/db';
 import { type Conversation } from '../../services/chatApi';
+import { useActiveConversation } from '../../context/ActiveConversationContext';
 
 interface WOListViewProps {
   onSelect: (conv: Conversation) => void;
@@ -124,6 +125,7 @@ function FilterPopover({
 
 export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
   const { user } = useAuth();
+  const { activeConversationId } = useActiveConversation();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [workerNames, setWorkerNames] = useState<Record<string, string>>({});
@@ -208,7 +210,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
         loadData();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        loadData();
+        setTimeout(() => loadData(), 500);
       })
       .subscribe();
 
@@ -325,7 +327,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
                 <span className="text-xs text-gray-400 font-medium">
                   {wo.data ? new Date(wo.data).toLocaleDateString() : ''}
                 </span>
-                {conv.unread_count > 0 && (
+                {(conv.unread_count > 0 && conv.id !== activeConversationId) && (
                   <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
                 )}
               </div>
@@ -354,7 +356,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
             </div>
             
             {conv.last_message && (
-              <p className={`text-xs truncate mt-1 ${conv.unread_count > 0 ? 'text-gray-800 font-bold' : 'text-gray-400 font-normal'}`}>
+              <p className={`text-xs truncate mt-1 ${(conv.unread_count > 0 && conv.id !== activeConversationId) ? 'text-gray-800 font-bold' : 'text-gray-400 font-normal'}`}>
                 {conv.last_message}
               </p>
             )}

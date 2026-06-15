@@ -103,10 +103,10 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     // Realtime subscription for global unread badge
     const channel = supabase.channel('global_unread')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        refresh()
+        setTimeout(() => refresh(), 500);
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants' }, () => {
-        refresh()
+        setTimeout(() => refresh(), 500);
       })
       .subscribe()
 
