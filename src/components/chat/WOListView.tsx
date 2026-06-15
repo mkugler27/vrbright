@@ -305,7 +305,10 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
         return (
           <button
             key={conv.id}
-            onClick={() => onSelect(conv as Conversation)}
+            onClick={() => {
+              setWoConvs(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+              onSelect(conv as Conversation);
+            }}
             className="w-full text-left p-4 bg-white border border-gray-200 rounded-2xl shadow-sm flex flex-col gap-2 transition-all duration-200 hover:border-blue-300 hover:shadow-md cursor-pointer"
           >
             <div className="flex items-center justify-between">
