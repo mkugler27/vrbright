@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
+import { saveCachedConversations, getCachedConversations } from '../../services/db';
 import { type Conversation } from '../../services/chatApi';
 
 interface WOListViewProps {
@@ -135,6 +136,19 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
     if (!user) return;
     
     async function load() {
+      if (!navigator.onLine) {
+        try {
+          const cached = await getCachedConversations();
+          const validWOs = cached.filter(c => c.tipo === 'wo' && c.work_orders);
+          setWoConvs(validWOs);
+          if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
+        } catch (e) {
+          console.warn('Failed to load WO cache', e);
+        }
+        setLoading(false);
+        return;
+      }
+
       const [ { data, error }, { data: usersData } ] = await Promise.all([
         supabase
           .from('conversations')
@@ -168,6 +182,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
             };
           });
           setWoConvs(validWOs);
+          saveCachedConversations(validWOs).catch(console.warn);
           if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
         }
       }
