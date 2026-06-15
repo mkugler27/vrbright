@@ -314,6 +314,12 @@ export default function ChatPage() {
           const senderProfile = conv.participants?.find(p => p.id === enriched.sender_id)
           if (senderProfile) {
             enriched.sender = senderProfile
+          } else {
+            getSupabaseUserById(enriched.sender_id).then(u => {
+              if (u) {
+                setMessages(prev => prev.map(m => m.id === enriched.id ? { ...m, sender: u } : m))
+              }
+            })
           }
         }
         if (isMediaMessage(enriched) && !enriched.chat_file) {
