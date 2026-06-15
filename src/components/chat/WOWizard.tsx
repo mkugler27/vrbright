@@ -41,6 +41,15 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
         } else if (data.raw_data?.wizard_step) {
           setStep(data.raw_data.wizard_step);
         }
+      } else if (conversation.work_orders) {
+        // Offline Fallback
+        setWoData(conversation.work_orders);
+        setNotes(conversation.work_orders.notes_extra || '');
+        if (conversation.work_orders.status === 'COMPLETED') {
+          setStep('COMPLETED');
+        } else if (conversation.work_orders.raw_data?.wizard_step) {
+          setStep(conversation.work_orders.raw_data.wizard_step);
+        }
       }
     }
     load();

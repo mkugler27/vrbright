@@ -193,6 +193,30 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
             })
             .eq('id', item.payload.conversation_id)
 
+          // Auto-mark as read for the sender
+          const { data: partData } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', item.payload.conversation_id)
+            .eq('user_id', item.payload.sender_id)
+            .maybeSingle()
+
+          if (partData) {
+            await supabase
+              .from('conversation_participants')
+              .update({ last_read_at: new Date().toISOString() })
+              .eq('conversation_id', item.payload.conversation_id)
+              .eq('user_id', item.payload.sender_id)
+          } else {
+            await supabase
+              .from('conversation_participants')
+              .insert({ 
+                conversation_id: item.payload.conversation_id, 
+                user_id: item.payload.sender_id, 
+                last_read_at: new Date().toISOString() 
+              })
+          }
+
           await db.delete('syncQueue', item.id)
           ok++
           continue
