@@ -512,12 +512,28 @@ export async function sendMessage(
 }
 
 export async function markConversationRead(conversationId: string, userId?: string): Promise<void> {
-  if (userId) {
+  if (!userId) return;
+  const { data } = await supabase
+    .from('conversation_participants')
+    .select('user_id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (data) {
     await supabase
       .from('conversation_participants')
       .update({ last_read_at: new Date().toISOString() })
       .eq('conversation_id', conversationId)
       .eq('user_id', userId)
+  } else {
+    await supabase
+      .from('conversation_participants')
+      .insert({ 
+        conversation_id: conversationId, 
+        user_id: userId, 
+        last_read_at: new Date().toISOString() 
+      })
   }
 }
 
