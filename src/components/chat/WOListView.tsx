@@ -247,7 +247,9 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           No Work Orders match these filters.
         </div>
       )}
-      {filteredConvs.map((conv) => {
+      
+      <div className="p-3 flex flex-col gap-3">
+        {filteredConvs.map((conv) => {
         const wo = conv.work_orders;
         const raw = typeof wo.raw_data === 'string' ? JSON.parse(wo.raw_data) : wo.raw_data || {};
         const isCompleted = wo.status === 'COMPLETED';
@@ -263,7 +265,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           <button
             key={conv.id}
             onClick={() => onSelect(conv as Conversation)}
-            className={`w-full text-left p-4 border-b border-gray-100 flex flex-col gap-2 transition-colors hover:bg-gray-50`}
+            className="w-full text-left p-4 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col gap-2 transition-all duration-200 hover:border-blue-300 hover:shadow-md cursor-pointer"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -307,6 +309,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
