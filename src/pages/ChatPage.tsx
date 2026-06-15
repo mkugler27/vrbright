@@ -875,9 +875,10 @@ export default function ChatPage() {
             const isMine = msg.sender_id === mySupabaseId
             const senderAvatar = msg.sender?.avatar_url
             const senderName = msg.sender?.nome ?? ''
+            const senderEmail = msg.sender?.email ?? ''
             const senderInitials = senderName
               ? senderName.split(' ').filter(Boolean).slice(0, 2).map(s => s[0]?.toUpperCase()).join('') || '?'
-              : (msg.sender_id?.charAt(0)?.toUpperCase() ?? '?')
+              : (senderEmail ? senderEmail.charAt(0).toUpperCase() : '?')
             const cf = msg.chat_file && (msg.chat_file as any).id ? msg.chat_file : null
             const isMediaLabel = isMediaMessage(msg)
             return (
