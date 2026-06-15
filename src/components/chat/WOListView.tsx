@@ -163,7 +163,14 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
         }
 
         if (data) {
-          const validWOs = data.filter(c => c.work_orders);
+          const validWOs = data.filter(c => c.work_orders).map(c => {
+            const workerEmail = c.work_orders?.worker_email;
+            const workerName = workerEmail ? (names[workerEmail.toLowerCase()] || workerEmail) : null;
+            return {
+              ...c,
+              participants: workerEmail ? [{ email: workerEmail, nome: workerName }] : []
+            };
+          });
           setWoConvs(validWOs);
           if (onWoConvsLoaded) onWoConvsLoaded(validWOs);
         }
