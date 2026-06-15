@@ -202,9 +202,12 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
     
     loadData();
 
-    // Subscribe to changes in work_orders
-    const channel = supabase.channel('public:work_orders')
+    // Subscribe to changes in work_orders and new messages
+    const channel = supabase.channel('wolist_updates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
         loadData();
       })
       .subscribe();
