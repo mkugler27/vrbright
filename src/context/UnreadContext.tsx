@@ -96,8 +96,24 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
     refresh()
-    const pollInterval = setInterval(() => refresh(), 5000)
-    return () => clearInterval(pollInterval)
+    
+    // Fallback polling just in case
+    const pollInterval = setInterval(() => refresh(), 10000)
+    
+    // Realtime subscription for global unread badge
+    const channel = supabase.channel('global_unread')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+        refresh()
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_participants' }, () => {
+        refresh()
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(pollInterval)
+      supabase.removeChannel(channel)
+    }
   }, [user, refresh])
 
   return (
