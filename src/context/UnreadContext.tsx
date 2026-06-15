@@ -47,23 +47,43 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         .select('id,last_message_at')
         .in('id', convIds)
 
+      const isAdmin = ['Admin', 'Owner', 'Director'].includes(me.tipo_user_bubble || '');
+      let woQuery = supabase.from('conversations').select('id, last_message_at, work_orders!inner(worker_email)').eq('tipo', 'wo');
+      if (!isAdmin) {
+        woQuery = woQuery.eq('work_orders.worker_email', me.email);
+      }
+      const { data: woData } = await woQuery;
+
       const lastMessageById = new Map<string, string | null>()
       for (const c of (convs ?? []) as any[]) {
         lastMessageById.set(c.id, c.last_message_at)
       }
+      for (const w of (woData ?? []) as any[]) {
+        lastMessageById.set(w.id, w.last_message_at)
+      }
 
       let unread = 0
       const debug: any[] = []
-      for (const row of myConvs) {
-        const lastMessageAt = lastMessageById.get(row.conversation_id)
+      
+      const allConversationIdsToCheck = new Set([
+        ...convIds,
+        ...((woData ?? []).map(w => w.id))
+      ])
+
+      for (const cid of allConversationIdsToCheck) {
+        const lastMessageAt = lastMessageById.get(cid)
         if (!lastMessageAt) continue
-        if (row.conversation_id === activeRef.current) {
-          debug.push({ conv: row.conversation_id.slice(0, 8), skip: 'active', lastMessageAt, lastRead: row.last_read_at })
+        
+        const myPart = myConvs.find(p => p.conversation_id === cid)
+        const lastRead = myPart?.last_read_at ?? '1970-01-01'
+
+        if (cid === activeRef.current) {
+          debug.push({ conv: cid.slice(0, 8), skip: 'active', lastMessageAt, lastRead })
           continue
         }
-        const lastRead = row.last_read_at ?? '1970-01-01'
+        
         const isUnread = lastMessageAt > lastRead
-        debug.push({ conv: row.conversation_id.slice(0, 8), lastMessageAt, lastRead, isUnread })
+        debug.push({ conv: cid.slice(0, 8), lastMessageAt, lastRead, isUnread })
         if (isUnread) unread++
       }
       console.log('[unread] refresh:', { count: unread, active: activeConversationId?.slice(0, 8), debug })
