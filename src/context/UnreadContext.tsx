@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../services/supabase'
 import { getSupabaseUserById } from '../services/chatApi'
 import { useAuth } from './AuthContext'
@@ -18,6 +18,11 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const { activeConversationId } = useActiveConversation()
   const [count, setCount] = useState(0)
+
+  const activeRef = useRef(activeConversationId)
+  useEffect(() => {
+    activeRef.current = activeConversationId
+  }, [activeConversationId])
 
   const refresh = useCallback(async () => {
     if (!user || !isSupabaseConfigured) return
@@ -52,7 +57,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       for (const row of myConvs) {
         const lastMessageAt = lastMessageById.get(row.conversation_id)
         if (!lastMessageAt) continue
-        if (row.conversation_id === activeConversationId) {
+        if (row.conversation_id === activeRef.current) {
           debug.push({ conv: row.conversation_id.slice(0, 8), skip: 'active', lastMessageAt, lastRead: row.last_read_at })
           continue
         }
