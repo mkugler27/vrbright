@@ -150,12 +150,8 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
       if (error) {
         console.error('[WOListView] Error loading WO conversations:', error);
       } else {
-        // Only show WOs that belong to this worker or if admin?
-        // Wait, RLS already filters work_orders by worker_email for workers.
-        // For Admins, RLS would need to allow all. We assume RLS is correct.
-        // Also, inner join behavior in Postgrest might return null work_orders if RLS blocks.
+        const names: Record<string, string> = {};
         if (usersData) {
-          const names: Record<string, string> = {};
           usersData.forEach(u => {
             if (u.email) names[u.email.toLowerCase()] = u.nome || u.email;
           });
