@@ -117,7 +117,7 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
           member_count: participants.length,
         }
       })
-      .filter(Boolean) as Conversation[]
+      .filter((c: any) => c && c.tipo !== 'wo') as Conversation[]
 
     saveCachedConversations(convs).catch(e => console.warn('Failed to cache conversations:', e))
 
