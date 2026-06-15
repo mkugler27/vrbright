@@ -31,21 +31,25 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       const me = await getSupabaseUserById(user.id)
       if (!me) return
 
-      const { data: myConvs, error: cpError } = await supabase
+      const { data: myConvsResult, error: cpError } = await supabase
         .from('conversation_participants')
         .select('conversation_id,last_read_at')
         .eq('user_id', me.id)
 
-      if (cpError || !myConvs || myConvs.length === 0) {
-        if (!cpError) setCount(0)
-        return
+      const myConvs = myConvsResult || []
+      if (cpError) {
+        console.warn('Error fetching participations:', cpError)
       }
 
       const convIds = myConvs.map(c => c.conversation_id)
-      const { data: convs } = await supabase
-        .from('conversations')
-        .select('id,last_message_at')
-        .in('id', convIds)
+      let convs: any[] = []
+      if (convIds.length > 0) {
+        const { data } = await supabase
+          .from('conversations')
+          .select('id,last_message_at')
+          .in('id', convIds)
+        convs = data || []
+      }
 
       const isAdmin = ['Admin', 'Owner', 'Director'].includes(me.tipo_user_bubble || '');
       let woQuery = supabase.from('conversations').select('id, last_message_at, work_orders!inner(worker_email)').eq('tipo', 'wo');
