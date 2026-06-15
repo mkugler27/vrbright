@@ -67,7 +67,6 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       }
 
       let unread = 0
-      const debug: any[] = []
       
       const allConversationIdsToCheck = new Set([
         ...convIds,
@@ -82,20 +81,17 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
         const lastRead = myPart?.last_read_at ?? '1970-01-01'
 
         if (cid === activeRef.current) {
-          debug.push({ conv: cid.slice(0, 8), skip: 'active', lastMessageAt, lastRead })
           continue
         }
         
         const isUnread = lastMessageAt > lastRead
-        debug.push({ conv: cid.slice(0, 8), lastMessageAt, lastRead, isUnread })
         if (isUnread) unread++
       }
-      console.log('[unread] refresh:', { count: unread, active: activeConversationId?.slice(0, 8), debug })
       setCount(unread)
     } catch (err) {
       console.warn('[unread] refresh error:', err)
     }
-  }, [user, activeConversationId])
+  }, [user])
 
   useEffect(() => {
     if (!user || !isSupabaseConfigured) return
