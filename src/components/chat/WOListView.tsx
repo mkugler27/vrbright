@@ -152,7 +152,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
         return;
       }
 
-      const [ { data, error }, { data: usersData } ] = await Promise.all([
+      const [ { data, error }, { data: usersData }, { data: myParticipations } ] = await Promise.all([
         supabase
           .from('conversations')
           .select(`
@@ -161,7 +161,8 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           `)
           .eq('tipo', 'wo')
           .order('created_at', { ascending: false }),
-        supabase.from('users').select('email, nome')
+        supabase.from('users').select('email, nome'),
+        supabase.from('conversation_participants').select('conversation_id, last_read_at').eq('user_id', user.id)
       ]);
         
       if (error) {
@@ -179,8 +180,12 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           const validWOs = data.filter(c => c.work_orders).map(c => {
             const workerEmail = c.work_orders?.worker_email;
             const workerName = workerEmail ? (names[workerEmail.toLowerCase()] || workerEmail) : null;
+            const myPart = myParticipations?.find(p => p.conversation_id === c.id);
+            const lastRead = myPart?.last_read_at ?? '1970-01-01';
+            const unreadCount = (c.last_message_at && c.last_message_at > lastRead) ? 1 : 0;
             return {
               ...c,
+              unread_count: unreadCount,
               participants: workerEmail ? [{ email: workerEmail, nome: workerName }] : []
             };
           });
@@ -310,9 +315,14 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
                   {wo.status}
                 </span>
               </div>
-              <span className="text-xs text-gray-400 font-medium">
-                {wo.data ? new Date(wo.data).toLocaleDateString() : ''}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 font-medium">
+                  {wo.data ? new Date(wo.data).toLocaleDateString() : ''}
+                </span>
+                {conv.unread_count > 0 && (
+                  <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
+                )}
+              </div>
             </div>
             
             {isAdmin && wo.worker_email && (
@@ -338,7 +348,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
             </div>
             
             {conv.last_message && (
-              <p className="text-xs text-gray-400 truncate mt-1">
+              <p className={`text-xs truncate mt-1 ${conv.unread_count > 0 ? 'text-gray-800 font-bold' : 'text-gray-400 font-normal'}`}>
                 {conv.last_message}
               </p>
             )}
