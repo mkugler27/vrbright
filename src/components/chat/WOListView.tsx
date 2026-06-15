@@ -121,7 +121,7 @@ function FilterPopover({
   );
 }
 
-export function WOListView({ onSelect, currentUserId, className = '', onWoConvsLoaded }: WOListViewProps) {
+export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
   const { user } = useAuth();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -252,7 +252,6 @@ export function WOListView({ onSelect, currentUserId, className = '', onWoConvsL
         const raw = typeof wo.raw_data === 'string' ? JSON.parse(wo.raw_data) : wo.raw_data || {};
         const isCompleted = wo.status === 'COMPLETED';
         const isInProgress = wo.status === 'IN PROGRESS';
-        const isNotStarted = wo.status === 'NOT STARTED';
         
         const statusColor = isCompleted 
           ? 'bg-green-100 text-green-700' 

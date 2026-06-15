@@ -23,6 +23,7 @@ export type Conversation = {
   participants?: User[]
   member_count?: number
   wo_id?: string
+  work_orders?: any
 }
 
 export type Message = {
