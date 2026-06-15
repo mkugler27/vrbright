@@ -1049,7 +1049,10 @@ export default function ChatPage() {
               <span className="text-sm font-semibold text-blue-900">{activeConversation.work_orders?.status}</span>
             </div>
             <div className="text-xs text-blue-700">
-              <span className="font-semibold">Worker:</span> {activeConversation.work_orders?.worker_email}
+              <span className="font-semibold">Worker:</span> {
+                activeConversation.participants?.find(p => p.email?.toLowerCase() === activeConversation.work_orders?.worker_email?.toLowerCase())?.nome || 
+                activeConversation.work_orders?.worker_email
+              }
             </div>
           </div>
         )}
