@@ -201,7 +201,18 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
               participants: workerEmail ? [{ email: workerEmail, nome: workerName }] : []
             };
           });
-          const sorted = applySort(validWOs);
+
+          // Deduplicate by work_order.id
+          const uniqueValidWOs = [];
+          const seenWOs = new Set();
+          for (const c of validWOs) {
+            if (!seenWOs.has(c.work_orders.id)) {
+              seenWOs.add(c.work_orders.id);
+              uniqueValidWOs.push(c);
+            }
+          }
+
+          const sorted = applySort(uniqueValidWOs);
           setWoConvs(sorted);
           saveCachedConversations(sorted).catch(console.warn);
           if (onWoConvsLoaded) onWoConvsLoaded(sorted);
@@ -258,46 +269,48 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
 
   return (
     <div className="flex flex-col">
-      <div className="bg-white border-b border-gray-100 p-2 flex justify-end sticky top-0 z-20">
-        <button 
-          onClick={() => loadData(true)} 
-          disabled={loading} 
-          className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
-        >
-          <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {loading ? 'Syncing...' : 'Sync'}
-        </button>
-      </div>
-      {isAdmin && (
-        <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm sticky top-0 z-10">
-          <div className="text-xs font-bold text-gray-500 uppercase px-1">Admin Filters</div>
-          <div className="flex flex-wrap gap-2">
-            <FilterPopover 
-              allLabel="All Workers"
-              value={filterWorker}
-              onChange={setFilterWorker}
-              options={uniqueWorkers.map(w => {
-                const email = w as string;
-                return { label: workerNames[email] || email, value: email };
-              })}
-              icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-            />
-            <FilterPopover 
-              allLabel="All Statuses"
-              value={filterStatus}
-              onChange={setFilterStatus}
-              options={[
-                { label: 'Not Started', value: 'NOT STARTED', dotColor: 'bg-yellow-400' },
-                { label: 'In Progress', value: 'IN PROGRESS', dotColor: 'bg-blue-500' },
-                { label: 'Completed', value: 'COMPLETED', dotColor: 'bg-green-500' },
-              ]}
-              icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-            />
-          </div>
+      <div className="sticky top-0 z-20 flex flex-col">
+        <div className="bg-white border-b border-gray-100 p-2 flex justify-end">
+          <button 
+            onClick={() => loadData(true)} 
+            disabled={loading} 
+            className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-full transition-colors disabled:opacity-50"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {loading ? 'Syncing...' : 'Sync'}
+          </button>
         </div>
-      )}
+        {isAdmin && (
+          <div className="bg-gray-50 border-b border-gray-200 p-3 flex flex-col gap-2 shadow-sm">
+            <div className="text-xs font-bold text-gray-500 uppercase px-1">Admin Filters</div>
+            <div className="flex flex-wrap gap-2">
+              <FilterPopover 
+                allLabel="All Workers"
+                value={filterWorker}
+                onChange={setFilterWorker}
+                options={uniqueWorkers.map(w => {
+                  const email = w as string;
+                  return { label: workerNames[email] || email, value: email };
+                })}
+                icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+              />
+              <FilterPopover 
+                allLabel="All Statuses"
+                value={filterStatus}
+                onChange={setFilterStatus}
+                options={[
+                  { label: 'Not Started', value: 'NOT STARTED', dotColor: 'bg-yellow-400' },
+                  { label: 'In Progress', value: 'IN PROGRESS', dotColor: 'bg-blue-500' },
+                  { label: 'Completed', value: 'COMPLETED', dotColor: 'bg-green-500' },
+                ]}
+                icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+              />
+            </div>
+          </div>
+        )}
+      </div>
       
       {filteredConvs.length === 0 && (
         <div className="p-8 text-center text-gray-500 text-sm">
@@ -317,6 +330,15 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           : isInProgress 
             ? 'bg-blue-100 text-blue-700' 
             : 'bg-yellow-100 text-yellow-700';
+
+        let stepIndex = 0;
+        if (wo.status !== 'NOT STARTED') {
+          const wizardStep = raw.wizard_step || 'PHOTOS_REPAIR';
+          if (wizardStep === 'PHOTOS_REPAIR') stepIndex = 1;
+          else if (wizardStep === 'PHOTOS_DAMAGED') stepIndex = 2;
+          else if (wizardStep === 'PHOTOS_SPRINKLER') stepIndex = 3;
+          else stepIndex = 4; // EXTRA_AND_NOTES or COMPLETED
+        }
 
         return (
           <button
@@ -342,6 +364,13 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
                   <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
                 )}
               </div>
+            </div>
+
+            {/* Progress Bar (Repair, Damage, Sprinklers) */}
+            <div className="flex gap-1.5 h-1.5 mt-2 w-full max-w-[200px]">
+              <div className={`flex-1 rounded-full transition-colors ${stepIndex >= 4 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]' : stepIndex >= 1 ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.4)]' : 'bg-gray-100'}`} />
+              <div className={`flex-1 rounded-full transition-colors ${stepIndex >= 4 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]' : stepIndex >= 2 ? 'bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.4)]' : 'bg-gray-100'}`} />
+              <div className={`flex-1 rounded-full transition-colors ${stepIndex >= 4 ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]' : stepIndex >= 3 ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-gray-100'}`} />
             </div>
             
             {isAdmin && wo.worker_email && (

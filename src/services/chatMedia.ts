@@ -181,6 +181,8 @@ export interface SendMediaOptions {
   originalName?: string;
   blob: Blob;
   content?: string;
+  codigo_WO?: string;
+  tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
 }
 
 export interface SendMediaResult {
@@ -225,16 +227,20 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
   });
 
   // 4) Enqueue Bubble sync (will run on next syncQueue cycle)
-  await enqueueChatFileSync({
-    chatFileId: chatFile.id,
-    messageId: message.id,
-    conversationId: opts.conversationId,
-    senderEmail: opts.senderEmail,
-    fileUrl: publicUrl,
-    fileType: opts.fileType,
-    mimeType: opts.mimeType,
-    originalName: opts.originalName,
-  });
+  if (opts.codigo_WO) {
+    await enqueueChatFileSync({
+      chatFileId: chatFile.id,
+      messageId: message.id,
+      conversationId: opts.conversationId,
+      senderEmail: opts.senderEmail,
+      fileUrl: publicUrl,
+      fileType: opts.fileType,
+      mimeType: opts.mimeType,
+      originalName: opts.originalName,
+      codigo_WO: opts.codigo_WO,
+      tipo_foto: opts.tipo_foto,
+    });
+  }
 
   return {
     message: { ...message, chat_file: chatFile },
@@ -261,6 +267,8 @@ export async function queueMediaOffline(opts: SendMediaOptions): Promise<string>
     file_size: opts.blob.size,
     content: opts.content,
     created_at: new Date().toISOString(),
+    codigo_WO: opts.codigo_WO,
+    tipo_foto: opts.tipo_foto,
   };
   await db.put('pendingChatFiles', entry);
   return id;
@@ -284,6 +292,8 @@ export async function processPendingChatFiles(): Promise<{ ok: number; fail: num
         originalName: item.original_name,
         blob: item.blob,
         content: item.content,
+        codigo_WO: item.codigo_WO,
+        tipo_foto: item.tipo_foto,
       });
       await db.delete('pendingChatFiles', item.id);
       ok++;
@@ -315,6 +325,8 @@ async function enqueueChatFileSync(p: {
   fileType: ChatFileType;
   mimeType: string;
   originalName?: string;
+  codigo_WO?: string;
+  tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
 }) {
   const db = await getDB();
   await db.put('syncQueue', {
@@ -329,6 +341,8 @@ async function enqueueChatFileSync(p: {
       original_name: p.originalName ?? null,
       message_id: p.messageId,
       conversation_id: p.conversationId,
+      codigo_WO: p.codigo_WO ?? null,
+      tipo_foto: p.tipo_foto ?? null,
     },
     attempts: 0,
     max_attempts: 5,

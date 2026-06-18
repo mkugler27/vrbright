@@ -98,4 +98,6 @@ export interface PendingChatFile {
   file_size?: number;
   content?: string;
   created_at: string;
+  codigo_WO?: string;
+  tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
 }

@@ -36,7 +36,7 @@ import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
 import { ConfirmationModal } from '../components/ui/ConfirmationModal'
 import { saveCachedMessages, getDB } from '../services/db'
 import { enqueueChatMessage } from '../services/syncQueue'
-import { syncWorkingOrders, patchWOInBubble } from '../services/woSync'
+import { patchWOInBubble } from '../services/woSync'
 import { WOListView } from '../components/chat/WOListView'
 import { WOWizard } from '../components/chat/WOWizard'
 import type { ChatFileType } from '../types'
@@ -155,10 +155,6 @@ export default function ChatPage() {
       setLoadingConvs(true)
       setError(null)
       try {
-        // Dispara a sincronização de WOs em background
-        if (navigator.onLine && user && user.email) {
-          syncWorkingOrders({ workerEmail: user.email }).catch(console.error)
-        }
         let sbUser = await getSupabaseUserById(userId)
         if (!sbUser) {
           if (user && user.id === userId) {
@@ -476,6 +472,25 @@ export default function ChatPage() {
             originalName: media.name,
             blob: media.blob,
             content: currentText,
+            codigo_WO: activeConversation.tipo === 'wo' && activeConversation.work_orders?.codigo_id ? String(activeConversation.work_orders.codigo_id) : undefined,
+            tipo_foto: (() => {
+              if (activeConversation.tipo !== 'wo') return undefined;
+              const textUpper = currentText.toUpperCase();
+              if (textUpper.includes('[REPAIR]')) return 'repair';
+              if (textUpper.includes('[DAMAGED]')) return 'damage';
+              if (textUpper.includes('[SPRINKLER]')) return 'splinkers';
+              if (textUpper.includes('[EXTRA]')) return 'extra';
+              
+              // Fallback to the WO current wizard step if no tag is found
+              const raw = typeof activeConversation.work_orders?.raw_data === 'string' 
+                ? JSON.parse(activeConversation.work_orders.raw_data) 
+                : activeConversation.work_orders?.raw_data || {};
+              const step = raw.wizard_step || 'PHOTOS_REPAIR';
+              if (step === 'PHOTOS_REPAIR') return 'repair';
+              if (step === 'PHOTOS_DAMAGED') return 'damage';
+              if (step === 'PHOTOS_SPRINKLER') return 'splinkers';
+              return 'extra'; 
+            })(),
           })
           if (res?.message) {
             setMessages(prev => prev.some(m => m.id === res.message.id) ? prev : [...prev, res.message])
@@ -539,6 +554,25 @@ export default function ChatPage() {
               originalName: media.name,
               blob: media.blob,
               content: optimisticContent,
+              codigo_WO: activeConversation.tipo === 'wo' && activeConversation.work_orders?.codigo_id ? String(activeConversation.work_orders.codigo_id) : undefined,
+              tipo_foto: (() => {
+                if (activeConversation.tipo !== 'wo') return undefined;
+                const textUpper = optimisticContent.toUpperCase();
+                if (textUpper.includes('[REPAIR]')) return 'repair';
+                if (textUpper.includes('[DAMAGED]')) return 'damage';
+                if (textUpper.includes('[SPRINKLER]')) return 'splinkers';
+                if (textUpper.includes('[EXTRA]')) return 'extra';
+
+                // Fallback to the WO current wizard step if no tag is found
+                const raw = typeof activeConversation.work_orders?.raw_data === 'string' 
+                  ? JSON.parse(activeConversation.work_orders.raw_data) 
+                  : activeConversation.work_orders?.raw_data || {};
+                const step = raw.wizard_step || 'PHOTOS_REPAIR';
+                if (step === 'PHOTOS_REPAIR') return 'repair';
+                if (step === 'PHOTOS_DAMAGED') return 'damage';
+                if (step === 'PHOTOS_SPRINKLER') return 'splinkers';
+                return 'extra';
+              })(),
             })
           } catch (e) {
             console.error('Failed to queue offline media:', e)
@@ -644,10 +678,35 @@ export default function ChatPage() {
           })
         }, 300)
         try {
+          const codigo_WO = activeConversation.tipo === 'wo' && activeConversation.work_orders?.codigo_id 
+            ? String(activeConversation.work_orders.codigo_id) 
+            : undefined;
+
+          let tipo_foto = undefined;
+          if (activeConversation.tipo === 'wo') {
+            const textUpper = (msg.content || '').toUpperCase();
+            if (textUpper.includes('[REPAIR]')) tipo_foto = 'repair';
+            else if (textUpper.includes('[DAMAGED]')) tipo_foto = 'damage';
+            else if (textUpper.includes('[SPRINKLER]')) tipo_foto = 'splinkers';
+            else if (textUpper.includes('[EXTRA]')) tipo_foto = 'extra';
+            else {
+               const raw = typeof activeConversation.work_orders?.raw_data === 'string' 
+                 ? JSON.parse(activeConversation.work_orders.raw_data) 
+                 : activeConversation.work_orders?.raw_data || {};
+               const step = raw.wizard_step || 'PHOTOS_REPAIR';
+               if (step === 'PHOTOS_REPAIR') tipo_foto = 'repair';
+               else if (step === 'PHOTOS_DAMAGED') tipo_foto = 'damage';
+               else if (step === 'PHOTOS_SPRINKLER') tipo_foto = 'splinkers';
+               else tipo_foto = 'extra';
+            }
+          }
+
           await deleteMessage({
             messageId: msg.id,
             currentUserId: mySupabaseId,
             currentUserEmail: user.email,
+            codigo_WO,
+            tipo_foto
           })
         } catch (e: any) {
           console.error('delete failed:', e)

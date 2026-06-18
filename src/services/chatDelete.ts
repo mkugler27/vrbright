@@ -5,12 +5,16 @@ export interface DeleteMessageParams {
   messageId: string
   currentUserId: string
   currentUserEmail: string
+  codigo_WO?: string
+  tipo_foto?: string
 }
 
 export async function deleteMessage({
   messageId,
   currentUserId,
   currentUserEmail,
+  codigo_WO,
+  tipo_foto,
 }: DeleteMessageParams): Promise<void> {
   const { data: msg, error: msgErr } = await supabase
     .from('messages')
@@ -42,6 +46,8 @@ export async function deleteMessage({
         email_worker: currentUserEmail,
         file_url: cf.public_url,
         del: true,
+        codigo_WO: codigo_WO || null,
+        tipo_foto: tipo_foto || null,
       },
       attempts: 0,
       max_attempts: 5,

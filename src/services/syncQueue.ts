@@ -118,7 +118,8 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
 
     for (const item of items) {
       if (item.attempts >= item.max_attempts) {
-        console.warn('SyncQueue: max attempts reached, skipping', item.id)
+        console.warn('SyncQueue: max attempts reached, dropping from queue', item.id)
+        await db.delete('syncQueue', item.id)
         fail++
         continue
       }
