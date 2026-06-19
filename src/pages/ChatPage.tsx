@@ -497,6 +497,13 @@ export default function ChatPage() {
             setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
           }
         } else {
+          const getBase64 = (blob: Blob): Promise<string> => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+          const base64Url = await getBase64(media.blob);
+
           const msgId = generateUUID()
           const createdIso = new Date().toISOString()
           const optimisticContent = currentText !== '' ? currentText : (media.type === 'audio' ? 'Audio' : (media.name || 'File'))
@@ -517,7 +524,7 @@ export default function ChatPage() {
               sender_id: sbUser.id,
               bucket: 'chat-media',
               storage_path: 'pending',
-              public_url: URL.createObjectURL(media.blob),
+              public_url: base64Url,
               file_type: media.type,
               mime_type: media.mimeType,
               original_name: media.name,

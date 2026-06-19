@@ -467,7 +467,8 @@ export async function sendMessage(
   audioUrl?: string,
   transcription?: string,
   bubbleId?: string,
-  id?: string
+  id?: string,
+  createdAt?: string
 ): Promise<Message | null> {
   const payload: any = {
     conversation_id: conversationId,
@@ -479,6 +480,7 @@ export async function sendMessage(
     bubble_id: bubbleId ?? null,
   }
   if (id) payload.id = id;
+  if (createdAt) payload.created_at = createdAt;
 
   const { data, error } = await supabase
     .from('messages')

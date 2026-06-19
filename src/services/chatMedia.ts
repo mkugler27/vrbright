@@ -183,6 +183,7 @@ export interface SendMediaOptions {
   content?: string;
   codigo_WO?: string;
   tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
+  createdAt?: string;
 }
 
 export interface SendMediaResult {
@@ -201,7 +202,8 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
     undefined,
     undefined,
     undefined,
-    opts.messageId
+    opts.messageId,
+    opts.createdAt
   );
   if (!message) throw new Error('sendMessage returned null');
 
@@ -294,6 +296,7 @@ export async function processPendingChatFiles(): Promise<{ ok: number; fail: num
         content: item.content,
         codigo_WO: item.codigo_WO,
         tipo_foto: item.tipo_foto,
+        createdAt: item.created_at,
       });
       await db.delete('pendingChatFiles', item.id);
       ok++;
