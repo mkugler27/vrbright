@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
 
 export const PresenceContext = createContext<Set<string>>(new Set());
