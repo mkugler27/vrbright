@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useUnreadCount } from '../context/UnreadContext'
+import { usePresence } from '../context/PresenceContext'
 import { useActiveConversation } from '../context/ActiveConversationContext'
 import { canCreateGroups } from '../services/teamSync'
 import { deleteMessage } from '../services/chatDelete'
@@ -100,8 +101,8 @@ export default function ChatPage() {
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loadingMessages, setLoadingMessages] = useState(false)
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set())
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
+  const onlineUsers = usePresence()
   const [showGroupSettings, setShowGroupSettings] = useState(false)
   const [pendingMessageIds, setPendingMessageIds] = useState<Set<string>>(new Set())
   const [deletingMessageIds, setDeletingMessageIds] = useState<Set<string>>(new Set())
@@ -132,7 +133,6 @@ export default function ChatPage() {
   const emojiPickerRef = useRef<HTMLDivElement>(null)
   const msgChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const convChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   // ── Sync current user
   useEffect(() => {
@@ -199,24 +199,6 @@ export default function ChatPage() {
           setGroups(groupList2)
         })
         convChannelRef.current = convChannel
-
-        const presenceChannel = supabase.channel('online_users')
-          .on('presence', { event: 'sync' }, () => {
-            const state = presenceChannel.presenceState();
-            const online = new Set<string>();
-            for (const key in state) {
-              state[key].forEach((presence: any) => {
-                if (presence.user_id) online.add(presence.user_id);
-              });
-            }
-            setOnlineUsers(online);
-          })
-          .subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-              await presenceChannel.track({ user_id: sbUser.id, online_at: new Date().toISOString() });
-            }
-          });
-        presenceChannelRef.current = presenceChannel;
       } catch (err: any) {
         console.error('Error loading conversations:', err)
         setError(err.message || String(err))
@@ -231,10 +213,6 @@ export default function ChatPage() {
       if (convChannel) {
         supabase.removeChannel(convChannel)
         convChannelRef.current = null
-      }
-      if (presenceChannelRef.current) {
-        supabase.removeChannel(presenceChannelRef.current)
-        presenceChannelRef.current = null
       }
     }
   }, [user])
@@ -938,9 +916,10 @@ export default function ChatPage() {
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-gray-800 text-sm truncate flex items-center gap-2">
               {getParticipantNames(activeConversation)}
-              {isOtherUserOnline && (
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="User is currently online" />
-              )}
+              <span 
+                className={`w-2 h-2 rounded-full ${isOtherUserOnline ? 'bg-emerald-500' : 'bg-red-500'}`} 
+                title={isOtherUserOnline ? "Online" : "Offline"} 
+              />
             </p>
             <p className="text-xs text-gray-500 capitalize flex items-center gap-1.5">
               <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`} />
