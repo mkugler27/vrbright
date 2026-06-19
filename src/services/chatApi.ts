@@ -555,8 +555,9 @@ export function subscribeToMessages(
     console.log('[chatApi] subscribeToMessages auth session check:', data.session ? `Authenticated as ${data.session.user.email}` : 'No active session (anonymous)')
   })
 
+  const channelName = `messages:${conversationId}:${Math.random().toString(36).slice(2)}`
   const channel = supabase
-    .channel(`messages:${conversationId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -622,8 +623,9 @@ export function subscribeToConversations(
   userId: string,
   onUpdate: () => void
 ) {
+  const channelName = `conversations:${userId}:${Math.random().toString(36).slice(2)}`
   return supabase
-    .channel(`conversations:${userId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
