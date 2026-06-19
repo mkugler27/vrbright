@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { saveCachedConversations, getCachedConversations } from '../../services/db';
 import { type Conversation } from '../../services/chatApi';
 import { useActiveConversation } from '../../context/ActiveConversationContext';
+import { usePresence } from '../../context/PresenceContext';
 
 interface WOListViewProps {
   onSelect: (conv: Conversation) => void;
@@ -126,9 +127,11 @@ function FilterPopover({
 export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
   const { user } = useAuth();
   const { activeConversationId } = useActiveConversation();
+  const onlineUsers = usePresence();
   const [woConvs, setWoConvs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [workerNames, setWorkerNames] = useState<Record<string, string>>({});
+  const [workerIds, setWorkerIds] = useState<Record<string, string>>({});
   
   const [filterWorker, setFilterWorker] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -191,6 +194,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
             }
           });
           setWorkerNames(names);
+          setWorkerIds(ids);
         }
 
         if (data) {
@@ -299,7 +303,13 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
                   onChange={setFilterWorker}
                   options={uniqueWorkers.map(w => {
                     const email = w as string;
-                    return { label: workerNames[email] || email, value: email };
+                    const id = workerIds[email];
+                    const isOnline = id && onlineUsers.has(id);
+                    return { 
+                      label: workerNames[email] || email, 
+                      value: email,
+                      dotColor: isOnline ? 'bg-emerald-500' : 'bg-red-500'
+                    };
                   })}
                   icon={<svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
                 />
