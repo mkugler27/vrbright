@@ -173,7 +173,7 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
           `)
           .eq('tipo', 'wo')
           .order('created_at', { ascending: false }),
-        supabase.from('users').select('email, nome'),
+        supabase.from('users').select('id, email, nome'),
         supabase.from('conversation_participants').select('conversation_id, last_read_at').eq('user_id', user.id)
       ]);
         
@@ -181,9 +181,14 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
         console.error('[WOListView] Error loading WO conversations:', error);
       } else {
         const names: Record<string, string> = {};
+        const ids: Record<string, string> = {};
         if (usersData) {
           usersData.forEach(u => {
-            if (u.email) names[u.email.toLowerCase()] = u.nome || u.email;
+            if (u.email) {
+              const emailLower = u.email.toLowerCase();
+              names[emailLower] = u.nome || u.email;
+              ids[emailLower] = u.id;
+            }
           });
           setWorkerNames(names);
         }
@@ -195,10 +200,11 @@ export function WOListView({ onSelect, onWoConvsLoaded }: WOListViewProps) {
             const myPart = myParticipations?.find(p => p.conversation_id === c.id);
             const lastRead = myPart?.last_read_at ?? '1970-01-01';
             const unreadCount = (c.last_message_at && c.last_message_at > lastRead) ? 1 : 0;
+            const workerId = workerEmail ? ids[workerEmail.toLowerCase()] : null;
             return {
               ...c,
               unread_count: unreadCount,
-              participants: workerEmail ? [{ email: workerEmail, nome: workerName }] : []
+              participants: workerEmail ? [{ id: workerId, email: workerEmail, nome: workerName }] : []
             };
           });
 
