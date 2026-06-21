@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
-
+import { supabase } from '../services/supabase';
 const CACHE_KEY = 'vrbright_wo_count';
 
 interface CachedCount {
@@ -32,30 +31,16 @@ export function useOpenWOCount(): number {
     const ctrl = new AbortController();
 
     const fetchCount = async () => {
-      const constraints = JSON.stringify([
-        { key: 'worker_email', constraint_type: 'equals', value: user.email },
-        { key: 'status', constraint_type: 'not equal', value: 'COMPLETED' },
-        { key: 'liberado_para_pintor', constraint_type: 'equals', value: true },
-        { key: 'deletado', constraint_type: 'equals', value: false },
-        { key: 'esconder_complain_calendario', constraint_type: 'equals', value: false },
-      ]);
-      const params = new URLSearchParams({ constraints, limit: String(SMALL_LIMIT) });
       try {
-        const res = await fetch(`${API_BASE_URL}/obj/workingorders?${params.toString()}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${BUBBLE_TOKEN}`,
-          },
-          signal: ctrl.signal,
-        });
-        if (!res.ok) return;
-        const json = (await res.json()) as { response: { results: unknown[]; remaining?: number; count?: number } };
-        // `remaining` = how many records exist beyond the current page.
-        // Total = results returned + remaining.
-        const returned = Array.isArray(json.response.results) ? json.response.results.length : 0;
-        const remaining = typeof json.response.remaining === 'number' ? json.response.remaining : 0;
-        const total = returned + remaining;
+        const { count: fetchedCount, error } = await supabase
+          .from('work_orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('worker_email', user.email)
+          .neq('status', 'COMPLETED');
+          
+        if (error) throw error;
+        
+        const total = fetchedCount || 0;
         const entry: CachedCount = {
           count: total,
           cached_at: new Date().toISOString(),
@@ -63,18 +48,28 @@ export function useOpenWOCount(): number {
         };
         try {
           localStorage.setItem(CACHE_KEY, JSON.stringify(entry));
-        } catch {
-          // localStorage may be full or disabled; non-fatal
-        }
+        } catch {}
         setCount(total);
       } catch (err) {
         if ((err as { name?: string }).name === 'AbortError') return;
-        console.warn('Failed to fetch WO count:', err);
+        console.warn('Failed to fetch WO count from Supabase:', err);
       }
     };
 
     fetchCount();
-    return () => ctrl.abort();
+    
+    // Subscribe to realtime changes in Supabase for work_orders
+    const channel = supabase
+      .channel('public:work_orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'work_orders' }, () => {
+        fetchCount();
+      })
+      .subscribe();
+
+    return () => {
+      ctrl.abort();
+      supabase.removeChannel(channel);
+    };
   }, [user?.email]);
 
   return count;

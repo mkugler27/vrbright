@@ -1,4 +1,5 @@
 import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
+import { supabase } from './supabase';
 
 const API_BASE = API_BASE_URL;
 
@@ -38,64 +39,41 @@ interface BubbleListResponse<T> {
 export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrderRow[]> {
   const { workerEmail } = opts;
 
-  // Busca WOs onde worker_email = email do worker logado no Supabase Auth.
-  // Filtros:
-  //   worker_email = email do worker (identificador único entre Supabase e Bubble)
-  //   status <> COMPLETED
-  //   deletado = false
-  //   liberado_para_pintor = true
-  //   esconder_complain_calendario = false
-  //   ordenação por data (ascendente — mais antigas primeiro)
-  const constraints = JSON.stringify([
-    { key: 'worker_email', constraint_type: 'equals', value: workerEmail },
-    { key: 'status', constraint_type: 'not equal', value: 'COMPLETED' },
-    { key: 'liberado_para_pintor', constraint_type: 'equals', value: true },
-    { key: 'deletado', constraint_type: 'equals', value: false },
-    { key: 'esconder_complain_calendario', constraint_type: 'equals', value: false },
-  ]);
+  const { data, error } = await supabase
+    .from('work_orders')
+    .select('*')
+    .eq('worker_email', workerEmail)
+    .neq('status', 'COMPLETED');
 
-  const params = new URLSearchParams({
-    constraints,
-    sort_field: 'data',
-    descending: 'false',
-    limit: '50',
-  });
-
-  const url = `${API_BASE}/obj/workingorders?${params.toString()}`;
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${BUBBLE_TOKEN}`,
-    },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Fetch WO failed: ${res.status}`);
+  if (error) {
+    throw new Error(`Fetch WO failed from Supabase: ${error.message}`);
   }
 
-  const json = (await res.json()) as BubbleListResponse<Record<string, unknown>>;
-  const raw = json.response.results;
-
-  return raw.map((r) => ({
-    _id: r._id as string,
-    codigo_id: (r.codigo_id as string | number) ?? undefined,
-    tipo_JOB: r.tipo_JOB as string | undefined,
-    apt: r.apt as string | undefined,
-    data: r.data as string | undefined,
-    data_inicio: r.data_inicio as string | undefined,
-    status: r.status as string | undefined,
-    prioridade: r.prioridade as string | undefined,
-    liberado_para_pintor: r.liberado_para_pintor as boolean | undefined,
-    deletado: r.deletado as boolean | undefined,
-    esconder_complain_calendario: r.esconder_complain_calendario as boolean | undefined,
-    qual_condo: r.qual_condo as string | undefined,
-    qual_pintor: r.qual_pintor as string | undefined,
-    qual_condo_txt: r.qual_condo_txt as string | undefined,
-    qual_condo_txt_nick: r.qual_condo_txt_nick as string | undefined,
-    qual_pintor_txt: r.qual_pintor_txt as string | undefined,
-    qual_pintor_nick_txt: r.qual_pintor_nick_txt as string | undefined,
-    worker_email: r.worker_email as string | undefined,
-    sincronizar: r.sincronizar as boolean | undefined,
-  }));
+  // Mapeia do formato do Supabase para WorkOrderRow
+  return data.map((d: any) => {
+    // raw_data pode ser string ou objeto, dependendo de como é salvo
+    const raw = typeof d.raw_data === 'string' ? JSON.parse(d.raw_data) : (d.raw_data || {});
+    
+    return {
+      _id: d.bubble_id || raw._id || d.id,
+      codigo_id: d.codigo_id || raw.codigo_id,
+      tipo_JOB: raw.tipo_JOB,
+      apt: raw.apt,
+      data: raw.data,
+      data_inicio: raw.data_inicio,
+      status: d.status || raw.status,
+      prioridade: raw.prioridade,
+      liberado_para_pintor: raw.liberado_para_pintor,
+      deletado: raw.deletado,
+      esconder_complain_calendario: raw.esconder_complain_calendario,
+      qual_condo: raw.qual_condo,
+      qual_pintor: raw.qual_pintor,
+      qual_condo_txt: raw.qual_condo_txt,
+      qual_condo_txt_nick: raw.qual_condo_txt_nick,
+      qual_pintor_txt: raw.qual_pintor_txt,
+      qual_pintor_nick_txt: raw.qual_pintor_nick_txt,
+      worker_email: d.worker_email || raw.worker_email,
+      sincronizar: raw.sincronizar,
+    };
+  });
 }
