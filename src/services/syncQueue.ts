@@ -4,7 +4,7 @@ import type { WorkOrderRow } from './workingOrdersApi'
 import { BUBBLE_TOKEN, CHAT_FILE_RECEIVE_URL } from '../config/api'
 import { supabase } from './supabase'
 
-const PATCH_URL = 'https://system.vrbrightpainting.com/version-test/api/1.1/obj/workingorders'
+const PATCH_URL = 'https://vrbcrmsystem.bubbleapps.io/version-test/api/1.1/obj/workingorders'
 
 // ──────────────────────────────────────────────
 // ENQUEUE

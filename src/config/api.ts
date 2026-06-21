@@ -4,7 +4,7 @@ const VERSION = 'version-test'; // ← change here when going to production (e.g
 
 export const API_BASE_URL =
   import.meta.env.VITE_BUBBLE_API_URL ||
-  `https://system.vrbrightpainting.com/${VERSION}/api/1.1`;
+  `https://vrbcrmsystem.bubbleapps.io/${VERSION}/api/1.1`;
 
 // Bubble Data API token — usado por todas as chamadas ao Bubble.
 // Compartilhado entre todos os usuários (é um token de app, não por-user).
