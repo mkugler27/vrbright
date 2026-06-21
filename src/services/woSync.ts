@@ -1,4 +1,4 @@
-import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
+import { BUBBLE_TOKEN } from '../config/api';
 
 
 /**
