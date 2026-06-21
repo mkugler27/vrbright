@@ -1,8 +1,4 @@
-import { API_BASE_URL, BUBBLE_TOKEN } from '../config/api';
 import { supabase } from './supabase';
-
-const API_BASE = API_BASE_URL;
-
 export interface WorkOrderRow {
   _id: string;
   codigo_id?: string | number;
@@ -29,12 +25,6 @@ export interface FetchTodayWOOptions {
   workerEmail: string;
 }
 
-interface BubbleListResponse<T> {
-  response: {
-    cursor: number;
-    results: T[];
-  };
-}
 
 export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrderRow[]> {
   const { workerEmail } = opts;

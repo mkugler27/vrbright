@@ -9,8 +9,6 @@ interface CachedCount {
   email: string;
 }
 
-const SMALL_LIMIT = 5;
-
 export function useOpenWOCount(): number {
   const { user } = useAuth();
   const [count, setCount] = useState<number>(() => {
