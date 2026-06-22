@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { getSupabaseUserById, searchUsersForGroup, createGroupConversation } from '../services/chatApi'
-import { canCreateGroups } from '../services/teamSync'
+import { getSupabaseUserById, searchUsersForGroup, createGroupConversation, canCreateGroups } from '../services/chatApi'
 import type { User } from '../services/supabase'
 
 function getInitials(name: string): string {

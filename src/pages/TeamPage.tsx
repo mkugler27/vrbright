@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import { fetchActiveTeam, type TeamMember } from '../services/teamApi';
+import { supabase, type User } from '../services/supabase';
 import {
-  saveTeamCache,
-  getTeamCache,
+  saveCachedUsers,
+  syncCachedUsers,
+  getCachedUsers,
   getTeamLastSync,
-  clearTeamCache,
+  setMeta,
 } from '../services/db';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 
@@ -46,7 +47,7 @@ function TeamAvatar({ src, name, size = 'lg' }: { src?: string; name: string; si
       />
     );
   }
-  const initials = name.split(' ').map((p) => p.charAt(0)).slice(0, 2).join('').toUpperCase() || '?';
+  const initials = (name || '?').split(' ').map((p) => p.charAt(0)).slice(0, 2).join('').toUpperCase() || '?';
   return (
     <div
       className={`${sizes[size]} rounded-full flex items-center justify-center text-white font-semibold ring-2 ring-white shadow-sm`}
@@ -194,7 +195,7 @@ function TypeFilterPopover({
 export function TeamPage() {
   const { user } = useAuth();
   const isOnline = useOnlineStatus();
-  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [team, setTeam] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -204,39 +205,64 @@ export function TeamPage() {
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
+    const handleUpdate = () => {
+      // Re-fetch from DB when realtime updates
+      getCachedUsers().then(cached => {
+        setTeam(cached.filter(u => u.ativo !== false));
+      });
+    };
+    window.addEventListener('vrbright:users_updated', handleUpdate);
+    return () => window.removeEventListener('vrbright:users_updated', handleUpdate);
+  }, []);
+
+  const fetchSupabaseTeam = async (): Promise<User[]> => {
+    if (!navigator.onLine) throw new Error('Offline');
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('ativo', true)
+      .order('nome');
+    if (error) throw new Error(error.message);
+    return data as User[];
+  };
+
+  useEffect(() => {
     const load = async () => {
       // 1) Load cache first (instant)
-      const cached = (await getTeamCache()) as TeamMember[];
+      const cached = await getCachedUsers();
       const lastSyncIso = (await getTeamLastSync()) ?? null;
-      if (cached.length > 0) {
-        setTeam(cached);
+      
+      const activeCached = cached.filter(u => u.ativo !== false);
+      if (activeCached.length > 0) {
+        setTeam(activeCached);
         setLastSync(lastSyncIso);
         setLoading(false);
       }
 
       // 2) Try to refresh from network
       if (!user) {
-        if (cached.length === 0) {
+        if (activeCached.length === 0) {
           setError('Not authenticated');
           setLoading(false);
         }
         return;
       }
 
-      if (cached.length > 0) {
+      if (activeCached.length > 0) {
         setRefreshing(true);
       }
 
       try {
-        const data = await fetchActiveTeam();
+        const data = await fetchSupabaseTeam();
         setTeam(data);
-        await saveTeamCache(data);
+        await syncCachedUsers(data);
         const now = new Date().toISOString();
         setLastSync(now);
+        await setMeta('team_last_sync', now);
         setError('');
       } catch (err) {
         console.warn('Team refresh failed, using cache:', err);
-        if (cached.length === 0) {
+        if (activeCached.length === 0) {
           setError(isOnline ? 'Failed to load team' : 'Offline — no cached data');
         }
       } finally {
@@ -251,10 +277,12 @@ export function TeamPage() {
     if (!user || refreshing) return;
     setRefreshing(true);
     try {
-      const data = await fetchActiveTeam();
+      const data = await fetchSupabaseTeam();
       setTeam(data);
-      await saveTeamCache(data);
-      setLastSync(new Date().toISOString());
+      await syncCachedUsers(data);
+      const now = new Date().toISOString();
+      setLastSync(now);
+      await setMeta('team_last_sync', now);
       setError('');
     } catch (err) {
       console.error('Manual refresh failed:', err);
@@ -269,20 +297,20 @@ export function TeamPage() {
 
   const executeClearCache = async () => {
     setShowConfirm(false);
-    await clearTeamCache();
+    await saveCachedUsers([]);
+    await setMeta('team_last_sync', null);
     setTeam([]);
     setLastSync(null);
   };
 
-  const availableTypes = Array.from(new Set(team.map((m) => m.tipo_user).filter(Boolean))) as string[];
+  const availableTypes = Array.from(new Set(team.map((m) => m.tipo_user_bubble).filter(Boolean))) as string[];
 
   const filtered = team.filter((m) => {
-    if (typeFilter !== 'all' && m.tipo_user !== typeFilter) return false;
+    if (typeFilter !== 'all' && m.tipo_user_bubble !== typeFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      m.Nome.toLowerCase().includes(q) ||
-      (m.nickname || '').toLowerCase().includes(q) ||
+      (m.nome || '').toLowerCase().includes(q) ||
       (m.email || '').toLowerCase().includes(q) ||
       (m.telefone || '').toLowerCase().includes(q)
     );
@@ -390,18 +418,15 @@ export function TeamPage() {
           <div className="space-y-2.5">
             {filtered.map((member) => (
               <div
-                key={member._id}
+                key={member.id}
                 className="bg-white rounded-[28px] p-4 shadow-sm border border-gray-100/60 flex items-center gap-3 active:scale-[0.98] transition-transform duration-150"
               >
-                <TeamAvatar src={member.profile_picture} name={member.Nome} size="lg" />
+                <TeamAvatar src={member.avatar_url} name={member.nome} size="lg" />
 
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-gray-900 text-[15px] truncate">
-                    {member.Nome}
+                    {member.nome}
                   </h3>
-                  {member.nickname && member.nickname !== member.Nome.split(' ')[0] && (
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">@{member.nickname}</p>
-                  )}
                   {member.email && (
                     <p className="text-xs text-gray-500 mt-0.5 truncate">{member.email}</p>
                   )}
@@ -416,14 +441,14 @@ export function TeamPage() {
                       href={`tel:${member.telefone}`}
                       onClick={(e) => e.stopPropagation()}
                       className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary-dark active:scale-90 transition-transform"
-                      aria-label={`Call ${member.Nome}`}
+                      aria-label={`Call ${member.nome}`}
                     >
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                       </svg>
                     </a>
                   )}
-                  <TypeBadge type={member.tipo_user} />
+                  <TypeBadge type={member.tipo_user_bubble} />
                 </div>
               </div>
             ))}

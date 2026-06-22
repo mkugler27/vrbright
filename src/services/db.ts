@@ -190,6 +190,33 @@ export async function saveCachedConversations(convs: Conversation[]): Promise<vo
   await tx.done;
 }
 
+export async function syncCachedConversations(serverConvs: Conversation[]): Promise<void> {
+  const db = await getDB();
+  
+  // Get syncQueue first to prevent IndexedDB transaction auto-commit
+  const syncQueue = await db.getAll('syncQueue');
+  const offlineConvIds = new Set(
+    syncQueue
+      .filter(item => item.action === 'create_conversation')
+      .map(item => item.payload.id as string)
+  );
+
+  const tx = db.transaction('chatConversations', 'readwrite');
+  const currentConvs = await tx.store.getAll();
+  const offlineConvsToKeep = currentConvs.filter(c => offlineConvIds.has(c.id));
+  
+  await tx.store.clear();
+  
+  for (const c of offlineConvsToKeep) {
+    await tx.store.put(c);
+  }
+  for (const c of serverConvs) {
+    await tx.store.put(c);
+  }
+  
+  await tx.done;
+}
+
 export async function getCachedConversations(): Promise<Conversation[]> {
   const db = await getDB();
   return db.getAll('chatConversations');
@@ -233,6 +260,16 @@ export async function clearChatCache(): Promise<void> {
 export async function saveCachedUsers(users: User[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('chatUsers', 'readwrite');
+  for (const u of users) {
+    await tx.store.put(u);
+  }
+  await tx.done;
+}
+
+export async function syncCachedUsers(users: User[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('chatUsers', 'readwrite');
+  await tx.store.clear();
   for (const u of users) {
     await tx.store.put(u);
   }

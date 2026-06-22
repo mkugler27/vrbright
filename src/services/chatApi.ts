@@ -3,10 +3,12 @@ import type { User } from './supabase'
 import type { ChatFile } from '../types'
 import {
   saveCachedConversations,
+  syncCachedConversations,
   getCachedConversations,
   saveCachedMessages,
   getCachedMessages,
   saveCachedUsers,
+  syncCachedUsers,
   getCachedUsers
 } from './db'
 import { enqueueCreateConversation } from './syncQueue'
@@ -93,7 +95,7 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     if (!navigator.onLine) throw new Error('Offline')
     const { data, error } = await supabase
       .from('conversation_participants')
-      .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants!inner(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
+      .select('conversation_id,last_read_at,conversations(id,tipo,nome,bubble_group_id,last_message,last_message_at,created_at,users:conversation_participants(user_id,users(id,bubble_id,nome,email,avatar_url,tipo_user_bubble)))')
       .eq('user_id', userId)
 
     if (error) throw new Error(error.message)
@@ -102,9 +104,26 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
     const convs = data
       .map((row: any) => {
         const conv: any = row.conversations
-        const participants = conv.users?.map((p: any) => p.users).filter(Boolean) ?? []
+        if (!conv) return null
+
+        const participants = conv.users?.map((p: any) => {
+          if (p.users) return p.users;
+          return { id: p.user_id, nome: 'Usuário Removido', email: '' }
+        }) ?? []
+        
         const distinctUserIds = new Set(participants.map((p: any) => p.id))
-        if (distinctUserIds.size < 2) return null
+        
+        // If Supabase filtered out the deleted user entirely (e.g. via RLS or LEFT JOIN dropping the row)
+        // We force a dummy participant so the conversation isn't hidden
+        if (distinctUserIds.size < 2 && conv.tipo !== 'wo') {
+          participants.push({ id: 'deleted-user', nome: 'Usuário Removido', email: '' })
+          distinctUserIds.add('deleted-user')
+        }
+
+        if (distinctUserIds.size < 2 && conv.tipo !== 'wo') {
+          return null
+        }
+        
         let unread = 0
         if (conv?.last_message_at) {
           const lastRead = row.last_read_at ?? '1970-01-01'
@@ -119,17 +138,21 @@ export async function getConversationsForUser(userId: string): Promise<Conversat
       })
       .filter((c: any) => c && c.tipo !== 'wo') as Conversation[]
 
-    saveCachedConversations(convs).catch(e => console.warn('Failed to cache conversations:', e))
+    await syncCachedConversations(convs).catch(e => console.warn('Failed to sync conversations:', e))
+
+    // Read back from cache to include offline/pending conversations
+    const mergedConvs = await getCachedConversations()
+    const finalConvs = mergedConvs.filter(c => c.participants?.some(p => p.id === userId))
 
     // Pre-cache all conversation participants in chatUsers store
-    const participants = convs
+    const participants = finalConvs
       .flatMap(c => c.participants ?? [])
       .filter((p, index, self) => self.findIndex(u => u.id === p.id) === index)
     if (participants.length > 0) {
       saveCachedUsers(participants).catch(e => console.warn('Failed to cache conversation users:', e))
     }
 
-    return convs
+    return finalConvs
   } catch (err) {
     console.warn('[chatApi] getConversationsForUser failed, falling back to cache:', err)
     try {
@@ -166,8 +189,21 @@ export async function getDMsForUser(userId: string): Promise<Conversation[]> {
 
 async function handleOfflineCreateConv(convId: string, userA_id: string, userB_id: string): Promise<string | null> {
   try {
-    const userA = await getSupabaseUserById(userA_id)
-    const userB = await getSupabaseUserById(userB_id)
+    let userA = await getSupabaseUserById(userA_id)
+    let userB = await getSupabaseUserById(userB_id)
+
+    // Fallback to cache if user fetch fails or we are offline
+    if (!userA || !userB) {
+      const dbModule = await import('./db')
+      const cachedUsers = await dbModule.getCachedUsers()
+      if (!userA) userA = cachedUsers.find(u => u.id === userA_id) || null
+      if (!userB) userB = cachedUsers.find(u => u.id === userB_id) || null
+    }
+
+    // Ultimate fallback if user is completely unknown, we must still create the local object 
+    // to prevent ChatPage from filtering it out!
+    if (!userA) userA = { id: userA_id, nome: 'Unknown User A', email: '' }
+    if (!userB) userB = { id: userB_id, nome: 'Unknown User B', email: '' }
     
     const newConv: Conversation = {
       id: convId,
@@ -178,7 +214,7 @@ async function handleOfflineCreateConv(convId: string, userA_id: string, userB_i
       last_message_at: null,
       unread_count: 0,
       created_at: new Date().toISOString(),
-      participants: [userA!, userB!].filter(Boolean) as User[],
+      participants: [userA, userB],
       member_count: 2
     }
 
@@ -201,8 +237,9 @@ export async function createIndividualConversation(
   if (navigator.onLine) {
     const { data: existing } = await supabase
       .from('conversation_participants')
-      .select('conversation_id')
+      .select('conversation_id, conversations!inner(tipo)')
       .eq('user_id', userA_id)
+      .eq('conversations.tipo', 'individual')
 
     if (existing && existing.length > 0) {
       const convIds = existing.map((p: any) => p.conversation_id)
@@ -211,7 +248,6 @@ export async function createIndividualConversation(
         .select('conversation_id')
         .in('conversation_id', convIds)
         .eq('user_id', userB_id)
-        .eq('conversation_id', convIds[0])
 
       if (data && data.length > 0) return data[0].conversation_id
     }
@@ -229,10 +265,14 @@ export async function createIndividualConversation(
 
       if (convErr || !conv) throw new Error(convErr?.message || 'Failed to create conv')
 
-      await supabase.from('conversation_participants').insert([
+      const { error: partErr } = await supabase.from('conversation_participants').insert([
         { conversation_id: conv.id, user_id: userA_id },
         { conversation_id: conv.id, user_id: userB_id },
       ])
+
+      if (partErr) {
+        throw new Error(partErr.message)
+      }
 
       return conv.id
     } catch (err) {
@@ -379,7 +419,7 @@ export async function getChatContacts(excludeUserId: string): Promise<User[]> {
     if (error) throw new Error(error.message)
     const list = (data ?? []) as User[]
 
-    saveCachedUsers(list).catch(e => console.warn(e))
+    syncCachedUsers(list).catch(e => console.warn(e))
     return list
   } catch (err) {
     console.warn('[chatApi] getChatContacts failed, falling back to cache:', err)
@@ -648,4 +688,10 @@ export function generateUUID(): string {
     const v = c === 'x' ? r : (r & 0x3) | 0x8
     return v.toString(16)
   })
+}
+
+export function canCreateGroups(role?: string | null): boolean {
+  if (!role) return false;
+  const lower = role.toLowerCase();
+  return ['owner', 'director', 'manager', 'supervisor'].includes(lower);
 }

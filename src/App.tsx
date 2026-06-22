@@ -8,7 +8,6 @@ import { PresenceProvider } from './context/PresenceContext';
 import { AppShell } from './components/layout/AppShell';
 import { AppFrame } from './components/layout/AppFrame';
 import { LoginPage } from './pages/LoginPage';
-import { SignupPage } from './pages/SignupPage';
 import { TeamPage } from './pages/TeamPage';
 import { DashboardHome } from './pages/DashboardHome';
 import { WOPage } from './pages/WOPage';
@@ -54,7 +53,6 @@ export default function App() {
                 <AppFrame>
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
-                    <Route path="/signup" element={<SignupPage />} />
                     <Route
                       element={
                         <ProtectedRoute>

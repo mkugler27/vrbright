@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
-
+import { supabase } from '../services/supabase';
+import { getSupabaseUserByEmail } from '../services/chatApi';
+import { getCachedUsers, saveCachedUsers } from '../services/db';
 export interface AuthUser {
   id: string;           // Supabase Auth uid
   email: string;
@@ -57,6 +59,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
   }, []);
+
+  // Silent Sync on Mount
+  useEffect(() => {
+    let mounted = true;
+    async function syncProfile() {
+      if (!user?.email) return;
+      const profile = await getSupabaseUserByEmail(user.email);
+      if (!mounted || !profile) return;
+      
+      if (profile.ativo === false) {
+        await supabase.auth.signOut();
+        logout();
+        return;
+      }
+
+      setUser({
+        id: user.id,
+        email: user.email,
+        nome: profile.nome || user.email.split('@')[0],
+        profile_picture: profile.avatar_url,
+        tipo_user_bubble: profile.tipo_user_bubble,
+        bubble_id: profile.bubble_id
+      });
+    }
+    syncProfile();
+    return () => { mounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount, deliberately avoiding user dependency loop
+
+  // Realtime Sync for `users` table
+  useEffect(() => {
+    const channel = supabase.channel('public:users')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users' },
+        async (payload) => {
+          const updatedUser = payload.new;
+          
+          // 1. Is it the current logged-in user?
+          if (user && updatedUser.id === user.id) {
+            if (updatedUser.ativo === false) {
+              await supabase.auth.signOut();
+              logout();
+            } else {
+              const newNome = updatedUser.nome || user.email.split('@')[0];
+              if (
+                user.nome !== newNome ||
+                user.profile_picture !== updatedUser.avatar_url ||
+                user.tipo_user_bubble !== updatedUser.tipo_user_bubble ||
+                user.bubble_id !== updatedUser.bubble_id
+              ) {
+                setUser({
+                  id: user.id,
+                  email: user.email,
+                  nome: newNome,
+                  profile_picture: updatedUser.avatar_url,
+                  tipo_user_bubble: updatedUser.tipo_user_bubble,
+                  bubble_id: updatedUser.bubble_id
+                });
+              }
+            }
+          }
+
+          // 2. Always update IndexedDB silently so Chat/Team reflects the new data
+          try {
+            const cachedUsers = await getCachedUsers();
+            const index = cachedUsers.findIndex(u => u.id === updatedUser.id);
+            if (index !== -1) {
+              cachedUsers[index] = { ...cachedUsers[index], ...updatedUser };
+              await saveCachedUsers(cachedUsers);
+              
+              // Dispatch a custom event so the UI (like ChatPage/TeamPage) can refresh if they are open
+              window.dispatchEvent(new CustomEvent('vrbright:users_updated', { detail: updatedUser }));
+            }
+          } catch (err) {
+            console.warn('Failed to update IndexedDB from realtime user patch', err);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, setUser, logout]);
+
 
   return (
     <AuthContext.Provider value={{ user, setUser, logout }}>

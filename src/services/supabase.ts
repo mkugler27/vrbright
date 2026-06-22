@@ -26,4 +26,8 @@ export type User = {
   tipo_user_bubble?: string  // Owner, Director, Manager, Supervisor, Worker, Helper, Trainee
   avatar_url?: string
   bubble_id?: string
+  ativo?: boolean
+  telefone?: string
+  emergency_contact?: string
+  emergency_name?: string
 }

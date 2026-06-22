@@ -4,14 +4,16 @@ import { BUBBLE_TOKEN } from '../config/api';
 /**
  * Função utilitária para atualizar o status da WO via webhook no Bubble
  */
-export async function patchWOInBubble(bubbleId: string, data: Record<string, any>) {
+export async function patchWOInBubble(codigoId: string, data: Record<string, any>) {
   try {
     const webhookUrl = 'https://vrbcrmsystem.bubbleapps.io/version-test/api/1.1/wf/wo_update';
     
     // Prepara o payload conforme as chaves esperadas pelo webhook
     const payload: Record<string, any> = {
-      wo: bubbleId,
+      wo: codigoId || "",
       status: data.status,
+      wo_new: data.wo_new || "",
+      wo_old: data.wo_old || "",
     };
 
     if (data.notes_extra !== undefined) {
@@ -28,14 +30,14 @@ export async function patchWOInBubble(bubbleId: string, data: Record<string, any
     });
 
     if (!response.ok) {
-      console.error(`[WO Sync] Erro ao chamar webhook no Bubble (${bubbleId}):`, response.statusText);
+      console.error(`[WO Sync] Erro ao chamar webhook no Bubble (${codigoId}):`, response.statusText);
       return false;
     }
     
-    console.log(`[WO Sync] Webhook do Bubble disparado com sucesso (${bubbleId})!`, payload);
+    console.log(`[WO Sync] Webhook do Bubble disparado com sucesso (${codigoId})!`, payload);
     return true;
   } catch (err) {
-    console.error(`[WO Sync] Erro de rede ao chamar webhook no Bubble (${bubbleId}):`, err);
+    console.error(`[WO Sync] Erro de rede ao chamar webhook no Bubble (${codigoId}):`, err);
     return false;
   }
 }

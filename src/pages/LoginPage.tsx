@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/Button'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { supabase } from '../services/supabase'
 import { getSupabaseUserByEmail } from '../services/chatApi'
-import { fetchBubbleUserByEmail } from '../services/teamApi'
 import { useAuth } from '../context/AuthContext'
 
 export function LoginPage() {
@@ -42,36 +41,26 @@ export function LoginPage() {
 
       const profile = await getSupabaseUserByEmail(email)
       if (!profile) {
-        setError('User profile not found. Please sign up first.')
+        setError('User profile not found. Please contact your administrator.')
         await supabase.auth.signOut()
         setLoading(false)
         return
       }
 
-      let profilePicture = profile.avatar_url
-      let tipoUserBubble = profile.tipo_user_bubble
-      try {
-        const bubble = await fetchBubbleUserByEmail(email)
-        if (bubble?.profile_picture) {
-          profilePicture = bubble.profile_picture
-        }
-        if (bubble?.tipo_user) {
-          tipoUserBubble = bubble.tipo_user
-          // Persist any new Bubble data to Supabase (only updates own row → RLS OK)
-          const updates: Record<string, string> = { tipo_user_bubble: bubble.tipo_user }
-          if (bubble.profile_picture) updates.avatar_url = bubble.profile_picture
-          await supabase.from('users').update(updates).eq('id', profile.id)
-        }
-      } catch {
-        // best-effort
+      if (profile.ativo === false) {
+        setError('Sua conta está bloqueada pelo Administrador.')
+        await supabase.auth.signOut()
+        setLoading(false)
+        return
       }
 
       setUser({
-        id: profile.id,
-        email: profile.email,
-        nome: profile.nome,
-        profile_picture: profilePicture,
-        tipo_user_bubble: tipoUserBubble,
+        id: authData.user.id,
+        email: email,
+        nome: profile.nome || email.split('@')[0],
+        profile_picture: profile.avatar_url,
+        tipo_user_bubble: profile.tipo_user_bubble,
+        bubble_id: profile.bubble_id
       })
 
       navigate('/')
@@ -201,15 +190,8 @@ export function LoginPage() {
           </Button>
         </form>
 
-        {/* Sign up link */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Don&apos;t have an account?{' '}
-          <Link to="/signup" className="text-primary-dark font-semibold hover:underline">
-            Sign up
-          </Link>
-        </p>
-      </div>
 
+      </div>
       {/* Footer */}
       <div className="px-6 pb-8 text-center">
         <p className="text-xs text-gray-400">

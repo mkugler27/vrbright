@@ -8,7 +8,7 @@ import {
   type Conversation
 } from '../../services/chatApi'
 import type { User } from '../../services/supabase'
-import { canCreateGroups } from '../../services/teamSync'
+import { canCreateGroups } from '../../services/chatApi';
 import { ConfirmationModal } from '../ui/ConfirmationModal'
 
 function getInitials(name: string): string {

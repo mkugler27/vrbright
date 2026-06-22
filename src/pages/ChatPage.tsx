@@ -22,7 +22,7 @@ import { useOnlineStatus } from '../hooks/useOnlineStatus'
 import { useUnreadCount } from '../context/UnreadContext'
 import { usePresence } from '../context/PresenceContext'
 import { useActiveConversation } from '../context/ActiveConversationContext'
-import { canCreateGroups } from '../services/teamSync'
+import { canCreateGroups } from '../services/chatApi'
 import { deleteMessage } from '../services/chatDelete'
 import {
   sendMediaMessage,
@@ -144,7 +144,7 @@ export default function ChatPage() {
       bubble_id: user.bubble_id,
       tipo_user_bubble: user.tipo_user_bubble,
     })
-  }, [user])
+  }, [user?.id])
 
   // ── Load conversations + subscribe to list changes
   useEffect(() => {
@@ -157,6 +157,21 @@ export default function ChatPage() {
       setLoadingConvs(true)
       setError(null)
       try {
+        // --- 1) LOAD CACHE FIRST ---
+        try {
+          const dbModule = await import('../services/db')
+          const cachedConvs = await dbModule.getCachedConversations()
+          if (cachedConvs && cachedConvs.length > 0) {
+            const myConvs = cachedConvs.filter(c => c.participants?.some(p => p.id === userId))
+            setDms(myConvs.filter(c => c.tipo === 'individual').sort((a, b) => (b.last_message_at ?? b.created_at).localeCompare(a.last_message_at ?? a.created_at)))
+            setGroups(myConvs.filter(c => c.tipo === 'group').sort((a, b) => (b.last_message_at ?? b.created_at).localeCompare(a.last_message_at ?? a.created_at)))
+            setLoadingConvs(false)
+          }
+        } catch (cacheErr) {
+          console.warn('Cache load failed:', cacheErr)
+        }
+
+        // --- 2) BACKGROUND NETWORK LOAD ---
         let sbUser = await getSupabaseUserById(userId)
         if (!sbUser) {
           if (user && user.id === userId) {
@@ -182,8 +197,8 @@ export default function ChatPage() {
         if (cancelled) return
         setDms(dmList)
         setGroups(groupList)
+        setLoadingConvs(false)
 
-        // Pre-cache all chat contacts in the background if online
         if (navigator.onLine) {
           getChatContacts(sbUser.id).catch(e => console.warn('[ChatPage] Failed to pre-cache contacts:', e))
         }
@@ -215,7 +230,7 @@ export default function ChatPage() {
         convChannelRef.current = null
       }
     }
-  }, [user])
+  }, [user?.id])
 
   // ── Open conversation ref
   const openConversationRef = useRef<(conv: Conversation) => void>(() => {})
@@ -227,9 +242,13 @@ export default function ChatPage() {
     if (loadingConvs) return
     const all = [...dms, ...groups]
     const target = all.find(c => c.id === targetId)
+    console.log('[ChatPage] URL targetId:', targetId, 'Found target:', target?.id, 'dms count:', dms.length)
     if (target && activeConversation?.id !== targetId) {
+      console.log('[ChatPage] Setting active conversation to', target.id)
       openConversationRef.current(target)
       setSearchParams({}, { replace: true })
+    } else if (!target) {
+      console.warn('[ChatPage] Target conversation NOT found in dms or groups!', targetId)
     }
   }, [searchParams, loadingConvs, dms, groups, user, activeConversation?.id])
 
@@ -789,9 +808,10 @@ export default function ChatPage() {
         initials={getParticipantInitials(conv)}
         subtitle={conv.last_message ?? 'Tap to start chatting'}
         time={formatLastListTime(conv.last_message_at)}
+        isActive={activeConversation?.id === conv.id}
       />
     ))
-  }, [dms, loadingConvs, mySupabaseId])
+  }, [dms, loadingConvs, mySupabaseId, activeConversation?.id])
 
   const groupView = useMemo(() => {
     if (loadingConvs) return <ListSkeleton />
@@ -819,9 +839,10 @@ export default function ChatPage() {
         subtitle={`${conv.member_count ?? conv.participants?.length ?? 0} members · ${conv.last_message ?? 'No messages yet'}`}
         time={formatLastListTime(conv.last_message_at)}
         isGroup
+        isActive={activeConversation?.id === conv.id}
       />
     ))
-  }, [groups, loadingConvs, mySupabaseId, user?.tipo_user_bubble])
+  }, [groups, loadingConvs, mySupabaseId, user?.tipo_user_bubble, activeConversation?.id])
 
   const isOtherUserOnline = activeConversation && activeConversation.participants
     ? activeConversation.participants.some(p => p.id !== mySupabaseId && onlineUsers.has(p.id))
@@ -865,23 +886,44 @@ export default function ChatPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 bg-white shrink-0">
+        <div className="flex p-2 gap-2 border-b border-gray-200 bg-gray-50 shrink-0">
           <button
             onClick={() => setActiveTab('chats')}
-            className={`flex-1 py-2.5 text-sm font-semibold ${activeTab === 'chats' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              activeTab === 'chats' 
+                ? 'bg-white text-blue-600 shadow border border-gray-200' 
+                : 'text-gray-500 hover:bg-gray-200/50 border border-transparent'
+            }`}
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
             Chats
           </button>
           <button
             onClick={() => setActiveTab('groups')}
-            className={`flex-1 py-2.5 text-sm font-semibold ${activeTab === 'groups' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              activeTab === 'groups' 
+                ? 'bg-white text-blue-600 shadow border border-gray-200' 
+                : 'text-gray-500 hover:bg-gray-200/50 border border-transparent'
+            }`}
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
             Groups
           </button>
           <button
             onClick={() => setActiveTab('works')}
-            className={`flex-1 py-2.5 text-sm font-semibold ${activeTab === 'works' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+              activeTab === 'works' 
+                ? 'bg-white text-blue-600 shadow border border-gray-200' 
+                : 'text-gray-500 hover:bg-gray-200/50 border border-transparent'
+            }`}
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
             Works
           </button>
         </div>
@@ -1112,8 +1154,12 @@ export default function ChatPage() {
                 if (!old.work_orders) continue;
                 
                 await supabase.from('work_orders').update({ status: 'COMPLETED' }).eq('id', old.work_orders.id);
-                if (old.work_orders.bubble_id) {
-                  patchWOInBubble(old.work_orders.bubble_id, { status: 'COMPLETED' }).catch(console.error);
+                if (old.work_orders.codigo_id) {
+                  patchWOInBubble("", {
+                    status: 'COMPLETED',
+                    wo_old: old.work_orders.codigo_id,
+                    wo_new: activeConversation.work_orders?.codigo_id
+                  }).catch(console.error);
                 }
                 
                 setGroups(prev => prev.map(g => {
@@ -1320,6 +1366,7 @@ function ConversationRow({
   subtitle,
   time,
   isGroup,
+  isActive,
 }: {
   conv: Conversation
   onClick: () => void
@@ -1329,11 +1376,14 @@ function ConversationRow({
   subtitle: string
   time: string
   isGroup?: boolean
+  isActive?: boolean
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100"
+      className={`w-full flex items-center gap-3 pr-4 py-3 transition-colors border-b border-gray-100 border-l-[4px] ${
+        isActive ? 'bg-blue-50/60 border-l-blue-600 pl-3' : 'hover:bg-gray-50 bg-white border-l-transparent pl-3'
+      }`}
     >
       {avatar ? (
         <img src={avatar} alt={title} className="w-12 h-12 rounded-full object-cover shrink-0" />

@@ -41,6 +41,44 @@ export default function NewChatPage() {
       setLoading(true)
       setError(null)
       try {
+        // --- 1) LOAD CACHE FIRST ---
+        try {
+          const dbModule = await import('../services/db')
+          const cachedUsers = await dbModule.getCachedUsers()
+          const cachedConvs = await dbModule.getCachedConversations()
+          
+          if (cachedUsers.length > 0) {
+            const allUsers = cachedUsers.filter(u => u.id !== myId)
+            const dms = cachedConvs.filter(c => c.tipo === 'individual' && c.participants?.some(p => p.id === myId))
+            const dmMap = new Map<string, any>()
+            for (const dm of dms) {
+              const otherParticipant = dm.participants?.find(p => p.id !== myId)
+              if (otherParticipant) {
+                dmMap.set(otherParticipant.id, dm)
+              }
+            }
+            const enriched: UserWithStatus[] = allUsers.map(u => {
+              const dm = dmMap.get(u.id)
+              return {
+                ...u,
+                conversation_id: dm?.id ?? null,
+                last_message_at: dm?.last_message_at ?? null,
+              }
+            })
+            enriched.sort((a, b) => {
+              if (a.last_message_at && b.last_message_at) return b.last_message_at.localeCompare(a.last_message_at)
+              if (a.last_message_at) return -1
+              if (b.last_message_at) return 1
+              return a.nome.localeCompare(b.nome)
+            })
+            setUsers(enriched)
+            setLoading(false)
+          }
+        } catch (cacheErr) {
+          console.warn('Cache load failed:', cacheErr)
+        }
+
+        // --- 2) BACKGROUND NETWORK LOAD ---
         // Ensure current user exists in Supabase
         if (navigator.onLine) {
           const { error: upsertErr } = await supabase.from('users').upsert(
@@ -111,7 +149,7 @@ export default function NewChatPage() {
 
     load()
     return () => { cancelled = true }
-  }, [user])
+  }, [user?.id])
 
   async function startChat(targetUser: UserWithStatus) {
     if (!user || creating) return

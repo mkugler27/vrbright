@@ -67,7 +67,7 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
     }
     
     // Patch to bubble asynchronously
-    patchWOInBubble(woData.bubble_id, { status: newStatus }).catch(console.error);
+    patchWOInBubble(String(woData.codigo_id || ""), { status: newStatus }).catch(console.error);
   }
 
   async function handleNextStep(next: WizardStep) {
@@ -125,7 +125,7 @@ export function WOWizard({ conversation, onAttachPhoto, onSendSystemMessage, onW
         .eq('id', woData.id);
 
       // 2. Disparar PATCH para o Bubble
-      await patchWOInBubble(woData.bubble_id, {
+      await patchWOInBubble(String(woData.codigo_id || ""), {
         status: 'COMPLETED',
         notes_extra: notes,
       });
