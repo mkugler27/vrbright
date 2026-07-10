@@ -14,6 +14,7 @@ import { WOPage } from './pages/WOPage';
 import ChatPage from './pages/ChatPage';
 import NewChatPage from './pages/NewChatPage';
 import NewGroupPage from './pages/NewGroupPage';
+import { AdjustmentPage } from './pages/AdjustmentPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
 
@@ -66,6 +67,7 @@ export default function App() {
                       <Route path="/chat/new" element={<NewChatPage />} />
                       <Route path="/chat/groups/new" element={<NewGroupPage />} />
                       <Route path="/finance" element={<PlaceholderPage title="Finance" />} />
+                      <Route path="/adjustments" element={<AdjustmentPage />} />
                       <Route path="/team" element={<TeamPage />} />
                       <Route path="/clients" element={<PlaceholderPage title="Clients" />} />
                       <Route path="/pre-proposal" element={<PlaceholderPage title="Pre-Proposal" />} />

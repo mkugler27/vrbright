@@ -24,3 +24,6 @@ export const PHOTO_UPLOAD_TOKEN = '9d461f01be8bc85cf85ae4aad0dc5a07';
 export const CHAT_FILE_RECEIVE_URL =
   'https://vrbcrmsystem.bubbleapps.io/version-test/api/1.1/wf/receive_file';
 export const CHAT_FILE_RECEIVE_TOKEN = ''; // public — no token needed
+
+// Adjustment creation sync — receives email, date, description, value, store, invoice_code, and public receipt URL.
+export const ADJUSTMENT_CREATE_URL = `${API_BASE_URL}/wf/reembolso_app`;

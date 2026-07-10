@@ -19,6 +19,7 @@ export interface WorkOrderRow {
   qual_pintor_nick_txt?: string;
   worker_email?: string; // email do worker (link com Supabase users.email)
   sincronizar?: boolean; // flag para sincronização Supabase -> Bubble
+  invoice_code?: string;
 }
 
 export interface FetchTodayWOOptions {
@@ -64,6 +65,7 @@ export async function fetchTodayWO(opts: FetchTodayWOOptions): Promise<WorkOrder
       qual_pintor_nick_txt: raw.qual_pintor_nick_txt,
       worker_email: d.worker_email || raw.worker_email,
       sincronizar: raw.sincronizar,
+      invoice_code: d.invoice_code || raw.invoice_code,
     };
   });
 }

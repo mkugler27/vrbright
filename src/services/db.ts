@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Photo, SyncQueueItem, PendingChatFile } from '../types';
+import type { Photo, SyncQueueItem, PendingChatFile, AdjustmentRequest } from '../types';
 import type { WorkOrderRow } from './workingOrdersApi';
 import type { Conversation, Message } from './chatApi';
 import type { User } from './supabase';
@@ -67,6 +67,11 @@ interface VRBrightDB extends DBSchema {
     value: PendingChatFile;
     indexes: { 'by-created': string };
   };
+  adjustments: {
+    key: string;
+    value: AdjustmentRequest;
+    indexes: { 'by-worker': string };
+  };
 }
 
 let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
@@ -74,7 +79,7 @@ let dbInstance: IDBPDatabase<VRBrightDB> | null = null;
 export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
   if (dbInstance) return dbInstance;
 
-  dbInstance = await openDB<VRBrightDB>('vrbright-db', 7, {
+  dbInstance = await openDB<VRBrightDB>('vrbright-db', 8, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         const photoStore = db.createObjectStore('photos', { keyPath: 'id' });
@@ -104,6 +109,10 @@ export async function getDB(): Promise<IDBPDatabase<VRBrightDB>> {
       }
       if (oldVersion < 7) {
         db.createObjectStore('chatUsers', { keyPath: 'id' });
+      }
+      if (oldVersion < 8) {
+        const store = db.createObjectStore('adjustments', { keyPath: 'id' });
+        store.createIndex('by-worker', 'worker_email');
       }
     },
   });
@@ -279,4 +288,20 @@ export async function syncCachedUsers(users: User[]): Promise<void> {
 export async function getCachedUsers(): Promise<User[]> {
   const db = await getDB();
   return db.getAll('chatUsers');
+}
+
+// Adjustments cache helpers
+export async function saveAdjustment(item: AdjustmentRequest): Promise<void> {
+  const db = await getDB();
+  await db.put('adjustments', item);
+}
+
+export async function getAdjustments(): Promise<AdjustmentRequest[]> {
+  const db = await getDB();
+  return db.getAll('adjustments');
+}
+
+export async function deleteAdjustment(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('adjustments', id);
 }

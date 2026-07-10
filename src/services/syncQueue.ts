@@ -1,7 +1,7 @@
 import { getDB, getMeta, setMeta } from './db'
-import type { SyncQueueItem } from '../types'
+import type { SyncQueueItem, AdjustmentRequest } from '../types'
 import type { WorkOrderRow } from './workingOrdersApi'
-import { BUBBLE_TOKEN, CHAT_FILE_RECEIVE_URL } from '../config/api'
+import { BUBBLE_TOKEN, CHAT_FILE_RECEIVE_URL, ADJUSTMENT_CREATE_URL } from '../config/api'
 import { supabase } from './supabase'
 
 const PATCH_URL = 'https://vrbcrmsystem.bubbleapps.io/version-test/api/1.1/obj/workingorders'
@@ -77,6 +77,23 @@ export async function enqueueCreateConversation(
   await db.put('syncQueue', item)
 }
 
+export async function enqueueAdjustment(adjustment: AdjustmentRequest): Promise<void> {
+  const db = await getDB()
+  const queueId = `adj_${adjustment.id}`
+  const item: SyncQueueItem = {
+    id: queueId,
+    action: 'create_adjustment',
+    adjustment_id: adjustment.id,
+    payload: {
+      adjustment,
+    },
+    attempts: 0,
+    max_attempts: 5,
+    created_at: new Date().toISOString(),
+  }
+  await db.put('syncQueue', item)
+}
+
 // ──────────────────────────────────────────────
 // QUEUE LENGTH / STATUS
 // ──────────────────────────────────────────────
@@ -125,6 +142,111 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
       }
 
       try {
+        if (item.action === 'create_adjustment') {
+          const current = await db.get('syncQueue', item.id)
+          if (!current) continue
+
+          const adj = item.payload.adjustment as AdjustmentRequest
+          let imageUrl = adj.image_url
+
+          // 1) Upload image if local_image_blob exists and image_url is not set yet
+          if (adj.local_image_blob && !imageUrl) {
+            const fileName = `${adj.id}_receipt.jpg`
+            const path = `${adj.worker_email}/${Date.now()}_${fileName}`
+            
+            const { error: uploadErr } = await supabase.storage
+              .from('adjustment-receipts')
+              .upload(path, adj.local_image_blob, { contentType: 'image/jpeg', upsert: false })
+            
+            if (uploadErr) {
+              throw new Error(`Receipt upload to Supabase Storage failed: ${uploadErr.message}`)
+            }
+
+            const { data: urlData } = supabase.storage
+              .from('adjustment-receipts')
+              .getPublicUrl(path)
+            
+            imageUrl = urlData.publicUrl
+          }
+
+          // 2) Send POST to Bubble webhook
+          const bubblePayload = {
+            worker_email: adj.worker_email,
+            date: adj.date,
+            description: adj.description,
+            value: adj.value,
+            store: adj.store,
+            invoice_code: adj.invoice_code,
+            image_url: imageUrl || '',
+          }
+
+          const res = await fetch(ADJUSTMENT_CREATE_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(bubblePayload),
+          })
+
+          if (!res.ok) {
+            throw new Error(`Bubble adjustment create sync failed: ${res.status}`)
+          }
+
+          // Read Bubble response to get bubble_id if returned
+          let bubbleId = ''
+          try {
+            const resData = await res.json()
+            if (resData && resData.response && resData.response.id) {
+              bubbleId = resData.response.id
+            } else if (resData && resData.id) {
+              bubbleId = resData.id
+            }
+          } catch {
+            // Ignore parse errors, just continue without bubble_id
+          }
+
+          // 3) Save/Insert to Supabase adjustments table
+          const dbRow = {
+            id: adj.id,
+            worker_email: adj.worker_email,
+            date: adj.date,
+            description: adj.description,
+            value: adj.value,
+            store: adj.store,
+            invoice_code: adj.invoice_code,
+            image_url: imageUrl || null,
+            paid: adj.paid,
+            payment_receipt_url: adj.payment_receipt_url || null,
+            bubble_id: bubbleId || adj.bubble_id || null,
+            created_at: adj.created_at,
+          }
+
+          const { error: dbErr } = await supabase
+            .from('adjustments')
+            .upsert(dbRow)
+
+          if (dbErr) {
+            throw new Error(`Supabase adjustments sync failed: ${dbErr.message}`)
+          }
+
+          // 4) Update local adjustments IndexedDB cache to mark as synced
+          const updatedAdj: AdjustmentRequest = {
+            ...adj,
+            image_url: imageUrl,
+            bubble_id: bubbleId || adj.bubble_id,
+            synced: true,
+            local_image_blob: undefined, // Clear blob memory
+          }
+          
+          const { saveAdjustment } = await import('./db')
+          await saveAdjustment(updatedAdj)
+
+          // 5) Remove from syncQueue
+          await db.delete('syncQueue', item.id)
+          ok++
+          continue
+        }
+
         if (item.action === 'create_conversation') {
           const current = await db.get('syncQueue', item.id)
           if (!current) continue
