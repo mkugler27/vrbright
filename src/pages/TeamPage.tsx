@@ -17,18 +17,7 @@ function normalizeImageUrl(url: string | undefined): string | undefined {
   return url;
 }
 
-function formatLastSync(iso: string | null): string {
-  if (!iso) return 'Never synced';
-  const date = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'Just now';
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+
 
 function TeamAvatar({ src, name, size = 'lg' }: { src?: string; name: string; size?: 'sm' | 'md' | 'lg' | 'xl' }) {
   const normalized = normalizeImageUrl(src);
@@ -197,11 +186,9 @@ export function TeamPage() {
   const isOnline = useOnlineStatus();
   const [team, setTeam] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [lastSync, setLastSync] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
@@ -230,12 +217,10 @@ export function TeamPage() {
     const load = async () => {
       // 1) Load cache first (instant)
       const cached = await getCachedUsers();
-      const lastSyncIso = (await getTeamLastSync()) ?? null;
       
       const activeCached = cached.filter(u => u.ativo !== false);
       if (activeCached.length > 0) {
         setTeam(activeCached);
-        setLastSync(lastSyncIso);
         setLoading(false);
       }
 
@@ -248,16 +233,11 @@ export function TeamPage() {
         return;
       }
 
-      if (activeCached.length > 0) {
-        setRefreshing(true);
-      }
-
       try {
         const data = await fetchSupabaseTeam();
         setTeam(data);
         await syncCachedUsers(data);
         const now = new Date().toISOString();
-        setLastSync(now);
         await setMeta('team_last_sync', now);
         setError('');
       } catch (err) {
@@ -267,29 +247,12 @@ export function TeamPage() {
         }
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
     };
     load();
   }, [user, isOnline]);
 
-  const handleRefresh = async () => {
-    if (!user || refreshing) return;
-    setRefreshing(true);
-    try {
-      const data = await fetchSupabaseTeam();
-      setTeam(data);
-      await syncCachedUsers(data);
-      const now = new Date().toISOString();
-      setLastSync(now);
-      await setMeta('team_last_sync', now);
-      setError('');
-    } catch (err) {
-      console.error('Manual refresh failed:', err);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+
 
   const handleClearCache = () => {
     setShowConfirm(true);
@@ -300,7 +263,6 @@ export function TeamPage() {
     await saveCachedUsers([]);
     await setMeta('team_last_sync', null);
     setTeam([]);
-    setLastSync(null);
   };
 
   const availableTypes = Array.from(new Set(team.map((m) => m.tipo_user_bubble).filter(Boolean))) as string[];
