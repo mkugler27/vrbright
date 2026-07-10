@@ -6,7 +6,6 @@ import {
   saveCachedUsers,
   syncCachedUsers,
   getCachedUsers,
-  getTeamLastSync,
   setMeta,
 } from '../services/db';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
