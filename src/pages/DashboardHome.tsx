@@ -140,9 +140,15 @@ export function DashboardHome() {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const order = JSON.parse(stored) as string[];
-        return order
+        const loadedCards = order
           .map((to) => DEFAULT_CARDS.find((c) => c.to === to))
           .filter(Boolean) as ModuleCardData[];
+
+        // Append any new cards defined in DEFAULT_CARDS that aren't in the stored layout yet
+        const missingCards = DEFAULT_CARDS.filter(
+          (dc) => !loadedCards.some((lc) => lc.to === dc.to)
+        );
+        return [...loadedCards, ...missingCards];
       }
     } catch {
       // fall through
