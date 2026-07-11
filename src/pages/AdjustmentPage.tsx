@@ -752,10 +752,13 @@ export function AdjustmentPage() {
           ) : (
             <div className="space-y-3">
               {adjustments.map((adj) => {
-                const formattedVal = Number(adj.value).toLocaleString('en-US', {
+                const isNegative = Number(adj.value) < 0;
+                const absValue = Math.abs(Number(adj.value));
+                const formattedVal = absValue.toLocaleString('en-US', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 });
+                const displayVal = isNegative ? `-$${formattedVal}` : `$${formattedVal}`;
                 const formattedDate = new Date(adj.date + 'T00:00:00').toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -824,7 +827,9 @@ export function AdjustmentPage() {
 
                     {/* Value & Payment status */}
                     <div className="text-right flex-shrink-0 flex flex-col items-end justify-center">
-                      <p className="font-extrabold text-gray-900 text-base leading-none">${formattedVal}</p>
+                      <p className={`font-extrabold text-base leading-none ${isNegative ? 'text-red-600' : 'text-gray-900'}`}>
+                        {displayVal}
+                      </p>
                       
                       {adj.paid ? (
                         <button
