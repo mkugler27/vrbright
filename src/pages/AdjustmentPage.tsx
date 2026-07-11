@@ -236,7 +236,7 @@ export function AdjustmentPage() {
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent, id: string, disabled: boolean) => {
+  const handleTouchMove = (e: React.TouchEvent, _id: string, disabled: boolean) => {
     if (disabled || !touchStartRef.current) return;
     const touch = e.touches[0];
     const diffX = touch.clientX - touchStartRef.current.x;
@@ -857,7 +857,6 @@ export function AdjustmentPage() {
                   (qi) => qi.adjustment_id === adj.id
                 );
 
-                return (
                 const canDelete = !adj.paid;
                 const isSwiped = swipedId === adj.id;
 
