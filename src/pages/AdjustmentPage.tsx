@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { supabase } from '../services/supabase';
 import { saveAdjustment, getAdjustments } from '../services/db';
-import { enqueueAdjustment, processQueue } from '../services/syncQueue';
+import { enqueueAdjustment, processQueue, getPendingAdjustments } from '../services/syncQueue';
 import { compressImage } from '../services/chatMedia';
 import type { AdjustmentRequest } from '../types';
 
@@ -170,6 +170,7 @@ export function AdjustmentPage() {
 
   // General State
   const [adjustments, setAdjustments] = useState<AdjustmentRequest[]>([]);
+  const [queueItems, setQueueItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -193,6 +194,8 @@ export function AdjustmentPage() {
       setAdjustments(
         filteredCached.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       );
+      const pendingQueue = await getPendingAdjustments();
+      setQueueItems(pendingQueue);
       setLoading(false);
 
       // 2) If online, fetch fresh data from Supabase
@@ -234,6 +237,8 @@ export function AdjustmentPage() {
           setAdjustments(
             filteredMerged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
           );
+          const freshPending = await getPendingAdjustments();
+          setQueueItems(freshPending);
         }
       }
     } catch (err: any) {
@@ -610,6 +615,10 @@ export function AdjustmentPage() {
                   year: 'numeric',
                 });
 
+                const matchingQueueItem = queueItems.find(
+                  (qi) => qi.adjustment_id === adj.id
+                );
+
                 return (
                   <div
                     key={adj.id}
@@ -659,6 +668,11 @@ export function AdjustmentPage() {
                       </div>
                       <h3 className="font-bold text-gray-800 text-[14px] truncate mt-1">{adj.store}</h3>
                       <p className="text-xs text-gray-500 truncate">{adj.description}</p>
+                      {matchingQueueItem && matchingQueueItem.error && (
+                        <p className="text-[10px] font-bold text-red-500 mt-1 truncate" title={matchingQueueItem.error}>
+                          Sync Error: {matchingQueueItem.error}
+                        </p>
+                      )}
                     </div>
 
                     {/* Value & Payment status */}

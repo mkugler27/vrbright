@@ -109,6 +109,12 @@ export async function getPendingForWO(workOrderId: string): Promise<SyncQueueIte
   return all.filter(i => i.work_order_id === workOrderId)
 }
 
+export async function getPendingAdjustments(): Promise<SyncQueueItem[]> {
+  const db = await getDB()
+  const all = await db.getAll('syncQueue')
+  return all.filter(i => i.action === 'create_adjustment')
+}
+
 // ──────────────────────────────────────────────
 // PROCESS QUEUE (when online)
 // ──────────────────────────────────────────────
