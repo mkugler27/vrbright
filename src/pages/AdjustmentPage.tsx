@@ -147,7 +147,16 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
       )}
     </div>
   );
-}
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 export function AdjustmentPage() {
   const { user } = useAuth();
@@ -331,7 +340,7 @@ export function AdjustmentPage() {
     setSuccessMsg('');
 
     try {
-      const adjustmentId = `adj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const adjustmentId = generateUUID();
       const newAdjustment: AdjustmentRequest = {
         id: adjustmentId,
         worker_email: user.email,

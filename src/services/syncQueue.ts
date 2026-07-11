@@ -179,44 +179,60 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
               .getPublicUrl(path)
             
             imageUrl = urlData.publicUrl
+
+            // Save progress back to the queue item so we don't upload again if subsequent steps fail
+            adj.image_url = imageUrl
+            await db.put('syncQueue', {
+              ...item,
+              payload: { ...item.payload, adjustment: adj }
+            })
           }
 
-          // 2) Send POST to Bubble webhook
-          const bubblePayload = {
-            worker_email: adj.worker_email,
-            date: adj.date,
-            description: adj.description,
-            value: adj.value,
-            store: adj.store,
-            invoice_code: adj.invoice_code,
-            qual_invoice_data: adj.qual_invoice_data || '',
-            image_url: imageUrl || '',
-          }
-
-          const res = await fetch(ADJUSTMENT_CREATE_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${BUBBLE_TOKEN}`,
-            },
-            body: JSON.stringify(bubblePayload),
-          })
-
-          if (!res.ok) {
-            throw new Error(`Bubble adjustment create sync failed: ${res.status}`)
-          }
-
-          // Read Bubble response to get bubble_id if returned
-          let bubbleId = ''
-          try {
-            const resData = await res.json()
-            if (resData && resData.response && resData.response.id) {
-              bubbleId = resData.response.id
-            } else if (resData && resData.id) {
-              bubbleId = resData.id
+          // 2) Send POST to Bubble webhook (only if bubble_id doesn't exist yet)
+          let bubbleId = adj.bubble_id || ''
+          if (!bubbleId) {
+            const bubblePayload = {
+              worker_email: adj.worker_email,
+              date: adj.date,
+              description: adj.description,
+              value: adj.value,
+              store: adj.store,
+              invoice_code: adj.invoice_code,
+              qual_invoice_data: adj.qual_invoice_data || '',
+              image_url: imageUrl || '',
             }
-          } catch {
-            // Ignore parse errors, just continue without bubble_id
+
+            const res = await fetch(ADJUSTMENT_CREATE_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${BUBBLE_TOKEN}`,
+              },
+              body: JSON.stringify(bubblePayload),
+            })
+
+            if (!res.ok) {
+              throw new Error(`Bubble adjustment create sync failed: ${res.status}`)
+            }
+
+            // Read Bubble response to get bubble_id if returned
+            try {
+              const resData = await res.json()
+              if (resData && resData.response && resData.response.id) {
+                bubbleId = resData.response.id
+              } else if (resData && resData.id) {
+                bubbleId = resData.id
+              }
+            } catch {
+              // Ignore parse errors, just continue without bubble_id
+            }
+
+            // Save progress back to the queue item so we don't call Bubble again if subsequent steps fail
+            adj.bubble_id = bubbleId
+            await db.put('syncQueue', {
+              ...item,
+              payload: { ...item.payload, adjustment: adj }
+            })
           }
 
           // 3) Save/Insert to Supabase adjustments table
