@@ -147,6 +147,8 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
       )}
     </div>
   );
+}
+
 const generateUUID = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
