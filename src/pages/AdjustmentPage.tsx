@@ -7,6 +7,7 @@ import { enqueueAdjustment, processQueue, getPendingAdjustments, dequeueAdjustme
 import { compressImage } from '../services/chatMedia';
 import type { AdjustmentRequest } from '../types';
 import { ConfirmationModal } from '../components/ui/ConfirmationModal';
+import { BUBBLE_TOKEN, ADJUSTMENT_DELETE_URL } from '../config/api';
 
 // Helper to calculate ISO Week and Year
 function getISOWeekAndYear(date: Date): { week: number; year: number } {
@@ -444,6 +445,23 @@ export function AdjustmentPage() {
 
         const { error } = await supabase.from('adjustments').delete().eq('id', adj.id);
         if (error) throw error;
+
+        // Call Bubble delete webhook to remove the item in Bubble database as well
+        try {
+          const res = await fetch(ADJUSTMENT_DELETE_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${BUBBLE_TOKEN}`,
+            },
+            body: JSON.stringify({ id: adj.id }),
+          });
+          if (!res.ok) {
+            console.warn(`Bubble delete webhook returned status: ${res.status}`);
+          }
+        } catch (bubbleErr) {
+          console.warn('Failed to notify Bubble about adjustment deletion:', bubbleErr);
+        }
 
         await deleteAdjustment(adj.id);
         setAdjustments((prev) => prev.filter((a) => a.id !== adj.id));

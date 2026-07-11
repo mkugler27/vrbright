@@ -27,3 +27,4 @@ export const CHAT_FILE_RECEIVE_TOKEN = ''; // public — no token needed
 
 // Adjustment creation sync — receives email, date, description, value, store, invoice_code, and public receipt URL.
 export const ADJUSTMENT_CREATE_URL = `${API_BASE_URL}/wf/reembolso_app`;
+export const ADJUSTMENT_DELETE_URL = `${API_BASE_URL}/wf/delete_adjustment`;
