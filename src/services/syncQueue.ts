@@ -94,6 +94,12 @@ export async function enqueueAdjustment(adjustment: AdjustmentRequest): Promise<
   await db.put('syncQueue', item)
 }
 
+export async function dequeueAdjustment(adjustmentId: string): Promise<void> {
+  const db = await getDB()
+  const queueId = `adj_${adjustmentId}`
+  await db.delete('syncQueue', queueId)
+}
+
 // ──────────────────────────────────────────────
 // QUEUE LENGTH / STATUS
 // ──────────────────────────────────────────────

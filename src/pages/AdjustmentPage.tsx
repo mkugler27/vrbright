@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import { supabase } from '../services/supabase';
-import { saveAdjustment, getAdjustments } from '../services/db';
-import { enqueueAdjustment, processQueue, getPendingAdjustments } from '../services/syncQueue';
+import { saveAdjustment, getAdjustments, deleteAdjustment } from '../services/db';
+import { enqueueAdjustment, processQueue, getPendingAdjustments, dequeueAdjustment } from '../services/syncQueue';
 import { compressImage } from '../services/chatMedia';
 import type { AdjustmentRequest } from '../types';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 
 // Helper to calculate ISO Week and Year
 function getISOWeekAndYear(date: Date): { week: number; year: number } {
@@ -180,6 +181,11 @@ export function AdjustmentPage() {
   const [activeReceiptUrl, setActiveReceiptUrl] = useState<string | null>(null);
   const [activeReceiptBlob, setActiveReceiptBlob] = useState<Blob | null>(null);
   const [receiptModalTitle, setReceiptModalTitle] = useState('');
+
+  // Deletion State
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [adjustmentToDelete, setAdjustmentToDelete] = useState<AdjustmentRequest | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const weeksList = useMemo(() => generateRecentWeeks(8), []);
 
@@ -378,6 +384,41 @@ export function AdjustmentPage() {
       setErrorMsg('Error saving adjustment.');
     } finally {
       setSubmitting(false);
+    }
+  const handleDeleteAdjustment = async () => {
+    if (!adjustmentToDelete) return;
+    const adj = adjustmentToDelete;
+    setDeleteConfirmOpen(false);
+    setDeletingId(adj.id);
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    try {
+      if (!adj.synced) {
+        // 1) Offline/unsynced deletion: remove from queue and cache
+        await dequeueAdjustment(adj.id);
+        await deleteAdjustment(adj.id);
+        setAdjustments((prev) => prev.filter((a) => a.id !== adj.id));
+        setSuccessMsg('Adjustment deleted locally.');
+      } else {
+        // 2) Synced deletion: requires internet
+        if (!isOnline) {
+          setErrorMsg('You must be online to delete synced adjustments.');
+          return;
+        }
+        const { error } = await supabase.from('adjustments').delete().eq('id', adj.id);
+        if (error) throw error;
+
+        await deleteAdjustment(adj.id);
+        setAdjustments((prev) => prev.filter((a) => a.id !== adj.id));
+        setSuccessMsg('Adjustment deleted successfully.');
+      }
+    } catch (err: any) {
+      console.error('Failed to delete adjustment:', err);
+      setErrorMsg('Failed to delete adjustment. Please try again.');
+    } finally {
+      setDeletingId(null);
+      setAdjustmentToDelete(null);
     }
   };
 
@@ -676,7 +717,7 @@ export function AdjustmentPage() {
                     </div>
 
                     {/* Value & Payment status */}
-                    <div className="text-right flex-shrink-0">
+                    <div className="text-right flex-shrink-0 flex flex-col items-end justify-center">
                       <p className="font-extrabold text-gray-900 text-base leading-none">${formattedVal}</p>
                       
                       {adj.paid ? (
@@ -695,10 +736,30 @@ export function AdjustmentPage() {
                           Paid
                         </button>
                       ) : (
-                        <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                          Pending
-                        </span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                            Pending
+                          </span>
+                          <button
+                            type="button"
+                            disabled={deletingId === adj.id}
+                            onClick={() => {
+                              setAdjustmentToDelete(adj);
+                              setDeleteConfirmOpen(true);
+                            }}
+                            className="p-1 rounded-lg text-red-500 hover:bg-red-50 active:scale-90 transition-transform cursor-pointer"
+                            title="Delete Request"
+                          >
+                            {deletingId === adj.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -742,6 +803,20 @@ export function AdjustmentPage() {
           <div className="h-6" />
         </div>
       )}
+
+      {/* Confirmation Modal for Deletion */}
+      <ConfirmationModal
+        isOpen={deleteConfirmOpen}
+        title="Delete Request"
+        message="Are you sure you want to delete this adjustment request? This will remove it locally and from the server."
+        confirmLabel={deletingId ? "Deleting..." : "Delete"}
+        isDestructive={true}
+        onConfirm={handleDeleteAdjustment}
+        onCancel={() => {
+          setDeleteConfirmOpen(false);
+          setAdjustmentToDelete(null);
+        }}
+      />
     </div>
   );
 }
