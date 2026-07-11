@@ -191,6 +191,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              Authorization: `Bearer ${BUBBLE_TOKEN}`,
             },
             body: JSON.stringify(bubblePayload),
           })
