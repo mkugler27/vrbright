@@ -795,7 +795,7 @@ export function AdjustmentPage() {
                       disabled={!hasValidImageUrl(adj.image_url) && !adj.local_image_blob}
                       onClick={() => {
                         if (hasValidImageUrl(adj.image_url)) {
-                          setActiveReceiptUrl(adj.image_url);
+                          setActiveReceiptUrl(adj.image_url || null);
                           setActiveReceiptBlob(null);
                         } else if (adj.local_image_blob) {
                           setActiveReceiptBlob(adj.local_image_blob);
