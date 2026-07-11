@@ -191,6 +191,15 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
           // 2) Send POST to Bubble webhook (only if bubble_id doesn't exist yet)
           let bubbleId = adj.bubble_id || ''
           if (!bubbleId) {
+            let filePath = ''
+            if (imageUrl) {
+              const bucketName = 'adjustment-receipts'
+              const parts = imageUrl.split(`/${bucketName}/`)
+              if (parts.length > 1) {
+                filePath = parts[1]
+              }
+            }
+
             const bubblePayload = {
               id: adj.id,
               worker_email: adj.worker_email,
@@ -201,6 +210,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
               invoice_code: adj.invoice_code,
               qual_invoice_data: adj.qual_invoice_data || '',
               image_url: imageUrl || '',
+              file_patch: filePath,
             }
 
             const res = await fetch(ADJUSTMENT_CREATE_URL, {
