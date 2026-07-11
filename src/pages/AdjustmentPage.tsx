@@ -161,6 +161,15 @@ const generateUUID = () => {
   });
 };
 
+const hasValidImageUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  const trimmed = url.trim();
+  if (trimmed === '' || trimmed === 'null') return false;
+  if (trimmed.endsWith('/adjustment-receipts/')) return false;
+  if (trimmed.endsWith('/adjustment-receipts')) return false;
+  return true;
+};
+
 export function AdjustmentPage() {
   const { user } = useAuth();
   const isOnline = useOnlineStatus();
@@ -783,9 +792,9 @@ export function AdjustmentPage() {
                     {/* Image Thumbnail */}
                     <button
                       type="button"
-                      disabled={!adj.image_url && !adj.local_image_blob}
+                      disabled={!hasValidImageUrl(adj.image_url) && !adj.local_image_blob}
                       onClick={() => {
-                        if (adj.image_url) {
+                        if (hasValidImageUrl(adj.image_url)) {
                           setActiveReceiptUrl(adj.image_url);
                           setActiveReceiptBlob(null);
                         } else if (adj.local_image_blob) {
@@ -795,9 +804,9 @@ export function AdjustmentPage() {
                         setReceiptModalTitle(`${adj.store} - Receipt`);
                       }}
                       className="w-14 h-14 rounded-2xl bg-gray-50 flex-shrink-0 overflow-hidden relative transition-all disabled:opacity-85 disabled:cursor-default"
-                      title={adj.image_url || adj.local_image_blob ? "View Receipt" : "No receipt attachment"}
+                      title={hasValidImageUrl(adj.image_url) || adj.local_image_blob ? "View Receipt" : "No receipt attachment"}
                     >
-                      {adj.image_url ? (
+                      {hasValidImageUrl(adj.image_url) ? (
                         <img src={adj.image_url} alt="Receipt thumbnail" className="w-full h-full object-cover" />
                       ) : adj.local_image_blob ? (
                         <img src={URL.createObjectURL(adj.local_image_blob)} alt="Local receipt thumbnail" className="w-full h-full object-cover" />
@@ -839,20 +848,28 @@ export function AdjustmentPage() {
                       </p>
                       
                       {adj.paid ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (adj.payment_receipt_url) {
-                              setActiveReceiptUrl(adj.payment_receipt_url);
+                        hasValidImageUrl(adj.payment_receipt_url) ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveReceiptUrl(adj.payment_receipt_url!);
                               setActiveReceiptBlob(null);
                               setReceiptModalTitle(`${adj.store} - Payment Proof`);
-                            }
-                          }}
-                          className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors uppercase tracking-wider border border-emerald-200/50"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Paid
-                        </button>
+                            }}
+                            className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors uppercase tracking-wider border border-emerald-200/50"
+                            title="View Payment Proof"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Paid
+                          </button>
+                        ) : (
+                          <div
+                            className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wider border border-emerald-200/50"
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Paid
+                          </div>
+                        )
                       ) : (
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
