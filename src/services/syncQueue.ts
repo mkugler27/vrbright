@@ -192,6 +192,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
           let bubbleId = adj.bubble_id || ''
           if (!bubbleId) {
             const bubblePayload = {
+              id: adj.id,
               worker_email: adj.worker_email,
               date: adj.date,
               description: adj.description,
