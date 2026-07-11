@@ -247,7 +247,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
             invoice_code: adj.invoice_code,
             qual_invoice_data: adj.qual_invoice_data || null,
             image_url: imageUrl || null,
-            paid: adj.paid,
+            paid: typeof adj.paid === 'boolean' ? adj.paid : false,
             payment_receipt_url: adj.payment_receipt_url || null,
             bubble_id: bubbleId || adj.bubble_id || null,
             created_at: adj.created_at,
