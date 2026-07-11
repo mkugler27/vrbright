@@ -166,6 +166,8 @@ export function AdjustmentPage() {
   const isOnline = useOnlineStatus();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const weeksList = useMemo(() => generateRecentWeeks(8), []);
+
   // Form State
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
@@ -176,8 +178,8 @@ export function AdjustmentPage() {
   const [store, setStore] = useState('');
   const [customStore, setCustomStore] = useState('');
   const [isCustomStoreActive, setIsCustomStoreActive] = useState(false);
-  const [invoiceCode, setInvoiceCode] = useState('');
-  const [qualInvoiceData, setQualInvoiceData] = useState('');
+  const [invoiceCode, setInvoiceCode] = useState(() => weeksList[0]?.code || '');
+  const [qualInvoiceData, setQualInvoiceData] = useState(() => weeksList[0]?.range || '');
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
@@ -199,7 +201,9 @@ export function AdjustmentPage() {
   const [adjustmentToDelete, setAdjustmentToDelete] = useState<AdjustmentRequest | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const weeksList = useMemo(() => generateRecentWeeks(8), []);
+  const filteredAdjustments = useMemo(() => {
+    return adjustments.filter((a) => a.invoice_code === invoiceCode);
+  }, [adjustments, invoiceCode]);
 
   // Fetch adjustments
   const loadAdjustments = async () => {
@@ -733,25 +737,27 @@ export function AdjustmentPage() {
         <div className="space-y-3">
           <h2 className="text-lg font-bold text-gray-800 px-1 flex items-center justify-between">
             <span>Adjustment History</span>
-            <span className="text-xs text-gray-400 font-medium">{adjustments.length} total</span>
+            <span className="text-xs text-gray-400 font-medium">{filteredAdjustments.length} total</span>
           </h2>
 
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : adjustments.length === 0 ? (
+          ) : filteredAdjustments.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 text-center border border-gray-100/50">
               <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-gray-400">
                 <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold text-gray-500">No adjustments registered yet</p>
+              <p className="text-sm font-semibold text-gray-500">
+                {invoiceCode ? `No adjustments registered for week ${invoiceCode}` : 'No adjustments registered yet'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {adjustments.map((adj) => {
+              {filteredAdjustments.map((adj) => {
                 const isNegative = Number(adj.value) < 0;
                 const absValue = Math.abs(Number(adj.value));
                 const formattedVal = absValue.toLocaleString('en-US', {
