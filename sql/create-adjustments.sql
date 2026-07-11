@@ -47,3 +47,16 @@ DROP POLICY IF EXISTS "Authenticated Upload of Receipts" ON storage.objects;
 CREATE POLICY "Authenticated Upload of Receipts" 
   ON storage.objects FOR INSERT 
   WITH CHECK (bucket_id = 'adjustment-receipts');
+
+DROP POLICY IF EXISTS "Workers can delete their own adjustments" ON public.adjustments;
+CREATE POLICY "Workers can delete their own adjustments" 
+  ON public.adjustments FOR DELETE 
+  USING (auth.jwt() ->> 'email' = worker_email);
+
+DROP POLICY IF EXISTS "Workers can delete their own receipts" ON storage.objects;
+CREATE POLICY "Workers can delete their own receipts" 
+  ON storage.objects FOR DELETE 
+  USING (
+    bucket_id = 'adjustment-receipts' 
+    AND (storage.foldername(name))[1] = auth.jwt() ->> 'email'
+  );

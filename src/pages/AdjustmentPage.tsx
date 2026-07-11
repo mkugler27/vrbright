@@ -427,6 +427,21 @@ export function AdjustmentPage() {
           setErrorMsg('You must be online to delete synced adjustments.');
           return;
         }
+
+        // Delete receipt file from Supabase Storage if it exists
+        if (adj.image_url) {
+          const bucketName = 'adjustment-receipts';
+          const urlParts = adj.image_url.split(`/${bucketName}/`);
+          if (urlParts.length > 1) {
+            const relativePath = urlParts[1];
+            try {
+              await supabase.storage.from(bucketName).remove([relativePath]);
+            } catch (storageErr) {
+              console.warn('Failed to delete receipt from Supabase storage:', storageErr);
+            }
+          }
+        }
+
         const { error } = await supabase.from('adjustments').delete().eq('id', adj.id);
         if (error) throw error;
 
