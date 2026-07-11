@@ -7,26 +7,36 @@ import { enqueueAdjustment, processQueue } from '../services/syncQueue';
 import { compressImage } from '../services/chatMedia';
 import type { AdjustmentRequest } from '../types';
 
-// Helper to calculate ISO Week and Year
-function getISOWeekAndYear(date: Date): { week: number; year: number } {
-  const tempDate = new Date(date.valueOf());
-  tempDate.setDate(tempDate.getDate() + 4 - (tempDate.getDay() || 7));
-  const yearStart = new Date(tempDate.getFullYear(), 0, 1);
-  const week = Math.ceil((((tempDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  const year = tempDate.getFullYear();
-  return { week, year };
+// Helper to get ISO Week date range (Monday - Sunday) in "7/06/26 - 7/12/26" format
+function getISOWeekRange(date: Date): string {
+  const current = new Date(date.getTime());
+  const day = current.getDay();
+  // 0 is Sunday, 1 is Monday...
+  const distanceToMonday = day === 0 ? -6 : 1 - day;
+
+  const monday = new Date(current.getTime());
+  monday.setDate(current.getDate() + distanceToMonday);
+
+  const sunday = new Date(monday.getTime());
+  sunday.setDate(monday.getDate() + 6);
+
+  const formatDate = (dt: Date) => {
+    const m = dt.getMonth() + 1; // no padding
+    const d = String(dt.getDate()).padStart(2, '0'); // padded
+    const y = String(dt.getFullYear()).slice(-2); // two-digit year
+    return `${m}/${d}/${y}`;
+  };
+
+  return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// Generate the last 5 weeks and current week dynamically
+// Generate the last count weeks dynamically as range strings
 function generateRecentWeeks(count = 6): string[] {
   const list: string[] = [];
   const today = new Date();
   for (let i = 0; i < count; i++) {
     const d = new Date(today.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-    const { week, year } = getISOWeekAndYear(d);
-    const padWeek = String(week).padStart(2, '0');
-    const padYear = String(year).slice(-2); // two digits
-    list.push(`${padWeek}/${padYear}`);
+    list.push(getISOWeekRange(d));
   }
   return list;
 }
@@ -75,7 +85,7 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
           <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {value ? `Week ${value}` : 'Select invoice week'}
+          {value ? value : 'Select invoice week'}
         </span>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -102,7 +112,7 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
                 value === week ? 'text-primary-dark bg-primary/5' : 'text-gray-700'
               }`}
             >
-              <span>Week {week}</span>
+              <span>{week}</span>
               {value === week && (
                 <svg className="w-4 h-4 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -610,7 +620,7 @@ export function AdjustmentPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                          Week {adj.invoice_code}
+                          {adj.invoice_code}
                         </span>
                         <span className="text-[10px] font-semibold text-gray-400">{formattedDate}</span>
                       </div>
