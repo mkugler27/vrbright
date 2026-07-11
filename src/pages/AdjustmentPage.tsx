@@ -277,6 +277,14 @@ export function AdjustmentPage() {
     };
   }, [imagePreviewUrl]);
 
+  // Auto-clear success message after 5 seconds
+  useEffect(() => {
+    if (successMsg) {
+      const timer = setTimeout(() => setSuccessMsg(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMsg]);
+
   // Handle image selection
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
