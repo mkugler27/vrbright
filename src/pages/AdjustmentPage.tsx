@@ -783,6 +783,7 @@ export function AdjustmentPage() {
                     {/* Image Thumbnail */}
                     <button
                       type="button"
+                      disabled={!adj.image_url && !adj.local_image_blob}
                       onClick={() => {
                         if (adj.image_url) {
                           setActiveReceiptUrl(adj.image_url);
@@ -793,8 +794,8 @@ export function AdjustmentPage() {
                         }
                         setReceiptModalTitle(`${adj.store} - Receipt`);
                       }}
-                      className="w-14 h-14 rounded-2xl bg-gray-100 flex-shrink-0 overflow-hidden relative active:scale-95 transition-transform"
-                      title="View Receipt"
+                      className="w-14 h-14 rounded-2xl bg-gray-50 flex-shrink-0 overflow-hidden relative transition-all disabled:opacity-85 disabled:cursor-default"
+                      title={adj.image_url || adj.local_image_blob ? "View Receipt" : "No receipt attachment"}
                     >
                       {adj.image_url ? (
                         <img src={adj.image_url} alt="Receipt thumbnail" className="w-full h-full object-cover" />
@@ -802,7 +803,7 @@ export function AdjustmentPage() {
                         <img src={URL.createObjectURL(adj.local_image_blob)} alt="Local receipt thumbnail" className="w-full h-full object-cover" />
                       ) : (
                         <svg className="w-5 h-5 text-gray-400 m-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       )}
                       {!adj.synced && (
