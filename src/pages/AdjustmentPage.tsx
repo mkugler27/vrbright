@@ -385,6 +385,8 @@ export function AdjustmentPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
   const handleDeleteAdjustment = async () => {
     if (!adjustmentToDelete) return;
     const adj = adjustmentToDelete;
