@@ -113,6 +113,7 @@ export interface AdjustmentRequest {
   value: number; // Value of the expense (overwritten by owner if adjusted)
   store: string;
   invoice_code: string; // The week/invoice code e.g. "25/26"
+  qual_invoice_data?: string; // The date range e.g. "7/06/26 - 7/12/26"
   image_url?: string; // Receipt uploaded by the worker
   paid: boolean; // Flag to indicate if payment was completed
   payment_receipt_url?: string; // Receipt uploaded by the owner (payment proof)

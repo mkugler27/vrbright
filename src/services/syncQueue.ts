@@ -177,6 +177,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
             value: adj.value,
             store: adj.store,
             invoice_code: adj.invoice_code,
+            qual_invoice_data: adj.qual_invoice_data || '',
             image_url: imageUrl || '',
           }
 
@@ -214,6 +215,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
             value: adj.value,
             store: adj.store,
             invoice_code: adj.invoice_code,
+            qual_invoice_data: adj.qual_invoice_data || null,
             image_url: imageUrl || null,
             paid: adj.paid,
             payment_receipt_url: adj.payment_receipt_url || null,

@@ -7,11 +7,20 @@ import { enqueueAdjustment, processQueue } from '../services/syncQueue';
 import { compressImage } from '../services/chatMedia';
 import type { AdjustmentRequest } from '../types';
 
+// Helper to calculate ISO Week and Year
+function getISOWeekAndYear(date: Date): { week: number; year: number } {
+  const tempDate = new Date(date.valueOf());
+  tempDate.setDate(tempDate.getDate() + 4 - (tempDate.getDay() || 7));
+  const yearStart = new Date(tempDate.getFullYear(), 0, 1);
+  const week = Math.ceil((((tempDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  const year = tempDate.getFullYear();
+  return { week, year };
+}
+
 // Helper to get ISO Week date range (Monday - Sunday) in "7/06/26 - 7/12/26" format
 function getISOWeekRange(date: Date): string {
   const current = new Date(date.getTime());
   const day = current.getDay();
-  // 0 is Sunday, 1 is Monday...
   const distanceToMonday = day === 0 ? -6 : 1 - day;
 
   const monday = new Date(current.getTime());
@@ -30,13 +39,24 @@ function getISOWeekRange(date: Date): string {
   return `${formatDate(monday)} - ${formatDate(sunday)}`;
 }
 
-// Generate the last count weeks dynamically as range strings
-function generateRecentWeeks(count = 6): string[] {
-  const list: string[] = [];
+interface WeekOption {
+  code: string;
+  range: string;
+}
+
+// Generate the last count weeks dynamically as objects
+function generateRecentWeeks(count = 6): WeekOption[] {
+  const list: WeekOption[] = [];
   const today = new Date();
   for (let i = 0; i < count; i++) {
     const d = new Date(today.getTime() - i * 7 * 24 * 60 * 60 * 1000);
-    list.push(getISOWeekRange(d));
+    const { week, year } = getISOWeekAndYear(d);
+    const padWeek = String(week).padStart(2, '0');
+    const padYear = String(year).slice(-2); // two digits
+    list.push({
+      code: `${padWeek}/${padYear}`,
+      range: getISOWeekRange(d)
+    });
   }
   return list;
 }
@@ -51,9 +71,9 @@ const QUICK_STORES = [
 ];
 
 interface WeekPopoverProps {
-  weeks: string[];
+  weeks: WeekOption[];
   value: string;
-  onChange: (v: string) => void;
+  onChange: (code: string, range: string) => void;
 }
 
 function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
@@ -71,6 +91,8 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
     return () => window.removeEventListener('click', handleClick);
   }, [open]);
 
+  const selectedOption = weeks.find((w) => w.code === value);
+
   return (
     <div ref={ref} className="relative w-full">
       <button
@@ -85,7 +107,7 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
           <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {value ? value : 'Select invoice week'}
+          {selectedOption ? `Week ${selectedOption.code} (${selectedOption.range})` : 'Select invoice week'}
         </span>
         <svg
           className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
@@ -100,20 +122,20 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
 
       {open && (
         <div className="absolute left-0 right-0 mt-1 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-20 animate-slideDown max-h-60 overflow-y-auto">
-          {weeks.map((week) => (
+          {weeks.map((w) => (
             <button
-              key={week}
+              key={w.code}
               type="button"
               onClick={() => {
-                onChange(week);
+                onChange(w.code, w.range);
                 setOpen(false);
               }}
               className={`w-full flex items-center justify-between px-5 py-3.5 text-left text-sm font-medium transition-colors hover:bg-gray-50 ${
-                value === week ? 'text-primary-dark bg-primary/5' : 'text-gray-700'
+                value === w.code ? 'text-primary-dark bg-primary/5' : 'text-gray-700'
               }`}
             >
-              <span>{week}</span>
-              {value === week && (
+              <span>Week {w.code} <span className="text-gray-400 font-normal">({w.range})</span></span>
+              {value === w.code && (
                 <svg className="w-4 h-4 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
@@ -142,6 +164,7 @@ export function AdjustmentPage() {
   const [customStore, setCustomStore] = useState('');
   const [isCustomStoreActive, setIsCustomStoreActive] = useState(false);
   const [invoiceCode, setInvoiceCode] = useState('');
+  const [qualInvoiceData, setQualInvoiceData] = useState('');
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
@@ -191,6 +214,7 @@ export function AdjustmentPage() {
             value: Number(d.value),
             store: d.store,
             invoice_code: d.invoice_code,
+            qual_invoice_data: d.qual_invoice_data || undefined,
             image_url: d.image_url || undefined,
             paid: d.paid,
             payment_receipt_url: d.payment_receipt_url || undefined,
@@ -305,6 +329,7 @@ export function AdjustmentPage() {
         value: Number(value),
         store: finalStore,
         invoice_code: invoiceCode,
+        qual_invoice_data: qualInvoiceData || undefined,
         paid: false,
         created_at: new Date().toISOString(),
         synced: false,
@@ -327,6 +352,7 @@ export function AdjustmentPage() {
       setCustomStore('');
       setIsCustomStoreActive(false);
       setInvoiceCode('');
+      setQualInvoiceData('');
       setImageBlob(null);
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
@@ -385,7 +411,14 @@ export function AdjustmentPage() {
               <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
                 Invoice Week (invoice_code)
               </label>
-              <WeekPopover weeks={weeksList} value={invoiceCode} onChange={setInvoiceCode} />
+              <WeekPopover
+                weeks={weeksList}
+                value={invoiceCode}
+                onChange={(code, range) => {
+                  setInvoiceCode(code);
+                  setQualInvoiceData(range);
+                }}
+              />
             </div>
 
             {/* Date Pick */}
