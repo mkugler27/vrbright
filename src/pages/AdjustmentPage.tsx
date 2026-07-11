@@ -269,6 +269,58 @@ export function AdjustmentPage() {
 
   useEffect(() => {
     loadAdjustments();
+
+    if (isOnline && user?.email) {
+      const channel = supabase
+        .channel('realtime-adjustments')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'adjustments',
+            filter: `worker_email=eq.${user.email}`,
+          },
+          async (payload) => {
+            console.log('Realtime DB change received:', payload);
+            
+            if (payload.eventType === 'DELETE') {
+              const deletedId = payload.old.id;
+              await deleteAdjustment(deletedId);
+            } else if (payload.new) {
+              const item = payload.new;
+              await saveAdjustment({
+                id: item.id,
+                worker_email: item.worker_email,
+                date: item.date,
+                description: item.description,
+                value: Number(item.value),
+                store: item.store,
+                invoice_code: item.invoice_code,
+                qual_invoice_data: item.qual_invoice_data || undefined,
+                image_url: item.image_url || undefined,
+                paid: item.paid,
+                payment_receipt_url: item.payment_receipt_url || undefined,
+                bubble_id: item.bubble_id || undefined,
+                created_at: item.created_at,
+                synced: true,
+              });
+            }
+            
+            // Reload local list from IndexedDB to show updated status
+            const merged = await getAdjustments();
+            const filteredMerged = merged.filter((a) => a.worker_email === user.email);
+            setAdjustments(
+              filteredMerged.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            );
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [user?.email, isOnline]);
 
   // Clean up image preview URL on unmount
