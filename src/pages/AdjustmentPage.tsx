@@ -46,6 +46,37 @@ interface WeekOption {
   range: string;
 }
 
+// Generate target ISO Week range from invoice_code (e.g. "28/26")
+function getRangeFromInvoiceCode(code: string): string {
+  const parts = code.split('/');
+  if (parts.length !== 2) return '';
+  const week = parseInt(parts[0]);
+  const shortYear = parseInt(parts[1]);
+  const year = 2000 + shortYear;
+
+  // Jan 4th is always in ISO Week 1 of that year
+  const jan4 = new Date(year, 0, 4);
+  const day = jan4.getDay();
+  const mondayOfIsoWeek1 = new Date(jan4.getTime());
+  const daysToSub = day === 0 ? 6 : day - 1;
+  mondayOfIsoWeek1.setDate(jan4.getDate() - daysToSub);
+
+  const mondayOfTargetWeek = new Date(mondayOfIsoWeek1.getTime());
+  mondayOfTargetWeek.setDate(mondayOfIsoWeek1.getDate() + (week - 1) * 7);
+
+  const sundayOfTargetWeek = new Date(mondayOfTargetWeek.getTime());
+  sundayOfTargetWeek.setDate(mondayOfTargetWeek.getDate() + 6);
+
+  const formatDate = (dt: Date) => {
+    const m = dt.getMonth() + 1;
+    const d = String(dt.getDate()).padStart(2, '0');
+    const y = String(dt.getFullYear()).slice(-2);
+    return `${m}/${d}/${y}`;
+  };
+
+  return `${formatDate(mondayOfTargetWeek)} - ${formatDate(sundayOfTargetWeek)}`;
+}
+
 // Generate the last count weeks dynamically as objects
 function generateRecentWeeks(count = 6): WeekOption[] {
   const list: WeekOption[] = [];
@@ -76,9 +107,10 @@ interface WeekPopoverProps {
   weeks: WeekOption[];
   value: string;
   onChange: (code: string, range: string) => void;
+  compact?: boolean;
 }
 
-function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
+function WeekPopover({ weeks, value, onChange, compact }: WeekPopoverProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -105,14 +137,20 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
         }}
         className="w-full flex items-center justify-between bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
       >
-        <span className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+        <span className="flex items-center gap-2 text-left truncate">
+          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          {selectedOption ? `Week ${selectedOption.code} (${selectedOption.range})` : 'Select invoice week'}
+          <span className="truncate">
+            {selectedOption 
+              ? (compact 
+                  ? `Week ${selectedOption.code}` 
+                  : `Week ${selectedOption.code} (${selectedOption.range})`) 
+              : 'Select week'}
+          </span>
         </span>
         <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -136,9 +174,9 @@ function WeekPopover({ weeks, value, onChange }: WeekPopoverProps) {
                 value === w.code ? 'text-primary-dark bg-primary/5' : 'text-gray-700'
               }`}
             >
-              <span>Week {w.code} <span className="text-gray-400 font-normal">({w.range})</span></span>
+              <span>Week {w.code} <span className="text-gray-400 font-normal text-xs">({w.range})</span></span>
               {value === w.code && (
-                <svg className="w-4 h-4 text-primary-dark" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                <svg className="w-4 h-4 text-primary-dark flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               )}
@@ -241,6 +279,13 @@ export function AdjustmentPage() {
       return bWeek - aWeek;
     });
   }, [adjustments, selectedYear]);
+
+  const historyWeekOptions = useMemo<WeekOption[]>(() => {
+    return uniqueHistoryWeeks.map((code) => ({
+      code,
+      range: getRangeFromInvoiceCode(code)
+    }));
+  }, [uniqueHistoryWeeks]);
 
   useEffect(() => {
     if (uniqueHistoryWeeks.length > 0) {
@@ -896,7 +941,7 @@ export function AdjustmentPage() {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+                  className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer"
                 >
                   {yearsList.map((y) => (
                     <option key={y} value={y}>
@@ -907,24 +952,19 @@ export function AdjustmentPage() {
               </div>
 
               {/* Week Code Select */}
-              <div className="space-y-1">
+              <div className="space-y-1 relative">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block px-1">
                   Invoice Week
                 </label>
-                {uniqueHistoryWeeks.length > 0 ? (
-                  <select
+                {historyWeekOptions.length > 0 ? (
+                  <WeekPopover
+                    weeks={historyWeekOptions}
                     value={historyWeekCode}
-                    onChange={(e) => setHistoryWeekCode(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-150 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
-                  >
-                    {uniqueHistoryWeeks.map((code) => (
-                      <option key={code} value={code}>
-                        {code}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(code) => setHistoryWeekCode(code)}
+                    compact={true}
+                  />
                 ) : (
-                  <div className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-[11px] font-semibold text-gray-400 flex items-center justify-center">
+                  <div className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-4 py-3.5 text-xs font-semibold text-gray-400 flex items-center justify-center">
                     No weeks found
                   </div>
                 )}
