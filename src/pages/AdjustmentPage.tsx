@@ -716,7 +716,7 @@ export function AdjustmentPage() {
           onClick={() => setActiveTab('request')}
           className={`flex-1 py-3 text-xs font-bold rounded-2xl transition-all cursor-pointer text-center uppercase tracking-wider ${
             activeTab === 'request'
-              ? 'bg-primary text-primary-dark shadow-sm'
+              ? 'bg-primary text-white shadow-sm'
               : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
           }`}
         >
@@ -727,7 +727,7 @@ export function AdjustmentPage() {
           onClick={() => setActiveTab('history')}
           className={`flex-1 py-3 text-xs font-bold rounded-2xl transition-all cursor-pointer text-center uppercase tracking-wider ${
             activeTab === 'history'
-              ? 'bg-primary text-primary-dark shadow-sm'
+              ? 'bg-primary text-white shadow-sm'
               : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
           }`}
         >
