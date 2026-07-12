@@ -210,9 +210,51 @@ export function AdjustmentPage() {
   const [adjustmentToDelete, setAdjustmentToDelete] = useState<AdjustmentRequest | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const filteredAdjustments = useMemo(() => {
-    return adjustments.filter((a) => a.invoice_code === invoiceCode);
-  }, [adjustments, invoiceCode]);
+  // Tab Navigation State
+  const [activeTab, setActiveTab] = useState<'request' | 'history'>('request');
+
+  // History Filter State
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear());
+  const [historyWeekCode, setHistoryWeekCode] = useState<string>('');
+
+  const yearsList = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let y = currentYear; y >= 2023; y--) {
+      years.push(y);
+    }
+    return years;
+  }, []);
+
+  const uniqueHistoryWeeks = useMemo(() => {
+    const shortYear = String(selectedYear).slice(-2);
+    const suffix = `/${shortYear}`;
+    const codes = new Set<string>();
+    for (const adj of adjustments) {
+      if (adj.invoice_code && adj.invoice_code.endsWith(suffix)) {
+        codes.add(adj.invoice_code);
+      }
+    }
+    return Array.from(codes).sort((a, b) => {
+      const aWeek = parseInt(a.split('/')[0]) || 0;
+      const bWeek = parseInt(b.split('/')[0]) || 0;
+      return bWeek - aWeek;
+    });
+  }, [adjustments, selectedYear]);
+
+  useEffect(() => {
+    if (uniqueHistoryWeeks.length > 0) {
+      if (!historyWeekCode || !uniqueHistoryWeeks.includes(historyWeekCode)) {
+        setHistoryWeekCode(uniqueHistoryWeeks[0]);
+      }
+    } else {
+      setHistoryWeekCode('');
+    }
+  }, [uniqueHistoryWeeks, historyWeekCode]);
+
+  const historyFilteredAdjustments = useMemo(() => {
+    return adjustments.filter((a) => a.invoice_code === historyWeekCode);
+  }, [adjustments, historyWeekCode]);
 
   // Touch Gestures for Swipe-to-Delete
   const [swipedId, setSwipedId] = useState<string | null>(null);
@@ -622,381 +664,457 @@ export function AdjustmentPage() {
         <p className="text-sm text-gray-500 mt-1">Request and track out-of-pocket reimbursements</p>
       </div>
 
+      {/* Segmented Control / Tab Bar */}
+      <div className="px-4 py-3 bg-white border-b border-gray-100 flex gap-2 sticky top-[77px] z-10">
+        <button
+          type="button"
+          onClick={() => setActiveTab('request')}
+          className={`flex-1 py-3 text-xs font-bold rounded-2xl transition-all cursor-pointer text-center uppercase tracking-wider ${
+            activeTab === 'request'
+              ? 'bg-primary text-primary-dark shadow-sm'
+              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          }`}
+        >
+          New Request
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('history')}
+          className={`flex-1 py-3 text-xs font-bold rounded-2xl transition-all cursor-pointer text-center uppercase tracking-wider ${
+            activeTab === 'history'
+              ? 'bg-primary text-primary-dark shadow-sm'
+              : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+          }`}
+        >
+          History
+        </button>
+      </div>
+
       <div className="flex-1 px-4 py-5 max-w-lg mx-auto w-full space-y-6">
-        {/* Form Card */}
-        <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100/60">
-          <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-5 rounded bg-primary" />
-            Request Adjustment
-          </h2>
+        {activeTab === 'request' ? (
+          /* Form Card */
+          <div className="bg-white rounded-[28px] p-5 shadow-sm border border-gray-100/60">
+            <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <span className="w-2.5 h-5 rounded bg-primary" />
+              Request Adjustment
+            </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {errorMsg && (
-              <div className="bg-red-50 border border-red-100 rounded-2xl p-3.5 text-xs font-semibold text-red-600 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                {errorMsg}
-              </div>
-            )}
-            {successMsg && (
-              <div className="bg-green-50 border border-green-100 rounded-2xl p-3.5 text-xs font-semibold text-emerald-600 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                {successMsg}
-              </div>
-            )}
-
-            {/* Invoice Week Code Select */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Invoice Week (invoice_code)
-              </label>
-              <WeekPopover
-                weeks={weeksList}
-                value={invoiceCode}
-                onChange={(code, range) => {
-                  setInvoiceCode(code);
-                  setQualInvoiceData(range);
-                }}
-              />
-            </div>
-
-            {/* Date Pick */}
-            <div className="space-y-1">
-              <label htmlFor="adj-date" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Date of purchase
-              </label>
-              <input
-                id="adj-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-                className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            {/* Description */}
-            <div className="space-y-1">
-              <label htmlFor="adj-desc" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Description
-              </label>
-              <input
-                id="adj-desc"
-                type="text"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="e.g. Extra paint gallon, screws, rollers"
-                required
-                className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            {/* Value */}
-            <div className="space-y-1">
-              <label htmlFor="adj-value" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Amount ($)
-              </label>
-              <input
-                id="adj-value"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder="0.00"
-                required
-                className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            {/* Store Selection */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Store
-              </label>
-              
-              {/* Quick options grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {QUICK_STORES.map((s) => {
-                  const isActive = (s === 'OTHERS' && isCustomStoreActive) || (s !== 'OTHERS' && store === s && !isCustomStoreActive);
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => handleStoreSelect(s)}
-                      className={`py-3.5 px-3 rounded-2xl border text-xs font-bold text-center transition-all ${
-                        isActive
-                          ? 'border-primary bg-primary/5 text-primary-dark scale-[0.98]'
-                          : 'border-gray-100 hover:border-gray-200 text-gray-600 bg-gray-50/50 active:scale-95'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Custom Store Text Input */}
-              {isCustomStoreActive && (
-                <div className="pt-1 animate-slideDown">
-                  <input
-                    type="text"
-                    value={customStore}
-                    onChange={(e) => setCustomStore(e.target.value)}
-                    placeholder="Enter store name..."
-                    required
-                    className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                  />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-100 rounded-2xl p-3.5 text-xs font-semibold text-red-600 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  {errorMsg}
                 </div>
               )}
-            </div>
+              {successMsg && (
+                <div className="bg-green-50 border border-green-100 rounded-2xl p-3.5 text-xs font-semibold text-emerald-600 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  {successMsg}
+                </div>
+              )}
 
-            {/* Photo Upload Area */}
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
-                Receipt / Invoice Image
-              </label>
-              
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                ref={fileInputRef}
-                onChange={handleImageChange}
-                className="hidden"
-              />
+              {/* Invoice Week Code Select */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Invoice Week (invoice_code)
+                </label>
+                <WeekPopover
+                  weeks={weeksList}
+                  value={invoiceCode}
+                  onChange={(code, range) => {
+                    setInvoiceCode(code);
+                    setQualInvoiceData(range);
+                  }}
+                />
+              </div>
 
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-gray-200 hover:border-primary/50 rounded-[24px] p-5 flex flex-col items-center justify-center gap-2 bg-gray-50/30 active:scale-[0.99] transition-all"
-              >
-                {imagePreviewUrl ? (
-                  <div className="relative w-full max-h-48 overflow-hidden rounded-2xl">
-                    <img src={imagePreviewUrl} alt="Receipt preview" className="w-full h-full object-contain max-h-44" />
-                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold opacity-0 hover:opacity-100 transition-opacity">
-                      Change Photo
-                    </div>
+              {/* Date Pick */}
+              <div className="space-y-1">
+                <label htmlFor="adj-date" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Date of purchase
+                </label>
+                <input
+                  id="adj-date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                  className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1">
+                <label htmlFor="adj-desc" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Description
+                </label>
+                <input
+                  id="adj-desc"
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Extra paint gallon, screws, rollers"
+                  required
+                  className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Value */}
+              <div className="space-y-1">
+                <label htmlFor="adj-value" className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Amount ($)
+                </label>
+                <input
+                  id="adj-value"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder="0.00"
+                  required
+                  className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* Store Selection */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Store
+                </label>
+                
+                {/* Quick options grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {QUICK_STORES.map((s) => {
+                    const isActive = (s === 'OTHERS' && isCustomStoreActive) || (s !== 'OTHERS' && store === s && !isCustomStoreActive);
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => handleStoreSelect(s)}
+                        className={`py-3.5 px-3 rounded-2xl border text-xs font-bold text-center transition-all ${
+                          isActive
+                            ? 'border-primary bg-primary/5 text-primary-dark scale-[0.98]'
+                            : 'border-gray-100 hover:border-gray-200 text-gray-600 bg-gray-50/50 active:scale-95'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Store Text Input */}
+                {isCustomStoreActive && (
+                  <div className="pt-1 animate-slideDown">
+                    <input
+                      type="text"
+                      value={customStore}
+                      onChange={(e) => setCustomStore(e.target.value)}
+                      placeholder="Enter store name..."
+                      required
+                      className="w-full bg-white border border-gray-200 rounded-2xl px-4 py-3.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    />
                   </div>
+                )}
+              </div>
+
+              {/* Photo Upload Area */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Receipt / Invoice Image
+                </label>
+                
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  ref={fileInputRef}
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full border-2 border-dashed border-gray-200 hover:border-primary/50 rounded-[24px] p-5 flex flex-col items-center justify-center gap-2 bg-gray-50/30 active:scale-[0.99] transition-all"
+                >
+                  {imagePreviewUrl ? (
+                    <div className="relative w-full max-h-48 overflow-hidden rounded-2xl">
+                      <img src={imagePreviewUrl} alt="Receipt preview" className="w-full h-full object-contain max-h-44" />
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center text-white text-xs font-bold opacity-0 hover:opacity-100 transition-opacity">
+                        Change Photo
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary-dark">
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700">Click to upload or take receipt image</span>
+                      <span className="text-[10px] text-gray-400 font-medium">JPEG, PNG · Compressed client-side</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Save Button */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-2 bg-primary text-white py-4 rounded-2xl text-sm font-bold uppercase tracking-wider shadow-md shadow-primary/30 active:scale-95 active:shadow-none disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Saving...
+                  </>
                 ) : (
                   <>
-                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary-dark">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">Click to upload or take receipt image</span>
-                    <span className="text-[10px] text-gray-400 font-medium">JPEG, PNG · Compressed client-side</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Adjustment
                   </>
                 )}
               </button>
-            </div>
-
-            {/* Save Button */}
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full flex items-center justify-center gap-2 bg-primary text-white py-4 rounded-2xl text-sm font-bold uppercase tracking-wider shadow-md shadow-primary/30 active:scale-95 active:shadow-none disabled:opacity-50 transition-all cursor-pointer"
-            >
-              {submitting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Adjustment
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* History List */}
-        <div className="space-y-3">
-          <h2 className="text-lg font-bold text-gray-800 px-1 flex items-center justify-between">
-            <span>Adjustment History</span>
-            <span className="text-xs text-gray-400 font-medium">{filteredAdjustments.length} total</span>
-          </h2>
-
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : filteredAdjustments.length === 0 ? (
-            <div className="bg-white rounded-3xl p-10 text-center border border-gray-100/50">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-gray-400">
-                <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                </svg>
+            </form>
+          </div>
+        ) : (
+          /* History View */
+          <div className="space-y-4">
+            {/* Filters Card */}
+            <div className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100/60 grid grid-cols-2 gap-3">
+              {/* Year Select */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Year
+                </label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="w-full bg-gray-50 border border-gray-150 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+                >
+                  {yearsList.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <p className="text-sm font-semibold text-gray-500">
-                {invoiceCode ? `No adjustments registered for week ${invoiceCode}` : 'No adjustments registered yet'}
-              </p>
+
+              {/* Week Code Select */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block px-1">
+                  Invoice Week
+                </label>
+                {uniqueHistoryWeeks.length > 0 ? (
+                  <select
+                    value={historyWeekCode}
+                    onChange={(e) => setHistoryWeekCode(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-150 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+                  >
+                    {uniqueHistoryWeeks.map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-[11px] font-semibold text-gray-400 flex items-center justify-center">
+                    No weeks found
+                  </div>
+                )}
+              </div>
             </div>
-          ) : (
+
+            {/* History list */}
             <div className="space-y-3">
-              {filteredAdjustments.map((adj) => {
-                const isNegative = Number(adj.value) < 0;
-                const absValue = Math.abs(Number(adj.value));
-                const formattedVal = absValue.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                });
-                const displayVal = isNegative ? `-$${formattedVal}` : `$${formattedVal}`;
-                const formattedDate = new Date(adj.date + 'T00:00:00').toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                });
+              <h2 className="text-lg font-bold text-gray-800 px-1 flex items-center justify-between">
+                <span>Adjustment History</span>
+                <span className="text-xs text-gray-400 font-medium">{historyFilteredAdjustments.length} total</span>
+              </h2>
 
-                const matchingQueueItem = queueItems.find(
-                  (qi) => qi.adjustment_id === adj.id
-                );
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : historyFilteredAdjustments.length === 0 ? (
+                <div className="bg-white rounded-3xl p-10 text-center border border-gray-100/50">
+                  <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-gray-400">
+                    <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-500">
+                    {historyWeekCode ? `No adjustments registered for week ${historyWeekCode}` : `No adjustments registered in ${selectedYear}`}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyFilteredAdjustments.map((adj) => {
+                    const isNegative = Number(adj.value) < 0;
+                    const absValue = Math.abs(Number(adj.value));
+                    const formattedVal = absValue.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    });
+                    const displayVal = isNegative ? `-$${formattedVal}` : `$${formattedVal}`;
+                    const formattedDate = new Date(adj.date + 'T00:00:00').toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    });
 
-                const canDelete = !adj.paid;
-                const isSwiped = swipedId === adj.id;
+                    const matchingQueueItem = queueItems.find(
+                      (qi) => qi.adjustment_id === adj.id
+                    );
 
-                return (
-                  <div key={adj.id} className="relative overflow-hidden rounded-[24px]">
-                    {/* Swipe Action Background (Delete Button) */}
-                    {canDelete && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAdjustmentToDelete(adj);
-                          setDeleteConfirmOpen(true);
-                          setSwipedId(null);
-                        }}
-                        className="absolute right-0 top-0 bottom-0 w-[75px] bg-transparent flex items-center justify-center text-red-600 active:scale-90 transition-transform"
-                        title="Delete"
-                      >
-                        <svg className="w-5 h-5 text-red-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+                    const canDelete = !adj.paid;
+                    const isSwiped = swipedId === adj.id;
 
-                    {/* Foreground Item Card */}
-                    <div
-                      id={`swipe-fg-${adj.id}`}
-                      onTouchStart={(e) => handleTouchStart(e, adj.id, !canDelete)}
-                      onTouchMove={(e) => handleTouchMove(e, adj.id, !canDelete)}
-                      onTouchEnd={(e) => handleTouchEnd(e, adj.id, !canDelete)}
-                      onClick={() => {
-                        if (isSwiped) {
-                          setSwipedId(null);
-                        }
-                      }}
-                      style={{
-                        transform: isSwiped ? 'translateX(-70px)' : 'translateX(0px)',
-                        transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                      }}
-                      className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100/60 flex items-center gap-3.5 hover:shadow-md transition-shadow relative z-10 select-none touch-pan-y"
-                    >
-                      {/* Image Thumbnail */}
-                      <button
-                        type="button"
-                        disabled={!hasValidImageUrl(adj.image_url) && !adj.local_image_blob}
-                        onClick={() => {
-                          if (hasValidImageUrl(adj.image_url)) {
-                            setActiveReceiptUrl(adj.image_url || null);
-                            setActiveReceiptBlob(null);
-                          } else if (adj.local_image_blob) {
-                            setActiveReceiptBlob(adj.local_image_blob);
-                            setActiveReceiptUrl(null);
-                          }
-                          setReceiptModalTitle(`${adj.store} - Receipt`);
-                        }}
-                        className="w-14 h-14 rounded-2xl bg-gray-50 flex-shrink-0 overflow-hidden relative transition-all disabled:opacity-85 disabled:cursor-default"
-                        title={hasValidImageUrl(adj.image_url) || adj.local_image_blob ? "View Receipt" : "No receipt attachment"}
-                      >
-                        {hasValidImageUrl(adj.image_url) ? (
-                          <img src={adj.image_url} alt="Receipt thumbnail" className="w-full h-full object-cover" />
-                        ) : adj.local_image_blob ? (
-                          <img src={URL.createObjectURL(adj.local_image_blob)} alt="Local receipt thumbnail" className="w-full h-full object-cover" />
-                        ) : (
-                          <svg className="w-5 h-5 text-gray-400 m-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        )}
-                        {!adj.synced && (
-                          <span className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    return (
+                      <div key={adj.id} className="relative overflow-hidden rounded-[24px]">
+                        {/* Swipe Action Background (Delete Button) */}
+                        {canDelete && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdjustmentToDelete(adj);
+                              setDeleteConfirmOpen(true);
+                              setSwipedId(null);
+                            }}
+                            className="absolute right-0 top-0 bottom-0 w-[75px] bg-transparent flex items-center justify-center text-red-600 active:scale-90 transition-transform"
+                            title="Delete"
+                          >
+                            <svg className="w-5 h-5 text-red-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                          </span>
+                          </button>
                         )}
-                      </button>
 
-                      {/* Meta info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                            {adj.invoice_code}
-                          </span>
-                          <span className="text-[10px] font-semibold text-gray-400">{formattedDate}</span>
-                        </div>
-                        <h3 className="font-bold text-gray-800 text-[14px] truncate mt-1">{adj.store}</h3>
-                        <p className="text-xs text-gray-500 truncate">{adj.description}</p>
-                        {matchingQueueItem && matchingQueueItem.error && (
-                          <p className="text-[10px] font-bold text-red-500 mt-1 truncate" title={matchingQueueItem.error}>
-                            Sync Error: {matchingQueueItem.error}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Value & Payment status */}
-                      <div className="text-right flex-shrink-0 flex flex-col items-end justify-center">
-                        <p className={`font-extrabold text-base leading-none ${isNegative ? 'text-red-600' : 'text-gray-900'}`}>
-                          {displayVal}
-                        </p>
-                        
-                        {adj.paid ? (
-                          hasValidImageUrl(adj.payment_receipt_url) ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActiveReceiptUrl(adj.payment_receipt_url!);
+                        {/* Foreground Item Card */}
+                        <div
+                          id={`swipe-fg-${adj.id}`}
+                          onTouchStart={(e) => handleTouchStart(e, adj.id, !canDelete)}
+                          onTouchMove={(e) => handleTouchMove(e, adj.id, !canDelete)}
+                          onTouchEnd={(e) => handleTouchEnd(e, adj.id, !canDelete)}
+                          onClick={() => {
+                            if (isSwiped) {
+                              setSwipedId(null);
+                            }
+                          }}
+                          style={{
+                            transform: isSwiped ? 'translateX(-70px)' : 'translateX(0px)',
+                            transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                          }}
+                          className="bg-white rounded-[24px] p-4 shadow-sm border border-gray-100/60 flex items-center gap-3.5 hover:shadow-md transition-shadow relative z-10 select-none touch-pan-y"
+                        >
+                          {/* Image Thumbnail */}
+                          <button
+                            type="button"
+                            disabled={!hasValidImageUrl(adj.image_url) && !adj.local_image_blob}
+                            onClick={() => {
+                              if (hasValidImageUrl(adj.image_url)) {
+                                setActiveReceiptUrl(adj.image_url || null);
                                 setActiveReceiptBlob(null);
-                                setReceiptModalTitle(`${adj.store} - Payment Proof`);
-                              }}
-                              className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors uppercase tracking-wider border border-emerald-200/50"
-                              title="View Payment Proof"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Paid
-                            </button>
-                          ) : (
-                            <div
-                              className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wider border border-emerald-200/50"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              Paid
+                              } else if (adj.local_image_blob) {
+                                setActiveReceiptBlob(adj.local_image_blob);
+                                setActiveReceiptUrl(null);
+                              }
+                              setReceiptModalTitle(`${adj.store} - Receipt`);
+                            }}
+                            className="w-14 h-14 rounded-2xl bg-gray-50 flex-shrink-0 overflow-hidden relative transition-all disabled:opacity-85 disabled:cursor-default"
+                            title={hasValidImageUrl(adj.image_url) || adj.local_image_blob ? "View Receipt" : "No receipt attachment"}
+                          >
+                            {hasValidImageUrl(adj.image_url) ? (
+                              <img src={adj.image_url} alt="Receipt thumbnail" className="w-full h-full object-cover" />
+                            ) : adj.local_image_blob ? (
+                              <img src={URL.createObjectURL(adj.local_image_blob)} alt="Local receipt thumbnail" className="w-full h-full object-cover" />
+                            ) : (
+                              <svg className="w-5 h-5 text-gray-400 m-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            )}
+                            {!adj.synced && (
+                              <span className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              </span>
+                            )}
+                          </button>
+
+                          {/* Meta info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+                                {adj.invoice_code}
+                              </span>
+                              <span className="text-[10px] font-semibold text-gray-400">{formattedDate}</span>
                             </div>
-                          )
-                        ) : (
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                              Pending
-                            </span>
-                            {deletingId === adj.id && (
-                              <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                            <h3 className="font-bold text-gray-800 text-[14px] truncate mt-1">{adj.store}</h3>
+                            <p className="text-xs text-gray-500 truncate">{adj.description}</p>
+                            {matchingQueueItem && matchingQueueItem.error && (
+                              <p className="text-[10px] font-bold text-red-500 mt-1 truncate" title={matchingQueueItem.error}>
+                                Sync Error: {matchingQueueItem.error}
+                              </p>
                             )}
                           </div>
-                        )}
+
+                          {/* Value & Payment status */}
+                          <div className="text-right flex-shrink-0 flex flex-col items-end justify-center">
+                            <p className={`font-extrabold text-base leading-none ${isNegative ? 'text-red-600' : 'text-gray-900'}`}>
+                              {displayVal}
+                            </p>
+                            
+                            {adj.paid ? (
+                              hasValidImageUrl(adj.payment_receipt_url) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveReceiptUrl(adj.payment_receipt_url!);
+                                    setActiveReceiptBlob(null);
+                                    setReceiptModalTitle(`${adj.store} - Payment Proof`);
+                                  }}
+                                  className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full hover:bg-emerald-100 transition-colors uppercase tracking-wider border border-emerald-200/50"
+                                  title="View Payment Proof"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Paid
+                                </button>
+                              ) : (
+                                <div
+                                  className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase tracking-wider border border-emerald-200/50"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                  Paid
+                                </div>
+                              )
+                            ) : (
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                                  Pending
+                                </span>
+                                {deletingId === adj.id && (
+                                  <div className="w-3.5 h-3.5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Fullscreen Image Preview Modal */}
