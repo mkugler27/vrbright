@@ -129,6 +129,39 @@ export function WOPage() {
   const [chatInput, setChatInput] = useState('');
   const [pendingPhotos, setPendingPhotos] = useState<any[]>([]);
 
+  // Step Completion Validation & Memos
+  const [noPhotosSteps, setNoPhotosSteps] = useState<{
+    repair: boolean;
+    damage: boolean;
+    splinkers: boolean;
+  }>({
+    repair: false,
+    damage: false,
+    splinkers: false,
+  });
+
+  useEffect(() => {
+    if (selectedWO) {
+      const stored = localStorage.getItem(`wo_no_photos_${selectedWO._id}`);
+      if (stored) {
+        try {
+          setNoPhotosSteps(JSON.parse(stored));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        setNoPhotosSteps({ repair: false, damage: false, splinkers: false });
+      }
+    }
+  }, [selectedWO?._id]);
+
+  const updateNoPhotosStep = (stepKey: 'repair' | 'damage' | 'splinkers', val: boolean) => {
+    if (!selectedWO) return;
+    const next = { ...noPhotosSteps, [stepKey]: val };
+    setNoPhotosSteps(next);
+    localStorage.setItem(`wo_no_photos_${selectedWO._id}`, JSON.stringify(next));
+  };
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch admin DM conversation (create if missing)
@@ -399,6 +432,11 @@ export function WOPage() {
       } else {
         await queueMediaOffline(opts);
         await loadPendingPhotos();
+      }
+
+      // Reset 'No Photos' toggle for this step
+      if (group !== 'extra') {
+        updateNoPhotosStep(group, false);
       }
     } catch (err) {
       console.error('Failed to upload photo:', err);
@@ -731,7 +769,7 @@ export function WOPage() {
       <div className="flex p-2 gap-2 border-b border-gray-100 bg-white shrink-0">
         <button
           onClick={() => setActiveSubTab('info')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-extrabold uppercase tracking-wider transition-all ${
             activeSubTab === 'info'
               ? 'bg-primary text-white shadow-sm'
               : 'text-gray-500 hover:bg-gray-50'
@@ -741,7 +779,7 @@ export function WOPage() {
         </button>
         <button
           onClick={() => setActiveSubTab('chat')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-extrabold uppercase tracking-wider transition-all ${
             activeSubTab === 'chat'
               ? 'bg-primary text-white shadow-sm'
               : 'text-gray-500 hover:bg-gray-50'
@@ -790,263 +828,335 @@ export function WOPage() {
             )}
 
             {/* PHOTO WIZARD STEP SECTIONS */}
-            <div className="space-y-4">
-              
-              {/* Step 1: Repair Photos */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">1. Repair Photos</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Upload photos of the completed repairs</p>
-                  </div>
-                  {uploadingGroup === 'repair' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
-                </div>
+            {(() => {
+              const isStep1Satisfied = photosByGroup.repair.length > 0 || noPhotosSteps.repair;
+              const isStep2Satisfied = photosByGroup.damage.length > 0 || noPhotosSteps.damage;
+              const isStep3Satisfied = photosByGroup.splinkers.length > 0 || noPhotosSteps.splinkers;
 
-                {/* Gallery */}
-                <div className="grid grid-cols-4 gap-2">
-                  {photosByGroup.repair.map(p => (
-                    <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                      <img src={p.url} alt="Repair" className="w-full h-full object-cover" />
-                      {p.isPending && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                          </svg>
+              const isStep2Locked = !isStep1Satisfied;
+              const isStep3Locked = !isStep1Satisfied || !isStep2Satisfied;
+              const isStep4Locked = !isStep1Satisfied || !isStep2Satisfied || !isStep3Satisfied;
+
+              return (
+                <div className="space-y-4">
+                  
+                  {/* Step 1: Repair Photos */}
+                  <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm">1. Repair Photos</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Upload photos of the completed repairs</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {uploadingGroup === 'repair' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />}
+                        <button
+                          onClick={() => {
+                            if (selectedWO.status === 'NOT STARTED') {
+                              handleUpdateStatus('IN PROGRESS');
+                            }
+                            updateNoPhotosStep('repair', !noPhotosSteps.repair);
+                          }}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                            noPhotosSteps.repair
+                              ? 'bg-green-100 text-green-700 border border-green-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {noPhotosSteps.repair ? 'No Photos Checked' : 'No Photos'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Gallery */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {photosByGroup.repair.map(p => (
+                        <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
+                          <img src={p.url} alt="Repair" className="w-full h-full object-cover" />
+                          {p.isPending && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDeletePhoto(p)}
+                            disabled={deletingPhotoId === p.id}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
+                            aria-label="Delete"
+                          >
+                            {deletingPhotoId === p.id ? (
+                              <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                      <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadPhoto('repair', file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Damage Photos */}
+                  <div className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 relative transition-all duration-300 ${isStep2Locked ? 'opacity-40 select-none pointer-events-none' : ''}`}>
+                    {isStep2Locked && (
+                      <div className="absolute top-3 right-3 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1 z-10">
+                        🔒 Complete Step 1
+                      </div>
+                    )}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm">2. Damage Photos</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Upload photos of pre-existing damages</p>
+                      </div>
+                      {!isStep2Locked && (
+                        <div className="flex items-center gap-2">
+                          {uploadingGroup === 'damage' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />}
+                          <button
+                            onClick={() => updateNoPhotosStep('damage', !noPhotosSteps.damage)}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                              noPhotosSteps.damage
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                          >
+                            {noPhotosSteps.damage ? 'No Photos Checked' : 'No Photos'}
+                          </button>
                         </div>
                       )}
-                      <button
-                        onClick={() => handleDeletePhoto(p)}
-                        disabled={deletingPhotoId === p.id}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
-                        aria-label="Delete"
-                      >
-                        {deletingPhotoId === p.id ? (
-                          <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
                     </div>
-                  ))}
-                  <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadPhoto('repair', file);
-                        e.target.value = '';
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              </div>
 
-              {/* Step 2: Damage Photos */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">2. Damage Photos</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Upload photos of pre-existing damages</p>
+                    {/* Gallery */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {photosByGroup.damage.map(p => (
+                        <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
+                          <img src={p.url} alt="Damage" className="w-full h-full object-cover" />
+                          {p.isPending && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDeletePhoto(p)}
+                            disabled={deletingPhotoId === p.id}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
+                            aria-label="Delete"
+                          >
+                            {deletingPhotoId === p.id ? (
+                              <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                      <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadPhoto('damage', file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
-                  {uploadingGroup === 'damage' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
-                </div>
 
-                {/* Gallery */}
-                <div className="grid grid-cols-4 gap-2">
-                  {photosByGroup.damage.map(p => (
-                    <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                      <img src={p.url} alt="Damage" className="w-full h-full object-cover" />
-                      {p.isPending && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                          </svg>
+                  {/* Step 3: Sprinkler Photos */}
+                  <div className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 relative transition-all duration-300 ${isStep3Locked ? 'opacity-40 select-none pointer-events-none' : ''}`}>
+                    {isStep3Locked && (
+                      <div className="absolute top-3 right-3 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1 z-10">
+                        🔒 Complete Step 2
+                      </div>
+                    )}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm">3. Sprinkler Photos</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Upload photos verifying sprinkler conditions</p>
+                      </div>
+                      {!isStep3Locked && (
+                        <div className="flex items-center gap-2">
+                          {uploadingGroup === 'splinkers' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />}
+                          <button
+                            onClick={() => updateNoPhotosStep('splinkers', !noPhotosSteps.splinkers)}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all shrink-0 ${
+                              noPhotosSteps.splinkers
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
+                          >
+                            {noPhotosSteps.splinkers ? 'No Photos Checked' : 'No Photos'}
+                          </button>
                         </div>
                       )}
-                      <button
-                        onClick={() => handleDeletePhoto(p)}
-                        disabled={deletingPhotoId === p.id}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
-                        aria-label="Delete"
-                      >
-                        {deletingPhotoId === p.id ? (
-                          <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
                     </div>
-                  ))}
-                  <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadPhoto('damage', file);
-                        e.target.value = '';
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              </div>
 
-              {/* Step 3: Sprinkler Photos */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">3. Sprinkler Photos</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Upload photos verifying sprinkler conditions</p>
-                  </div>
-                  {uploadingGroup === 'splinkers' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
-                </div>
-
-                {/* Gallery */}
-                <div className="grid grid-cols-4 gap-2">
-                  {photosByGroup.splinkers.map(p => (
-                    <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                      <img src={p.url} alt="Sprinkler" className="w-full h-full object-cover" />
-                      {p.isPending && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                          </svg>
+                    {/* Gallery */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {photosByGroup.splinkers.map(p => (
+                        <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
+                          <img src={p.url} alt="Sprinkler" className="w-full h-full object-cover" />
+                          {p.isPending && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDeletePhoto(p)}
+                            disabled={deletingPhotoId === p.id}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
+                            aria-label="Delete"
+                          >
+                            {deletingPhotoId === p.id ? (
+                              <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
                         </div>
-                      )}
-                      <button
-                        onClick={() => handleDeletePhoto(p)}
-                        disabled={deletingPhotoId === p.id}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
-                        aria-label="Delete"
-                      >
-                        {deletingPhotoId === p.id ? (
-                          <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
+                      ))}
+                      <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadPhoto('splinkers', file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                  ))}
-                  <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadPhoto('splinkers', file);
-                        e.target.value = '';
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              </div>
-
-              {/* Step 4: Extra Photos */}
-              <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">4. Extra Photos & Notes</h3>
-                    <p className="text-[11px] text-gray-400 mt-0.5">Upload extra photos and add notes below</p>
                   </div>
-                  {uploadingGroup === 'extra' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
-                </div>
 
-                {/* Gallery */}
-                <div className="grid grid-cols-4 gap-2">
-                  {photosByGroup.extra.map(p => (
-                    <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                      <img src={p.url} alt="Extra" className="w-full h-full object-cover" />
-                      {p.isPending && (
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
-                          </svg>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleDeletePhoto(p)}
-                        disabled={deletingPhotoId === p.id}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
-                        aria-label="Delete"
-                      >
-                        {deletingPhotoId === p.id ? (
-                          <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
+                  {/* Step 4: Extra Photos & Notes */}
+                  <div className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3 relative transition-all duration-300 ${isStep4Locked ? 'opacity-40 select-none pointer-events-none' : ''}`}>
+                    {isStep4Locked && (
+                      <div className="absolute top-3 right-3 bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border border-amber-100 flex items-center gap-1 z-10">
+                        🔒 Complete Step 3
+                      </div>
+                    )}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm">4. Extra Photos & Notes</h3>
+                        <p className="text-[11px] text-gray-400 mt-0.5">Upload extra photos and add notes below</p>
+                      </div>
+                      {!isStep4Locked && uploadingGroup === 'extra' && <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin shrink-0" />}
                     </div>
-                  ))}
-                  <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
-                    <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadPhoto('extra', file);
-                        e.target.value = '';
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
 
-                {/* Extra Notes Input Box */}
-                <div className="space-y-1 mt-2">
-                  <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Extra Notes</label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter any additional job notes..."
-                    className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/45 min-h-[90px] bg-gray-50/50"
-                  />
-                </div>
-              </div>
+                    {/* Gallery */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {photosByGroup.extra.map(p => (
+                        <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
+                          <img src={p.url} alt="Extra" className="w-full h-full object-cover" />
+                          {p.isPending && (
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                              </svg>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleDeletePhoto(p)}
+                            disabled={deletingPhotoId === p.id}
+                            className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow-sm opacity-90 hover:opacity-100 active:scale-90 transition-transform"
+                            aria-label="Delete"
+                          >
+                            {deletingPhotoId === p.id ? (
+                              <div className="w-3.5 h-3.5 border border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      ))}
+                      <label className="relative aspect-square rounded-xl border-2 border-dashed border-gray-200 hover:border-primary flex flex-col items-center justify-center gap-1 cursor-pointer active:bg-gray-50 transition-colors">
+                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Add Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadPhoto('extra', file);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
 
-            </div>
+                    {/* Extra Notes Input Box */}
+                    <div className="space-y-1 mt-2">
+                      <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Extra Notes</label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Enter any additional job notes..."
+                        className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/45 min-h-[90px] bg-gray-50/50"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
 
             {/* Save & Complete WO Button */}
             {selectedWO.status !== 'COMPLETED' && (
               <button
                 onClick={() => handleUpdateStatus('COMPLETED')}
-                disabled={savingWO}
-                className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 active:scale-98 transition-transform flex items-center justify-center gap-2 disabled:opacity-50"
+                disabled={savingWO || !(photosByGroup.repair.length > 0 || noPhotosSteps.repair) || !(photosByGroup.damage.length > 0 || noPhotosSteps.damage) || !(photosByGroup.splinkers.length > 0 || noPhotosSteps.splinkers)}
+                className="w-full bg-primary hover:bg-primary/95 text-white font-bold py-3.5 rounded-2xl shadow-lg shadow-primary/25 active:scale-98 transition-transform flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
               >
                 {savingWO ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
