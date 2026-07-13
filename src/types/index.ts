@@ -103,6 +103,7 @@ export interface PendingChatFile {
   created_at: string;
   codigo_WO?: string;
   tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
+  work_order_id?: string | null;
 }
 
 export interface AdjustmentRequest {

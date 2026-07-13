@@ -33,7 +33,8 @@ export async function enqueueChatMessage(
   conversationId: string,
   senderId: string,
   content: string,
-  createdIso: string
+  createdIso: string,
+  workOrderId?: string | null
 ): Promise<void> {
   const db = await getDB()
   const id = `msg_${messageId}`
@@ -47,6 +48,7 @@ export async function enqueueChatMessage(
       content,
       tipo: 'text',
       created_at: createdIso,
+      work_order_id: workOrderId || null,
     },
     attempts: 0,
     max_attempts: 5,

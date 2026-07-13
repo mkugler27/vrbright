@@ -184,6 +184,7 @@ export interface SendMediaOptions {
   codigo_WO?: string;
   tipo_foto?: 'repair' | 'damage' | 'splinkers' | 'extra';
   createdAt?: string;
+  workOrderId?: string | null;
 }
 
 export interface SendMediaResult {
@@ -203,7 +204,8 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
     undefined,
     undefined,
     opts.messageId,
-    opts.createdAt
+    opts.createdAt,
+    opts.workOrderId
   );
   if (!message) throw new Error('sendMessage returned null');
 
@@ -228,7 +230,8 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
     fileSize: opts.blob.size,
   });
 
-  // 4) Enqueue Bubble sync (will run on next syncQueue cycle)
+  // 4) Enqueue Bubble sync (commented out - keeping WO photos exclusively in Supabase)
+  /*
   if (opts.codigo_WO) {
     await enqueueChatFileSync({
       chatFileId: chatFile.id,
@@ -243,6 +246,7 @@ export async function sendMediaMessage(opts: SendMediaOptions): Promise<SendMedi
       tipo_foto: opts.tipo_foto,
     });
   }
+  */
 
   return {
     message: { ...message, chat_file: chatFile },
@@ -271,6 +275,7 @@ export async function queueMediaOffline(opts: SendMediaOptions): Promise<string>
     created_at: new Date().toISOString(),
     codigo_WO: opts.codigo_WO,
     tipo_foto: opts.tipo_foto,
+    work_order_id: opts.workOrderId,
   };
   await db.put('pendingChatFiles', entry);
   return id;
@@ -297,6 +302,7 @@ export async function processPendingChatFiles(): Promise<{ ok: number; fail: num
         codigo_WO: item.codigo_WO,
         tipo_foto: item.tipo_foto,
         createdAt: item.created_at,
+        workOrderId: item.work_order_id,
       });
       await db.delete('pendingChatFiles', item.id);
       ok++;
@@ -313,12 +319,8 @@ export async function getPendingChatFileCount(): Promise<number> {
   return db.count('pendingChatFiles');
 }
 
-// ──────────────────────────────────────────────
-// BUBBLE SYNC ENQUEUE
-// ──────────────────────────────────────────────
-
-// Payload shape sent to Bubble's wf/receive_file workflow.
-// Keep these keys in sync with the workflow's parameter definition.
+// BUBBLE SYNC ENQUEUE (commented out - keeping WO photos exclusively in Supabase)
+/*
 async function enqueueChatFileSync(p: {
   chatFileId: string;
   messageId: string;
@@ -352,3 +354,4 @@ async function enqueueChatFileSync(p: {
     created_at: new Date().toISOString(),
   });
 }
+*/
