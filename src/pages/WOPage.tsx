@@ -9,6 +9,7 @@ import { deleteMessage } from '../services/chatDelete';
 import { createIndividualConversation, sendMessage, subscribeToMessages, type Message } from '../services/chatApi';
 import { enqueueChatMessage } from '../services/syncQueue';
 import { patchWOInBubble } from '../services/woSync';
+import { ConfirmationModal } from '../components/ui/ConfirmationModal';
 
 function cacheKey(email: string): string {
   return `open_${email || 'anon'}`;
@@ -121,6 +122,8 @@ export function WOPage() {
   const [savingWO, setSavingWO] = useState(false);
   const [uploadingGroup, setUploadingGroup] = useState<string | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<{ id: string; isPending: boolean; messageId?: string } | null>(null);
 
   // Chat integration inside WO
   const [adminConvId, setAdminConvId] = useState<string | null>(null);
@@ -447,9 +450,12 @@ export function WOPage() {
   };
 
   // Handle Photo Delete
-  const handleDeletePhoto = async (photo: { id: string; isPending: boolean; messageId?: string }) => {
+  const handleDeletePhoto = (photo: { id: string; isPending: boolean; messageId?: string }) => {
+    setPhotoToDelete(photo);
+  };
+
+  const executeDeletePhoto = async (photo: { id: string; isPending: boolean; messageId?: string }) => {
     if (!user || !selectedWO) return;
-    if (!confirm('Are you sure you want to delete this photo?')) return;
 
     setDeletingPhotoId(photo.id);
     try {
@@ -871,7 +877,12 @@ export function WOPage() {
                     <div className="grid grid-cols-4 gap-2">
                       {photosByGroup.repair.map(p => (
                         <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                          <img src={p.url} alt="Repair" className="w-full h-full object-cover" />
+                          <img 
+                            src={p.url} 
+                            alt="Repair" 
+                            className="w-full h-full object-cover cursor-pointer active:scale-95 transition-transform" 
+                            onClick={() => setExpandedImageUrl(p.url)}
+                          />
                           {p.isPending && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -949,7 +960,12 @@ export function WOPage() {
                     <div className="grid grid-cols-4 gap-2">
                       {photosByGroup.damage.map(p => (
                         <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                          <img src={p.url} alt="Damage" className="w-full h-full object-cover" />
+                          <img 
+                            src={p.url} 
+                            alt="Damage" 
+                            className="w-full h-full object-cover cursor-pointer active:scale-95 transition-transform" 
+                            onClick={() => setExpandedImageUrl(p.url)}
+                          />
                           {p.isPending && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1027,7 +1043,12 @@ export function WOPage() {
                     <div className="grid grid-cols-4 gap-2">
                       {photosByGroup.splinkers.map(p => (
                         <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                          <img src={p.url} alt="Sprinkler" className="w-full h-full object-cover" />
+                          <img 
+                            src={p.url} 
+                            alt="Sprinkler" 
+                            className="w-full h-full object-cover cursor-pointer active:scale-95 transition-transform" 
+                            onClick={() => setExpandedImageUrl(p.url)}
+                          />
                           {p.isPending && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1091,7 +1112,12 @@ export function WOPage() {
                     <div className="grid grid-cols-4 gap-2">
                       {photosByGroup.extra.map(p => (
                         <div key={p.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-100 group bg-gray-50">
-                          <img src={p.url} alt="Extra" className="w-full h-full object-cover" />
+                          <img 
+                            src={p.url} 
+                            alt="Extra" 
+                            className="w-full h-full object-cover cursor-pointer active:scale-95 transition-transform" 
+                            onClick={() => setExpandedImageUrl(p.url)}
+                          />
                           {p.isPending && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <svg className="w-5 h-5 text-white animate-pulse" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
@@ -1206,9 +1232,12 @@ export function WOPage() {
                       )}
                       
                       {cf?.file_type === 'image' ? (
-                        <a href={cf.public_url} target="_blank" rel="noopener noreferrer">
-                          <img src={cf.public_url} alt="Uploaded" className="max-w-full max-h-48 rounded-lg mt-1" />
-                        </a>
+                        <img 
+                          src={cf.public_url} 
+                          alt="Uploaded" 
+                          className="w-full max-h-48 rounded-lg mt-1 cursor-pointer hover:opacity-90 active:scale-98 transition-all" 
+                          onClick={() => setExpandedImageUrl(cf.public_url)}
+                        />
                       ) : (
                         <p className="break-words whitespace-pre-wrap">{msg.content?.replace(/^\[.*?\]\s*/, '').trim() || msg.content}</p>
                       )}
@@ -1249,6 +1278,47 @@ export function WOPage() {
           </div>
         )}
       </div>
+      {/* Image Lightbox Modal */}
+      {expandedImageUrl && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 transition-all duration-300"
+          onClick={() => setExpandedImageUrl(null)}
+        >
+          <button 
+            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xl font-bold transition-colors z-50 border border-white/10 active:scale-90"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpandedImageUrl(null);
+            }}
+          >
+            ✕
+          </button>
+          <img 
+            src={expandedImageUrl} 
+            alt="Expanded view" 
+            className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl transition-all duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={photoToDelete !== null}
+        title="Delete Photo"
+        message="Are you sure you want to delete this photo? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={async () => {
+          if (photoToDelete) {
+            const p = photoToDelete;
+            setPhotoToDelete(null);
+            await executeDeletePhoto(p);
+          }
+        }}
+        onCancel={() => setPhotoToDelete(null)}
+      />
     </div>
   );
 }
