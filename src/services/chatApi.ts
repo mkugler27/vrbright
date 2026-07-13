@@ -40,6 +40,7 @@ export type Message = {
   created_at: string
   sender?: User
   chat_file?: ChatFile | null
+  work_order_id?: string | null
 }
 
 // ──────────────────────────────────────────────
@@ -508,7 +509,8 @@ export async function sendMessage(
   transcription?: string,
   bubbleId?: string,
   id?: string,
-  createdAt?: string
+  createdAt?: string,
+  workOrderId?: string | null
 ): Promise<Message | null> {
   const payload: any = {
     conversation_id: conversationId,
@@ -518,6 +520,7 @@ export async function sendMessage(
     audio_url: audioUrl ?? null,
     transcription: transcription ?? null,
     bubble_id: bubbleId ?? null,
+    work_order_id: workOrderId ?? null,
   }
   if (id) payload.id = id;
   if (createdAt) payload.created_at = createdAt;

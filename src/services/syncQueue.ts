@@ -340,6 +340,7 @@ export async function processQueue(): Promise<{ ok: number; fail: number }> {
               content: item.payload.content,
               tipo: item.payload.tipo,
               created_at: item.payload.created_at,
+              work_order_id: item.payload.work_order_id || null,
             })
 
           if (msgErr) {

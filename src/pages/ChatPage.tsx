@@ -37,13 +37,9 @@ import { GroupSettingsModal } from '../components/chat/GroupSettingsModal'
 import { ConfirmationModal } from '../components/ui/ConfirmationModal'
 import { saveCachedMessages, getDB } from '../services/db'
 import { enqueueChatMessage } from '../services/syncQueue'
-import { patchWOInBubble } from '../services/woSync'
-import { WOListView } from '../components/chat/WOListView'
-import { WOWizard } from '../components/chat/WOWizard'
 import type { ChatFileType } from '../types'
 
-type Tab = 'chats' | 'groups' | 'works'
-type WoTab = 'today' | 'other'
+type Tab = 'chats' | 'groups'
 
 const QUICK_EMOJIS = [
   '👍','👎','👏','🙌','🙏','💪','✌️','🤝',
@@ -91,8 +87,13 @@ export default function ChatPage() {
   const isOnline = useOnlineStatus()
 
   const [activeTab, setActiveTab] = useState<Tab>('chats')
-  const [woTab] = useState<WoTab>('today')
-  const [woList, setWoList] = useState<any[]>([])
+
+  // Conversation message stream filtering/search states
+  const [filterWOId, setFilterWOId] = useState<string | null>(null)
+  const [filterDate, setFilterDate] = useState<string>('')
+  const [filterSearch, setFilterSearch] = useState<string>('')
+  const [showFilterPopover, setShowFilterPopover] = useState(false)
+  const filterPopoverRef = useRef<HTMLDivElement>(null)
 
   const [dms, setDms] = useState<Conversation[]>([])
   const [groups, setGroups] = useState<Conversation[]>([])
@@ -100,6 +101,65 @@ export default function ChatPage() {
   const [mySupabaseId, setMySupabaseId] = useState<string | null>(null)
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+
+  // Reset filters when switching conversations
+  useEffect(() => {
+    setFilterWOId(null)
+    setFilterDate('')
+    setFilterSearch('')
+    setShowFilterPopover(false)
+  }, [activeConversation?.id])
+
+  // Click outside helper to close the filter popover
+  useEffect(() => {
+    if (!showFilterPopover) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target as Node)) {
+        setShowFilterPopover(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showFilterPopover])
+
+  // Extract unique work order IDs from loaded messages in this conversation
+  const uniqueWOIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const msg of messages) {
+      if (msg.work_order_id) {
+        ids.add(msg.work_order_id)
+      }
+    }
+    return Array.from(ids)
+  }, [messages])
+
+  // Filter messages dynamically based on active filter states (Option B word search)
+  const filteredMessages = useMemo(() => {
+    return messages.filter(msg => {
+      // 1. Filter by WO ID
+      if (filterWOId && msg.work_order_id !== filterWOId) {
+        return false
+      }
+      // 2. Filter by Date (YYYY-MM-DD)
+      if (filterDate) {
+        const msgDateStr = new Date(msg.created_at).toISOString().split('T')[0]
+        if (msgDateStr !== filterDate) {
+          return false
+        }
+      }
+      // 3. Keyword Search (Option B - Split by whitespace and check if all words match)
+      if (filterSearch.trim()) {
+        const words = filterSearch.toLowerCase().split(/\s+/).filter(Boolean)
+        const contentLower = (msg.content ?? '').toLowerCase()
+        const matchesAll = words.every(word => contentLower.includes(word))
+        if (!matchesAll) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [messages, filterWOId, filterDate, filterSearch])
+
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
   const onlineUsers = usePresence()
@@ -913,23 +973,7 @@ export default function ChatPage() {
             </svg>
             Groups
           </button>
-          <button
-            onClick={() => setActiveTab('works')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-              activeTab === 'works' 
-                ? 'bg-white text-blue-600 shadow border border-gray-200' 
-                : 'text-gray-500 hover:bg-gray-200/50 border border-transparent'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-            </svg>
-            Works
-          </button>
         </div>
-
-        {/* WO tab content (left here to satisfy the import chain — unused) */}
-        {woTab === 'today' && <div style={{ display: 'none' }} onLoad={() => setWoList([])} />}
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
@@ -940,7 +984,6 @@ export default function ChatPage() {
           )}
           {activeTab === 'chats' && dmView}
           {activeTab === 'groups' && groupView}
-          {activeTab === 'works' && <WOListView currentUserId={mySupabaseId} onSelect={openConversation} onWoConvsLoaded={setWoList} />}
         </div>
       </div>
 
@@ -984,6 +1027,88 @@ export default function ChatPage() {
           {connectionStatus === 'reconnecting' && isOnline && (
             <span className="text-xs text-orange-500 font-medium">Reconnecting…</span>
           )}
+
+          {/* Filters Popover Anchor */}
+          <div className="relative shrink-0 flex items-center" ref={filterPopoverRef}>
+            <button
+              onClick={() => setShowFilterPopover(!showFilterPopover)}
+              className={`p-1.5 rounded-full hover:bg-gray-100 transition-colors ${
+                filterWOId || filterDate || filterSearch ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-500 hover:text-gray-700'
+              }`}
+              aria-label="Search and Filter"
+              title="Search and Filter"
+            >
+              <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.59l-5.432 5.432a2.25 2.25 0 00-.659 1.59v3.492a2.25 2.25 0 01-1.11 1.954l-3.038 1.724A.75.75 0 0110 18.15v-4.226a2.25 2.25 0 00-.659-1.59L3.91 6.902A2.25 2.25 0 013.25 5.313V4.774c0-.54.384-1.006.917-1.096A50.06 50.06 0 0112 3z" />
+              </svg>
+            </button>
+
+            {showFilterPopover && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 z-30 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-gray-800 text-sm">Filters & Search</h3>
+                  {(filterWOId || filterDate || filterSearch) && (
+                    <button
+                      onClick={() => {
+                        setFilterWOId(null)
+                        setFilterDate('')
+                        setFilterSearch('')
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 font-bold"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+
+                {/* Keyword Search */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Search Keyword</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={filterSearch}
+                      onChange={(e) => setFilterSearch(e.target.value)}
+                      placeholder="Search words..."
+                      className="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500"
+                    />
+                    <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Date Filter */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Filter by Date</label>
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Work Order Filter */}
+                {uniqueWOIds.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Filter by Work Order</label>
+                    <select
+                      value={filterWOId || ''}
+                      onChange={(e) => setFilterWOId(e.target.value || null)}
+                      className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="">All Work Orders</option>
+                      {uniqueWOIds.map(id => (
+                        <option key={id} value={id}>WO #{id}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {activeConversation.tipo === 'group' && (
             <button
               onClick={() => setShowGroupSettings(true)}
@@ -997,13 +1122,50 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Active Filters Bar */}
+        {(filterWOId || filterDate || filterSearch) && (
+          <div className="bg-blue-50/50 px-4 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap shrink-0">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Active Filters:</span>
+            {filterSearch && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                Search: "{filterSearch}"
+                <button onClick={() => setFilterSearch('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
+              </span>
+            )}
+            {filterDate && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                Date: {new Date(filterDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                <button onClick={() => setFilterDate('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
+              </span>
+            )}
+            {filterWOId && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                WO: #{filterWOId}
+                <button onClick={() => setFilterWOId(null)} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setFilterWOId(null)
+                setFilterDate('')
+                setFilterSearch('')
+              }}
+              className="text-xs text-red-600 hover:text-red-800 font-semibold ml-auto"
+            >
+              Reset
+            </button>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {loadingMessages && <div className="text-center text-gray-400 text-sm py-8">Loading messages...</div>}
-          {!loadingMessages && messages.length === 0 && (
-            <div className="text-center text-gray-400 text-sm py-8">No messages yet. Start the conversation!</div>
+          {!loadingMessages && filteredMessages.length === 0 && (
+            <div className="text-center text-gray-400 text-xs py-8">
+              {messages.length > 0 ? 'No messages match active filters.' : 'No messages yet. Start the conversation!'}
+            </div>
           )}
-          {messages.map(msg => {
+          {filteredMessages.map(msg => {
             const isMine = msg.sender_id === mySupabaseId
             const senderAvatar = msg.sender?.avatar_url
             const senderName = msg.sender?.nome ?? ''
@@ -1033,6 +1195,15 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className={`max-w-[75%] px-4 py-2 rounded-2xl text-sm shadow-sm ${isMine ? 'bg-blue-600 text-white rounded-br-md' : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md'}`}>
+                  {msg.work_order_id && (
+                    <span className={`inline-flex mb-1.5 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide border ${
+                      isMine 
+                        ? 'bg-white/10 text-white border-white/20' 
+                        : 'bg-gray-100 text-gray-600 border-gray-200'
+                    }`}>
+                      WO #{msg.work_order_id}
+                    </span>
+                  )}
                   {!isMine && activeConversation.tipo === 'group' && (
                     <p className="text-[10px] font-semibold text-gray-500 mb-0.5">{senderName}</p>
                   )}
@@ -1120,78 +1291,6 @@ export default function ChatPage() {
           })}
           <div ref={messagesEndRef} />
         </div>
-
-        {/* WOWizard for Work Orders (Only for Workers) */}
-        {activeConversation.tipo === 'wo' && !['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '') && (
-          <WOWizard 
-            conversation={activeConversation}
-            isLastWO={
-              woList.filter(g => 
-                g.id !== activeConversation.id &&
-                (g.work_orders?.status === 'NOT STARTED' || g.work_orders?.status === 'IN PROGRESS')
-              ).length === 0
-            }
-            onAttachPhoto={(tag) => {
-               setNewMessage(tag + ' ');
-               setShowAttachMenu(true);
-            }}
-            onSendSystemMessage={async (text) => {
-              if (!user) return;
-              let sbUser = await getSupabaseUserById(user.id);
-              if (!sbUser) {
-                sbUser = { id: user.id, nome: user.nome, email: user.email, tipo_user_bubble: user.tipo_user_bubble, avatar_url: user.profile_picture, bubble_id: user.bubble_id };
-              }
-              handleOfflineSend(sbUser as any, text, new Date().toISOString());
-            }}
-            onWOStarted={async () => {
-              if (!user) return;
-              const myWoConvs = woList.filter(g => 
-                g.tipo === 'wo' && 
-                g.work_orders?.status === 'IN PROGRESS' && 
-                g.work_orders.id !== activeConversation.wo_id
-              );
-              for (const old of myWoConvs) {
-                if (!old.work_orders) continue;
-                
-                await supabase.from('work_orders').update({ status: 'COMPLETED' }).eq('id', old.work_orders.id);
-                if (old.work_orders.codigo_id) {
-                  patchWOInBubble("", {
-                    status: 'COMPLETED',
-                    wo_old: old.work_orders.codigo_id,
-                    wo_new: activeConversation.work_orders?.codigo_id
-                  }).catch(console.error);
-                }
-                
-                setGroups(prev => prev.map(g => {
-                  if (g.id === old.id && g.work_orders) {
-                    return { ...g, work_orders: { ...g.work_orders, status: 'COMPLETED' } };
-                  }
-                  return g;
-                }));
-              }
-            }}
-            onClose={() => {
-              // Optionally close conversation when done
-              closeConversation();
-            }}
-          />
-        )}
-
-        {/* WO Banner for Admins */}
-        {activeConversation.tipo === 'wo' && ['Admin', 'Owner', 'Director'].includes(user?.tipo_user_bubble || '') && (
-          <div className="bg-blue-50 border-t border-blue-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between shrink-0 shadow-sm z-10">
-            <div className="flex items-center gap-2 mb-2 sm:mb-0">
-              <span className="text-xs font-bold bg-blue-600 text-white px-2 py-1 rounded">WO #{activeConversation.work_orders?.codigo_id}</span>
-              <span className="text-sm font-semibold text-blue-900">{activeConversation.work_orders?.status}</span>
-            </div>
-            <div className="text-xs text-blue-700">
-              <span className="font-semibold">Worker:</span> {
-                activeConversation.participants?.find(p => p.email?.toLowerCase() === activeConversation.work_orders?.worker_email?.toLowerCase())?.nome || 
-                activeConversation.work_orders?.worker_email
-              }
-            </div>
-          </div>
-        )}
 
         {/* Pending media preview */}
         {pendingMedia && (
