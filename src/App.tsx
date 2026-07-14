@@ -40,7 +40,7 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   
-  const isAdmin = ['owner', 'director', 'manager'].includes(user.tipo_user_bubble || '');
+  const isAdmin = ['owner', 'director', 'manager'].includes((user.tipo_user_bubble || '').toLowerCase());
   if (!isAdmin) return <Navigate to="/" replace />;
   
   return <>{children}</>;
@@ -48,7 +48,7 @@ function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function DashboardHomeWrapper() {
   const { user } = useAuth();
-  const isAdmin = ['owner', 'director', 'manager'].includes(user?.tipo_user_bubble || '');
+  const isAdmin = ['owner', 'director', 'manager'].includes((user?.tipo_user_bubble || '').toLowerCase());
   if (isAdmin) return <Navigate to="/admin" replace />;
   return <DashboardHome />;
 }
