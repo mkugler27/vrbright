@@ -301,6 +301,7 @@ export function AdminClients() {
   const [isPMModalOpen, setIsPMModalOpen] = useState(false);
   const [currentClient, setCurrentClient] = useState<Partial<Client>>({});
   const [currentLabels, setCurrentLabels] = useState<ClientLabel[]>([]);
+  const [editingLabelIdx, setEditingLabelIdx] = useState<number | null>(null);
   
   // Label Form temp states (Commercial)
   const [tempLabelNotes, setTempLabelNotes] = useState('');
@@ -423,6 +424,41 @@ export function AdminClients() {
   // Delete label from form list
   const removeLabel = (index: number) => {
     setCurrentLabels((prev) => prev.filter((_, i) => i !== index));
+    if (editingLabelIdx === index) {
+      setEditingLabelIdx(null);
+      setTempLabelNotes('');
+    }
+  };
+
+  // Replace label image during edit
+  const handleReplaceLabelPhoto = async (idx: number, file: File) => {
+    if (!file) return;
+    setUploadingLabel(true);
+    try {
+      const compressed = await compressImage(file);
+      const fileExt = compressed.name.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}_label.${fileExt}`;
+      const filePath = `labels/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('client_assets')
+        .upload(filePath, compressed);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('client_assets')
+        .getPublicUrl(filePath);
+
+      setCurrentLabels((prev) =>
+        prev.map((lbl, i) => (i === idx ? { ...lbl, image_url: urlData.publicUrl } : lbl))
+      );
+    } catch (err) {
+      console.error('Replace label photo error:', err);
+      alert('Failed to replace photo.');
+    } finally {
+      setUploadingLabel(false);
+    }
   };
 
   // Open form for Create Client
@@ -441,12 +477,16 @@ export function AdminClients() {
       sup_is_main: false,
     });
     setCurrentLabels([]);
+    setEditingLabelIdx(null);
+    setTempLabelNotes('');
     setIsClientModalOpen(true);
   };
 
   // Open form for Edit Client
   const handleEditClient = async (client: Client) => {
     setCurrentClient(client);
+    setEditingLabelIdx(null);
+    setTempLabelNotes('');
     setIsClientModalOpen(true);
 
     // If commercial, load its labels
@@ -1134,7 +1174,9 @@ export function AdminClients() {
                   <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                       <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Label Photo Description</label>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                          {editingLabelIdx !== null ? 'Editing Label Description' : 'Label Photo Description'}
+                        </label>
                         <input
                           type="text"
                           value={tempLabelNotes}
@@ -1143,24 +1185,65 @@ export function AdminClients() {
                           className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary transition-all font-medium text-slate-800"
                         />
                       </div>
-                      <div>
-                        <label className="flex items-center justify-center gap-2 px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
-                          <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          <span>{uploadingLabel ? 'Uploading...' : 'Add Photo & Save Label'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleLabelImageUpload(file);
+                      
+                      {editingLabelIdx !== null ? (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCurrentLabels((prev) =>
+                                prev.map((lbl, i) => (i === editingLabelIdx ? { ...lbl, notes: tempLabelNotes } : lbl))
+                              );
+                              setTempLabelNotes('');
+                              setEditingLabelIdx(null);
                             }}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
+                            className="flex-1 px-4 py-3.5 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all text-center flex items-center justify-center"
+                          >
+                            Update Text
+                          </button>
+                          <label className="flex-1 flex items-center justify-center gap-1.5 px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider active:bg-slate-100 transition-colors">
+                            <span>Replace Photo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleReplaceLabelPhoto(editingLabelIdx, file);
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTempLabelNotes('');
+                              setEditingLabelIdx(null);
+                            }}
+                            className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl active:scale-[0.98] transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="flex items-center justify-center gap-2 px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
+                            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span>{uploadingLabel ? 'Uploading...' : 'Add Photo & Save Label'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleLabelImageUpload(file);
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      )}
                     </div>
 
                     {/* Labels List */}
@@ -1171,13 +1254,26 @@ export function AdminClients() {
                             <img src={lbl.image_url} alt="Label" className="w-16 h-16 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" />
                             <div className="min-w-0 flex-1 flex flex-col justify-between">
                               <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-3">{lbl.notes || 'No description'}</p>
-                              <button
-                                type="button"
-                                onClick={() => removeLabel(idx)}
-                                className="text-[10px] font-bold text-red-500 hover:underline w-fit"
-                              >
-                                Remove
-                              </button>
+                              <div className="flex items-center gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingLabelIdx(idx);
+                                    setTempLabelNotes(lbl.notes);
+                                  }}
+                                  className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <span className="text-[10px] text-slate-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeLabel(idx)}
+                                  className="text-[10px] font-bold text-red-500 hover:underline cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
                             </div>
                           </div>
                         ))}
