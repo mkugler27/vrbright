@@ -969,7 +969,7 @@ export function AdminClients() {
                     <div>
                       <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Client Logo</label>
                       <div className="flex items-center gap-3">
-                        <label className="flex items-center justify-center px-4 py-3 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
+                        <label className="flex items-center justify-center h-[46px] px-4 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
                           <span>{uploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
                           <input
                             type="file"
