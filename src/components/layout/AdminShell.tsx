@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 export function AdminShell() {
   const { user, logout } = useAuth();
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Remember sidebar collapse state in localStorage
   const [collapsed, setCollapsed] = useState(() => {
@@ -20,6 +23,10 @@ export function AdminShell() {
   }, [collapsed]);
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const executeLogout = () => {
     logout();
     navigate('/login');
   };
@@ -110,7 +117,7 @@ export function AdminShell() {
   ];
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
       {/* Sidebar Container */}
       <aside
         className={`flex-shrink-0 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-all duration-300 ease-in-out relative z-30 ${
@@ -255,6 +262,17 @@ export function AdminShell() {
           <Outlet />
         </main>
       </div>
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showLogoutConfirm}
+        title="Sign Out"
+        message="Are you sure you want to sign out of the Admin Portal?"
+        confirmLabel="Sign Out"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={executeLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </div>
   );
 }
