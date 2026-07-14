@@ -1,8 +1,1191 @@
-export function AdminClients() {
+import { useState, useEffect, useRef } from 'react';
+import { supabase } from '../../services/supabase';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+
+// US phone formatting utility
+function formatUSPhone(value: string) {
+  const clean = value.replace(/[^\d]/g, '');
+  if (clean.length === 0) return '';
+  if (clean.length <= 3) return `(${clean}`;
+  if (clean.length <= 6) return `(${clean.slice(0, 3)}) ${clean.slice(3)}`;
+  return `(${clean.slice(0, 3)}) ${clean.slice(3, 6)}-${clean.slice(6, 10)}`;
+}
+
+// Inline image compression helper
+async function compressImage(file: File, maxSizeKB = 500): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1200;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        let quality = 0.8;
+        const checkQuality = () => {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              if (blob.size / 1024 > maxSizeKB && quality > 0.1) {
+                quality -= 0.1;
+                checkQuality();
+              } else {
+                resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+              }
+            } else {
+              resolve(file);
+            }
+          }, 'image/jpeg', quality);
+        };
+        checkQuality();
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// -------------------------------------------------------------
+// CUSTOM DROPDOWN COMPONENT (To comply with the rule of no native selects)
+// -------------------------------------------------------------
+interface CustomDropdownProps {
+  label?: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+function CustomDropdown({ label, value, options, onChange, placeholder = 'Select an option', className = '' }: CustomDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((o) => o.value === value);
+
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-4">
-      <h2 className="text-xl font-bold text-slate-800">Clients</h2>
-      <p className="text-sm text-slate-500">Manage your client registry, including condominiums, properties, apartments, and contacts.</p>
+    <div className={`relative ${className}`} ref={dropdownRef}>
+      {label && <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-medium text-slate-800 text-left"
+      >
+        <span>{selectedOption ? selectedOption.label : placeholder}</span>
+        <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto py-1 animate-slideDown">
+          {options.length === 0 ? (
+            <div className="px-4 py-2.5 text-xs text-slate-400 font-medium">No options available</div>
+          ) : (
+            options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 ${
+                  opt.value === value ? 'bg-primary/10 text-primary-dark font-semibold' : 'text-slate-700'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -------------------------------------------------------------
+// MAIN CLIENT TYPES DEFINITIONS
+// -------------------------------------------------------------
+interface PropertyManagement {
+  id: string;
+  name: string;
+}
+
+interface ClientLabel {
+  id?: string;
+  image_url: string;
+  notes: string;
+}
+
+interface Client {
+  id?: string;
+  type: 'commercial' | 'residential';
+  name: string;
+  active: boolean;
+  address: string;
+  phone: string;
+  email: string;
+  area: 'PALM BEACH' | 'BROWARD' | 'MIAMI-DADE' | 'SAINT LUCIE' | '';
+  units: number;
+  logo_url?: string;
+  property_management_id?: string;
+  details: string;
+
+  // Commercial Specific
+  pm_name?: string;
+  pm_email?: string;
+  pm_phone?: string;
+  pm_is_main?: boolean;
+  sup_name?: string;
+  sup_email?: string;
+  sup_phone?: string;
+  sup_is_main?: boolean;
+
+  // Residential Specific
+  additional_name?: string;
+  additional_email?: string;
+
+  // Resolved relation
+  property_management?: PropertyManagement;
+}
+
+export function AdminClients() {
+  // DB States
+  const [clients, setClients] = useState<Client[]>([]);
+  const [pms, setPms] = useState<PropertyManagement[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters State
+  const [searchName, setSearchName] = useState('');
+  const [filterType, setFilterType] = useState('ALL'); // ALL, commercial, residential
+  const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, active, inactive
+  const [filterPM, setFilterPM] = useState('ALL');
+
+  // Form Modals states
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isPMModalOpen, setIsPMModalOpen] = useState(false);
+  const [currentClient, setCurrentClient] = useState<Partial<Client>>({});
+  const [currentLabels, setCurrentLabels] = useState<ClientLabel[]>([]);
+  
+  // Label Form temp states (Commercial)
+  const [tempLabelNotes, setTempLabelNotes] = useState('');
+  const [uploadingLabel, setUploadingLabel] = useState(false);
+  
+  // Property management inline form state
+  const [newPMName, setNewPMName] = useState('');
+  const [savingPM, setSavingPM] = useState(false);
+
+  // General loader/saves
+  const [savingClient, setSavingClient] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Confirmation modal states
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+
+  // Area Options
+  const areaOptions = [
+    { label: 'PALM BEACH', value: 'PALM BEACH' },
+    { label: 'BROWARD', value: 'BROWARD' },
+    { label: 'MIAMI-DADE', value: 'MIAMI-DADE' },
+    { label: 'SAINT LUCIE', value: 'SAINT LUCIE' },
+  ];
+
+  // Fetch data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      // Load Property Managements
+      const { data: pmData, error: pmErr } = await supabase
+        .from('property_managements')
+        .select('*')
+        .order('name', { ascending: true });
+      if (pmErr) throw pmErr;
+      setPms(pmData || []);
+
+      // Load Clients
+      const { data: clientData, error: clientErr } = await supabase
+        .from('clients')
+        .select('*, property_management:property_managements(id, name)')
+        .order('name', { ascending: true });
+      if (clientErr) throw clientErr;
+      setClients(clientData || []);
+    } catch (err) {
+      console.error('Failed to load clients data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Handle Logo Upload (Commercial)
+  const handleLogoUpload = async (file: File) => {
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const compressed = await compressImage(file);
+      const fileExt = compressed.name.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}_logo.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('client_assets')
+        .upload(filePath, compressed);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('client_assets')
+        .getPublicUrl(filePath);
+
+      setCurrentClient((prev) => ({ ...prev, logo_url: urlData.publicUrl }));
+    } catch (err) {
+      console.error('Logo upload error:', err);
+      alert('Failed to upload logo.');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  // Handle Label Image Upload (Commercial)
+  const handleLabelImageUpload = async (file: File) => {
+    if (!file) return;
+    setUploadingLabel(true);
+    try {
+      const compressed = await compressImage(file);
+      const fileExt = compressed.name.split('.').pop() || 'jpg';
+      const fileName = `${Date.now()}_label.${fileExt}`;
+      const filePath = `labels/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('client_assets')
+        .upload(filePath, compressed);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('client_assets')
+        .getPublicUrl(filePath);
+
+      // Add to local temp labels list
+      setCurrentLabels((prev) => [
+        ...prev,
+        { image_url: urlData.publicUrl, notes: tempLabelNotes },
+      ]);
+      setTempLabelNotes(''); // Clear notes after upload
+    } catch (err) {
+      console.error('Label image upload error:', err);
+      alert('Failed to upload label photo.');
+    } finally {
+      setUploadingLabel(false);
+    }
+  };
+
+  // Delete label from form list
+  const removeLabel = (index: number) => {
+    setCurrentLabels((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Open form for Create Client
+  const handleNewClient = () => {
+    setCurrentClient({
+      type: 'commercial',
+      active: true,
+      name: '',
+      address: '',
+      phone: '',
+      email: '',
+      area: '',
+      units: 0,
+      details: '',
+      pm_is_main: true,
+      sup_is_main: false,
+    });
+    setCurrentLabels([]);
+    setIsClientModalOpen(true);
+  };
+
+  // Open form for Edit Client
+  const handleEditClient = async (client: Client) => {
+    setCurrentClient(client);
+    setIsClientModalOpen(true);
+
+    // If commercial, load its labels
+    if (client.type === 'commercial' && client.id) {
+      try {
+        const { data, error } = await supabase
+          .from('client_labels')
+          .select('*')
+          .eq('client_id', client.id);
+        if (error) throw error;
+        setCurrentLabels(data || []);
+      } catch (err) {
+        console.error('Error fetching labels:', err);
+      }
+    }
+  };
+
+  // Delete Client Database Action
+  const executeDeleteClient = async (client: Client) => {
+    try {
+      const { error } = await supabase.from('clients').delete().eq('id', client.id);
+      if (error) throw error;
+      setClients((prev) => prev.filter((c) => c.id !== client.id));
+    } catch (err) {
+      console.error('Error deleting client:', err);
+      alert('Failed to delete client.');
+    }
+  };
+
+  // Save / Update Client
+  const handleSaveClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentClient.name || !currentClient.type) return;
+
+    setSavingClient(true);
+    try {
+      let savedId = currentClient.id;
+
+      if (currentClient.id) {
+        // Update Client
+        const { error } = await supabase
+          .from('clients')
+          .update({
+            type: currentClient.type,
+            name: currentClient.name,
+            active: currentClient.active,
+            address: currentClient.address,
+            phone: currentClient.phone,
+            email: currentClient.email,
+            area: currentClient.area || null,
+            units: currentClient.units || 0,
+            logo_url: currentClient.logo_url || null,
+            property_management_id: currentClient.property_management_id || null,
+            details: currentClient.details,
+            pm_name: currentClient.pm_name || null,
+            pm_email: currentClient.pm_email || null,
+            pm_phone: currentClient.pm_phone || null,
+            pm_is_main: currentClient.pm_is_main || false,
+            sup_name: currentClient.sup_name || null,
+            sup_email: currentClient.sup_email || null,
+            sup_phone: currentClient.sup_phone || null,
+            sup_is_main: currentClient.sup_is_main || false,
+            additional_name: currentClient.additional_name || null,
+            additional_email: currentClient.additional_email || null,
+          })
+          .eq('id', currentClient.id);
+
+        if (error) throw error;
+      } else {
+        // Create Client
+        const { data, error } = await supabase
+          .from('clients')
+          .insert({
+            type: currentClient.type,
+            name: currentClient.name,
+            active: currentClient.active,
+            address: currentClient.address,
+            phone: currentClient.phone,
+            email: currentClient.email,
+            area: currentClient.area || null,
+            units: currentClient.units || 0,
+            logo_url: currentClient.logo_url || null,
+            property_management_id: currentClient.property_management_id || null,
+            details: currentClient.details,
+            pm_name: currentClient.pm_name || null,
+            pm_email: currentClient.pm_email || null,
+            pm_phone: currentClient.pm_phone || null,
+            pm_is_main: currentClient.pm_is_main || false,
+            sup_name: currentClient.sup_name || null,
+            sup_email: currentClient.sup_email || null,
+            sup_phone: currentClient.sup_phone || null,
+            sup_is_main: currentClient.sup_is_main || false,
+            additional_name: currentClient.additional_name || null,
+            additional_email: currentClient.additional_email || null,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        savedId = data.id;
+      }
+
+      // If commercial, handle labels sync
+      if (currentClient.type === 'commercial' && savedId) {
+        // Delete all old labels and re-insert the current list
+        await supabase.from('client_labels').delete().eq('client_id', savedId);
+
+        if (currentLabels.length > 0) {
+          const insertPayload = currentLabels.map((lbl) => ({
+            client_id: savedId,
+            image_url: lbl.image_url,
+            notes: lbl.notes,
+          }));
+          const { error: labelsErr } = await supabase
+            .from('client_labels')
+            .insert(insertPayload);
+          if (labelsErr) throw labelsErr;
+        }
+      }
+
+      await loadData();
+      setIsClientModalOpen(false);
+    } catch (err) {
+      console.error('Error saving client:', err);
+      alert('Failed to save client details.');
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
+  // Inline Property Management Save
+  const handleSavePM = async () => {
+    if (!newPMName.trim()) return;
+    setSavingPM(true);
+    try {
+      const { data, error } = await supabase
+        .from('property_managements')
+        .insert({ name: newPMName.trim() })
+        .select()
+        .single();
+      
+      if (error) throw error;
+
+      setPms((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setCurrentClient((prev) => ({ ...prev, property_management_id: data.id }));
+      setNewPMName('');
+      setIsPMModalOpen(false);
+    } catch (err: any) {
+      console.error('Failed to create property management:', err);
+      alert(err.code === '23505' ? 'This Property Management name already exists.' : 'Failed to save Property Management.');
+    } finally {
+      setSavingPM(false);
+    }
+  };
+
+  // Filter clients list
+  const filteredClients = clients.filter((client) => {
+    // Search by Name
+    if (searchName && !client.name.toLowerCase().includes(searchName.toLowerCase())) return false;
+    
+    // Filter Type
+    if (filterType !== 'ALL' && client.type !== filterType) return false;
+
+    // Filter Status
+    if (filterStatus !== 'ALL') {
+      const wantActive = filterStatus === 'ACTIVE';
+      if (client.active !== wantActive) return false;
+    }
+
+    // Filter Property Management
+    if (filterPM !== 'ALL' && client.property_management_id !== filterPM) return false;
+
+    return true;
+  });
+
+  // Aggregated Sum totals
+  const totalUnits = filteredClients.reduce((acc, curr) => acc + (curr.units || 0), 0);
+  const totalCommercialCount = filteredClients.filter((c) => c.type === 'commercial').length;
+  const totalResidentialCount = filteredClients.filter((c) => c.type === 'residential').length;
+
+  return (
+    <div className="space-y-6">
+      {/* Aggregated Counters widgets */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between h-28">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Clients</span>
+          <span className="text-3xl font-extrabold text-slate-800 leading-none">{filteredClients.length}</span>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between h-28">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Commercial</span>
+          <span className="text-3xl font-extrabold text-blue-600 leading-none">{totalCommercialCount}</span>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between h-28">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Residential</span>
+          <span className="text-3xl font-extrabold text-teal-600 leading-none">{totalResidentialCount}</span>
+        </div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between h-28">
+          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Units</span>
+          <span className="text-3xl font-extrabold text-primary-dark leading-none">{totalUnits}</span>
+        </div>
+      </div>
+
+      {/* Action Header & Filters bar */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+          <h3 className="font-extrabold text-slate-800 text-base">Clients Management</h3>
+          <button
+            onClick={handleNewClient}
+            className="px-5 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary-dark transition-all duration-200 active:scale-95 text-center flex items-center justify-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Add New Client
+          </button>
+        </div>
+
+        {/* Inputs and custom dropdown filter grids */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+          {/* Search name */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              placeholder="Search by client name..."
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-slate-400 font-medium"
+            />
+          </div>
+
+          {/* Type filter custom dropdown */}
+          <CustomDropdown
+            value={filterType}
+            options={[
+              { label: 'All Types', value: 'ALL' },
+              { label: 'Commercial Only', value: 'commercial' },
+              { label: 'Residential Only', value: 'residential' },
+            ]}
+            onChange={setFilterType}
+          />
+
+          {/* Status filter custom dropdown */}
+          <CustomDropdown
+            value={filterStatus}
+            options={[
+              { label: 'All Statuses', value: 'ALL' },
+              { label: 'Active Only', value: 'ACTIVE' },
+              { label: 'Inactive Only', value: 'INACTIVE' },
+            ]}
+            onChange={setFilterStatus}
+          />
+
+          {/* Property management filter custom dropdown */}
+          <CustomDropdown
+            value={filterPM}
+            options={[
+              { label: 'All PMs', value: 'ALL' },
+              ...pms.map((pm) => ({ label: pm.name, value: pm.id })),
+            ]}
+            onChange={setFilterPM}
+            placeholder="Filter by Property Management"
+          />
+        </div>
+      </div>
+
+      {/* Clients grid list */}
+      {loading ? (
+        <div className="text-center text-slate-400 text-sm py-12">Loading clients records...</div>
+      ) : filteredClients.length === 0 ? (
+        <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-xs">
+          <p className="text-slate-400 text-sm font-medium">No client records found matching the active filters.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredClients.map((client) => (
+            <div key={client.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs relative flex flex-col justify-between gap-4 group hover:shadow-md transition-shadow">
+              
+              {/* Header card details */}
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    {/* Logo/Avatar */}
+                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 shrink-0 overflow-hidden shadow-xs">
+                      {client.logo_url ? (
+                        <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="text-lg font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800 text-sm leading-snug line-clamp-2">{client.name}</h4>
+                      <span className={`inline-block text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full mt-1 ${
+                        client.type === 'commercial' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-teal-50 text-teal-600 border border-teal-100'
+                      }`}>
+                        {client.type}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Active/Inactive badge */}
+                  <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                    client.active ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'
+                  }`}>
+                    {client.active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+
+                {/* Sub details */}
+                <div className="space-y-1.5 text-xs text-slate-500 font-medium pt-1">
+                  {client.address && (
+                    <div className="flex items-start gap-1.5">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      <span className="line-clamp-2">{client.address} ({client.area})</span>
+                    </div>
+                  )}
+                  {client.phone && (
+                    <div className="flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <span>{client.phone}</span>
+                    </div>
+                  )}
+                  {client.type === 'commercial' && client.units > 0 && (
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                      <span>{client.units} Units</span>
+                    </div>
+                  )}
+                  {client.property_management && (
+                    <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50/50 rounded-lg px-2 py-1 mt-1 text-[11px] w-fit">
+                      🏢 PM: {client.property_management.name}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  onClick={() => handleEditClient(client)}
+                  className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-primary-dark hover:bg-slate-50 rounded-xl active:scale-95 transition-all"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setClientToDelete(client)}
+                  className="px-3 py-1.5 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl active:scale-95 transition-all"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          ADD / EDIT CLIENT FULLSCREEN FORM MODAL
+          ------------------------------------------------------------- */}
+      {isClientModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] border border-slate-100 overflow-hidden animate-scaleIn">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-extrabold text-slate-800 text-lg">
+                {currentClient.id ? 'Edit Customer' : 'New Customer'}
+              </h3>
+              <button
+                onClick={() => setIsClientModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center text-lg active:scale-90 transition-transform"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleSaveClient} className="flex-grow overflow-y-auto p-6 space-y-6">
+              {/* Type Switcher tabs */}
+              <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+                <button
+                  type="button"
+                  onClick={() => setCurrentClient((prev) => ({ ...prev, type: 'commercial' }))}
+                  className={`px-5 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all ${
+                    currentClient.type === 'commercial' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Commercial
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentClient((prev) => ({ ...prev, type: 'residential' }))}
+                  className={`px-5 py-2 rounded-xl text-xs font-extrabold uppercase tracking-wide transition-all ${
+                    currentClient.type === 'residential' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Residencial
+                </button>
+              </div>
+
+              {/* Status / Active Toggle */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-slate-600">Active Account:</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={currentClient.active}
+                    onChange={(e) => setCurrentClient((prev) => ({ ...prev, active: e.target.checked }))}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
+              {/* Dynamically Rendered Form Section */}
+              {currentClient.type === 'commercial' ? (
+                // ==========================================
+                // COMMERCIAL FORM SECTION
+                // ==========================================
+                <div className="space-y-4">
+                  {/* Name & General Phone */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Client Name / Condo Name</label>
+                      <input
+                        type="text"
+                        value={currentClient.name || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g. Oakridge Condominium"
+                        required
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">General Phone</label>
+                      <input
+                        type="text"
+                        value={currentClient.phone || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, phone: formatUSPhone(e.target.value) }))}
+                        placeholder="(201) 555-0123"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Address</label>
+                    <input
+                      type="text"
+                      value={currentClient.address || ''}
+                      onChange={(e) => setCurrentClient((prev) => ({ ...prev, address: e.target.value }))}
+                      placeholder="Type here..."
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                    />
+                  </div>
+
+                  {/* Area, Units & Logo Upload */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <CustomDropdown
+                      label="Area"
+                      value={currentClient.area || ''}
+                      options={areaOptions}
+                      onChange={(val) => setCurrentClient((prev) => ({ ...prev, area: val as any }))}
+                    />
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Units</label>
+                      <input
+                        type="number"
+                        value={currentClient.units ?? 0}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, units: parseInt(e.target.value) || 0 }))}
+                        placeholder="e.g. 120"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Client Logo</label>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center justify-center px-4 py-3 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
+                          <span>{uploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleLogoUpload(file);
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {currentClient.logo_url && (
+                          <img src={currentClient.logo_url} alt="Logo" className="w-10 h-10 object-contain rounded-lg border border-slate-200 p-0.5 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Property Management Picker */}
+                  <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Property Management Connection</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsPMModalOpen(true)}
+                        className="text-xs font-bold text-primary-dark hover:underline flex items-center gap-0.5"
+                      >
+                        + New PM
+                      </button>
+                    </div>
+                    <CustomDropdown
+                      value={currentClient.property_management_id || ''}
+                      options={pms.map((pm) => ({ label: pm.name, value: pm.id }))}
+                      onChange={(val) => setCurrentClient((prev) => ({ ...prev, property_management_id: val }))}
+                      placeholder="Select Property Management Connection"
+                    />
+                  </div>
+
+                  {/* Contacts Header */}
+                  <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-2 pt-2">Contacts Information</h4>
+
+                  {/* Property Manager Contacts */}
+                  <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">👤 Property Manager Contact</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 font-semibold">Main Contact:</span>
+                        <input
+                          type="checkbox"
+                          checked={currentClient.pm_is_main || false}
+                          onChange={(e) =>
+                            setCurrentClient((prev) => ({
+                              ...prev,
+                              pm_is_main: e.target.checked,
+                              sup_is_main: e.target.checked ? false : prev.sup_is_main,
+                            }))
+                          }
+                          className="w-4 h-4 accent-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Manager Name"
+                        value={currentClient.pm_name || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, pm_name: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Manager Email"
+                        value={currentClient.pm_email || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, pm_email: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Manager Phone"
+                        value={currentClient.pm_phone || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, pm_phone: formatUSPhone(e.target.value) }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Supervisor Contacts */}
+                  <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">👤 Supervisor Contact</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 font-semibold">Main Contact:</span>
+                        <input
+                          type="checkbox"
+                          checked={currentClient.sup_is_main || false}
+                          onChange={(e) =>
+                            setCurrentClient((prev) => ({
+                              ...prev,
+                              sup_is_main: e.target.checked,
+                              pm_is_main: e.target.checked ? false : prev.pm_is_main,
+                            }))
+                          }
+                          className="w-4 h-4 accent-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Supervisor Name"
+                        value={currentClient.sup_name || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, sup_name: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                      <input
+                        type="email"
+                        placeholder="Supervisor Email"
+                        value={currentClient.sup_email || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, sup_email: e.target.value }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Supervisor Phone"
+                        value={currentClient.sup_phone || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, sup_phone: formatUSPhone(e.target.value) }))}
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                    </div>
+                  </div>
+
+                  {/* LABELS SECTION */}
+                  <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-2 pt-2">Labels (Photos & Descriptions)</h4>
+                  <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Label Photo Description</label>
+                        <input
+                          type="text"
+                          value={tempLabelNotes}
+                          onChange={(e) => setTempLabelNotes(e.target.value)}
+                          placeholder="e.g. Main painting brand used for exterior walls"
+                          className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary transition-all font-medium text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="flex items-center justify-center px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
+                          <span>{uploadingLabel ? 'Uploading...' : '📸 Add Photo & Save Label'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleLabelImageUpload(file);
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Labels List */}
+                    {currentLabels.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        {currentLabels.map((lbl, idx) => (
+                          <div key={idx} className="bg-white rounded-xl p-3 border border-slate-150 flex gap-3 relative group shadow-2xs">
+                            <img src={lbl.image_url} alt="Label" className="w-16 h-16 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" />
+                            <div className="min-w-0 flex-1 flex flex-col justify-between">
+                              <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-3">{lbl.notes || 'No description'}</p>
+                              <button
+                                type="button"
+                                onClick={() => removeLabel(idx)}
+                                className="text-[10px] font-bold text-red-500 hover:underline w-fit"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                // ==========================================
+                // RESIDENCIAL FORM SECTION
+                // ==========================================
+                <div className="space-y-4">
+                  {/* Name & Email */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Customer Name</label>
+                      <input
+                        type="text"
+                        value={currentClient.name || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g. John Doe"
+                        required
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
+                      <input
+                        type="email"
+                        value={currentClient.email || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, email: e.target.value }))}
+                        placeholder="e.g. john@email.com"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Address</label>
+                    <input
+                      type="text"
+                      value={currentClient.address || ''}
+                      onChange={(e) => setCurrentClient((prev) => ({ ...prev, address: e.target.value }))}
+                      placeholder="Type here..."
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                    />
+                  </div>
+
+                  {/* Area & Phone */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CustomDropdown
+                      label="Area"
+                      value={currentClient.area || ''}
+                      options={areaOptions}
+                      onChange={(val) => setCurrentClient((prev) => ({ ...prev, area: val as any }))}
+                    />
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
+                      <input
+                        type="text"
+                        value={currentClient.phone || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, phone: formatUSPhone(e.target.value) }))}
+                        placeholder="(201) 555-0123"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Additional Customer Information */}
+                  <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-2 pt-2">Additional Customer Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-semibold text-slate-600">Contact Name</label>
+                      <input
+                        type="text"
+                        value={currentClient.additional_name || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, additional_name: e.target.value }))}
+                        placeholder="Additional contact name"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 font-semibold text-slate-600">Contact Email</label>
+                      <input
+                        type="email"
+                        value={currentClient.additional_email || ''}
+                        onChange={(e) => setCurrentClient((prev) => ({ ...prev, additional_email: e.target.value }))}
+                        placeholder="Additional contact email"
+                        className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-slate-350"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Details Textarea */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Details (Type / Instructions)</label>
+                <textarea
+                  value={currentClient.details || ''}
+                  onChange={(e) => setCurrentClient((prev) => ({ ...prev, details: e.target.value }))}
+                  placeholder="Notes, references, or specific instructions..."
+                  rows={4}
+                  className="w-full border border-slate-200 rounded-2xl px-4 py-3.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+                />
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsClientModalOpen(false)}
+                  className="flex-grow px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingClient}
+                  className="flex-grow px-4 py-3 text-white bg-primary hover:bg-primary-dark text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98] shadow-md shadow-primary/10 flex items-center justify-center gap-2"
+                >
+                  {savingClient ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Saving Client...
+                    </>
+                  ) : (
+                    'Save Client'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* -------------------------------------------------------------
+          INLINE PROPERTY MANAGEMENT CREATE MODAL
+          ------------------------------------------------------------- */}
+      {isPMModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full space-y-4 border border-slate-100 animate-scaleIn">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h4 className="font-extrabold text-slate-800 text-sm">Add Property Management</h4>
+              <button onClick={() => setIsPMModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Company Name</label>
+              <input
+                type="text"
+                value={newPMName}
+                onChange={(e) => setNewPMName(e.target.value)}
+                placeholder="e.g. First Service Residential"
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsPMModalOpen(false)}
+                className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePM}
+                disabled={savingPM || !newPMName.trim()}
+                className="flex-1 px-4 py-2.5 text-white bg-primary hover:bg-primary-dark text-xs font-bold rounded-xl disabled:opacity-50"
+              >
+                {savingPM ? 'Saving...' : 'Save PM'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Dialog for Client Deletion */}
+      <ConfirmationModal
+        isOpen={clientToDelete !== null}
+        title="Delete Customer"
+        message={`Are you sure you want to delete ${clientToDelete?.name}? This action will permanently remove this customer and all associated labels.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={async () => {
+          if (clientToDelete) {
+            await executeDeleteClient(clientToDelete);
+            setClientToDelete(null);
+          }
+        }}
+        onCancel={() => setClientToDelete(null)}
+      />
     </div>
   );
 }
