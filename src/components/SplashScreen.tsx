@@ -12,8 +12,8 @@ export function SplashScreen() {
       <div
         className={`transition-all duration-700 ease-out ${visible ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}
       >
-        <div className="w-24 h-24 bg-white/20 backdrop-blur rounded-3xl flex items-center justify-center mb-6 shadow-lg">
-          <span className="text-4xl font-bold text-white tracking-tight">VR</span>
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-lg overflow-hidden p-3.5">
+          <img src="/vr1logo.png" alt="VR Bright Logo" className="w-full h-full object-contain" />
         </div>
       </div>
       <h1

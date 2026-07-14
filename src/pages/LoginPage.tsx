@@ -79,12 +79,11 @@ export function LoginPage() {
         {/* Header / Branding */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-md shadow-primary/20">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-            </div>
+            <img 
+              src="/vr1logo.png" 
+              alt="VR Bright Logo" 
+              className="w-10 h-10 object-contain bg-white rounded-xl shadow-md p-1" 
+            />
             <span className="text-gray-900 text-2xl font-bold tracking-tight">VRBright</span>
           </div>
           {/* Online/Offline indicator */}
