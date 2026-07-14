@@ -296,6 +296,15 @@ export function AdminClients() {
   const [filterStatus, setFilterStatus] = useState('ALL'); // ALL, active, inactive
   const [filterPM, setFilterPM] = useState('ALL');
 
+  const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
+    const stored = localStorage.getItem('vrbright_clients_view_mode');
+    return (stored as 'card' | 'list') || 'card';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vrbright_clients_view_mode', viewMode);
+  }, [viewMode]);
+
   // Form Modals states
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isPMModalOpen, setIsPMModalOpen] = useState(false);
@@ -733,7 +742,37 @@ export function AdminClients() {
       {/* Action Header & Filters bar */}
       <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
-          <h3 className="font-extrabold text-slate-800 text-base">Clients Management</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="font-extrabold text-slate-800 text-base">Clients Management</h3>
+            
+            {/* View Mode Toggle Buttons */}
+            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'card' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title="Card Grid"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2 2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                  viewMode === 'list' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title="Detailed List"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
           <button
             onClick={handleNewClient}
             className="px-5 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary-dark transition-all duration-200 active:scale-95 text-center flex items-center justify-center gap-1.5"
@@ -800,7 +839,7 @@ export function AdminClients() {
         <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-xs">
           <p className="text-slate-400 text-sm font-medium">No client records found matching the active filters.</p>
         </div>
-      ) : (
+      ) : viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredClients.map((client) => (
             <div key={client.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs relative flex flex-col justify-between gap-4 group hover:shadow-md transition-shadow">
@@ -838,21 +877,28 @@ export function AdminClients() {
                 {/* Sub details */}
                 <div className="space-y-1.5 text-xs text-slate-500 font-medium pt-1">
                   {client.address && (
-                    <div className="flex items-start gap-1.5">
-                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      <span className="line-clamp-2">{client.address} ({client.area})</span>
+                    <div className="flex items-start gap-2">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="line-clamp-2 leading-tight">{client.address} ({client.area})</span>
                     </div>
                   )}
                   {client.phone && (
-                    <div className="flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
-                      <span>{client.phone}</span>
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.824-1.28-5.116-3.573-6.4-6.4l1.293-.97a1.125 1.125 0 00.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+                      </svg>
+                      <span className="leading-none">{client.phone}</span>
                     </div>
                   )}
                   {client.type === 'commercial' && client.units > 0 && (
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-700">
-                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                      <span>{client.units} Units</span>
+                    <div className="flex items-center gap-2 font-semibold text-slate-700">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <span className="leading-none">{client.units} Units</span>
                     </div>
                   )}
                   {client.property_management && (
@@ -883,6 +929,136 @@ export function AdminClients() {
               </div>
             </div>
           ))}
+        </div>
+      ) : (
+        /* Detailed List View (Table Mode) */
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider bg-slate-50/50">
+                <th className="py-4 px-6">Client Name</th>
+                <th className="py-4 px-6">Address & Area</th>
+                <th className="py-4 px-6">Contact Person</th>
+                <th className="py-4 px-6 text-center">Units</th>
+                <th className="py-4 px-6">Property Management</th>
+                <th className="py-4 px-6 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+              {filteredClients.map((client) => {
+                let contactName = '';
+                let contactRole = '';
+                if (client.type === 'commercial') {
+                  if (client.pm_is_main) {
+                    contactName = client.pm_name || '';
+                    contactRole = 'Property Manager';
+                  } else if (client.sup_is_main) {
+                    contactName = client.sup_name || '';
+                    contactRole = 'Supervisor';
+                  } else {
+                    contactName = client.pm_name || client.sup_name || '';
+                    contactRole = client.pm_name ? 'Property Manager' : 'Supervisor';
+                  }
+                } else {
+                  contactName = client.additional_name || '';
+                  contactRole = 'Additional Contact';
+                }
+
+                return (
+                  <tr key={client.id} className="hover:bg-slate-50/50 transition-colors">
+                    {/* Name & Logo & Status */}
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-2xs">
+                          {client.logo_url ? (
+                            <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <span className="text-sm font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-800 line-clamp-1">{client.name}</div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                              client.type === 'commercial' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'
+                            }`}>
+                              {client.type}
+                            </span>
+                            <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                              client.active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                            }`}>
+                              {client.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Address & Area */}
+                    <td className="py-4 px-6">
+                      <div className="line-clamp-1 text-slate-800">{client.address || 'N/A'}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 font-semibold">{client.area || 'No Area'}</div>
+                    </td>
+
+                    {/* Contact Person */}
+                    <td className="py-4 px-6">
+                      {contactName ? (
+                        <div>
+                          <div className="font-semibold text-slate-800 line-clamp-1">{contactName}</div>
+                          <div className="text-xs text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{contactRole}</div>
+                        </div>
+                      ) : (
+                        <span className="text-slate-350 text-xs italic font-medium">No Contact</span>
+                      )}
+                    </td>
+
+                    {/* Units */}
+                    <td className="py-4 px-6 text-center">
+                      {client.type === 'commercial' && client.units > 0 ? (
+                        <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                          {client.units}
+                        </span>
+                      ) : (
+                        <span className="text-slate-350">—</span>
+                      )}
+                    </td>
+
+                    {/* Property Management */}
+                    <td className="py-4 px-6">
+                      {client.property_management ? (
+                        <div className="text-blue-600 font-bold text-xs flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg w-fit">
+                          <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          {client.property_management.name}
+                        </div>
+                      ) : (
+                        <span className="text-slate-350">—</span>
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditClient(client)}
+                          className="px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:text-primary-dark hover:bg-slate-100 rounded-lg active:scale-95 transition-all"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setClientToDelete(client)}
+                          className="px-2.5 py-1.5 text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg active:scale-95 transition-all"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
