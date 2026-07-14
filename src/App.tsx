@@ -18,10 +18,39 @@ import { AdjustmentPage } from './pages/AdjustmentPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
 
+// Admin Shell & Pages
+import { AdminShell } from './components/layout/AdminShell';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminClients } from './pages/admin/AdminClients';
+import { AdminProposals } from './pages/admin/AdminProposals';
+import { AdminPriceList } from './pages/admin/AdminPriceList';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminFinance } from './pages/admin/AdminFinance';
+import { AdminCalendar } from './pages/admin/AdminCalendar';
+import { AdminWorklist } from './pages/admin/AdminWorklist';
+import { AdminSettings } from './pages/admin/AdminSettings';
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
+}
+
+function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  
+  const isAdmin = ['owner', 'director', 'manager'].includes(user.tipo_user_bubble || '');
+  if (!isAdmin) return <Navigate to="/" replace />;
+  
+  return <>{children}</>;
+}
+
+function DashboardHomeWrapper() {
+  const { user } = useAuth();
+  const isAdmin = ['owner', 'director', 'manager'].includes(user?.tipo_user_bubble || '');
+  if (isAdmin) return <Navigate to="/admin" replace />;
+  return <DashboardHome />;
 }
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -54,6 +83,8 @@ export default function App() {
                 <AppFrame>
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    
+                    {/* Worker Routes */}
                     <Route
                       element={
                         <ProtectedRoute>
@@ -61,7 +92,7 @@ export default function App() {
                         </ProtectedRoute>
                       }
                     >
-                      <Route path="/" element={<DashboardHome />} />
+                      <Route path="/" element={<DashboardHomeWrapper />} />
                       <Route path="/wo" element={<WOPage />} />
                       <Route path="/chat" element={<ChatPage />} />
                       <Route path="/chat/new" element={<NewChatPage />} />
@@ -72,6 +103,25 @@ export default function App() {
                       <Route path="/clients" element={<PlaceholderPage title="Clients" />} />
                       <Route path="/pre-proposal" element={<PlaceholderPage title="Pre-Proposal" />} />
                       <Route path="/supervisors" element={<PlaceholderPage title="Supervisors" />} />
+                    </Route>
+
+                    {/* Admin Routes */}
+                    <Route
+                      element={
+                        <AdminProtectedRoute>
+                          <AdminShell />
+                        </AdminProtectedRoute>
+                      }
+                    >
+                      <Route path="/admin" element={<AdminDashboard />} />
+                      <Route path="/admin/clients" element={<AdminClients />} />
+                      <Route path="/admin/proposals" element={<AdminProposals />} />
+                      <Route path="/admin/price-list" element={<AdminPriceList />} />
+                      <Route path="/admin/users" element={<AdminUsers />} />
+                      <Route path="/admin/finance" element={<AdminFinance />} />
+                      <Route path="/admin/calendar" element={<AdminCalendar />} />
+                      <Route path="/admin/worklist" element={<AdminWorklist />} />
+                      <Route path="/admin/settings" element={<AdminSettings />} />
                     </Route>
                   </Routes>
                 </AppFrame>
