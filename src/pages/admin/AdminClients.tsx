@@ -664,7 +664,10 @@ export function AdminClients() {
                   )}
                   {client.property_management && (
                     <div className="flex items-center gap-1.5 text-blue-600 font-bold bg-blue-50/50 rounded-lg px-2 py-1 mt-1 text-[11px] w-fit">
-                      🏢 PM: {client.property_management.name}
+                      <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      PM: {client.property_management.name}
                     </div>
                   )}
                 </div>
@@ -858,21 +861,29 @@ export function AdminClients() {
                   {/* Property Manager Contacts */}
                   <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">👤 Property Manager Contact</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 font-semibold">Main Contact:</span>
-                        <input
-                          type="checkbox"
-                          checked={currentClient.pm_is_main || false}
-                          onChange={(e) =>
-                            setCurrentClient((prev) => ({
-                              ...prev,
-                              pm_is_main: e.target.checked,
-                              sup_is_main: e.target.checked ? false : prev.sup_is_main,
-                            }))
-                          }
-                          className="w-4 h-4 accent-primary"
-                        />
+                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        Property Manager Contact
+                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Main Contact:</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={currentClient.pm_is_main || false}
+                            onChange={(e) =>
+                              setCurrentClient((prev) => ({
+                                ...prev,
+                                pm_is_main: e.target.checked,
+                                sup_is_main: e.target.checked ? false : prev.sup_is_main,
+                              }))
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -903,21 +914,29 @@ export function AdminClients() {
                   {/* Supervisor Contacts */}
                   <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">👤 Supervisor Contact</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400 font-semibold">Main Contact:</span>
-                        <input
-                          type="checkbox"
-                          checked={currentClient.sup_is_main || false}
-                          onChange={(e) =>
-                            setCurrentClient((prev) => ({
-                              ...prev,
-                              sup_is_main: e.target.checked,
-                              pm_is_main: e.target.checked ? false : prev.pm_is_main,
-                            }))
-                          }
-                          className="w-4 h-4 accent-primary"
-                        />
+                      <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Supervisor Contact
+                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Main Contact:</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={currentClient.sup_is_main || false}
+                            onChange={(e) =>
+                              setCurrentClient((prev) => ({
+                                ...prev,
+                                sup_is_main: e.target.checked,
+                                pm_is_main: e.target.checked ? false : prev.pm_is_main,
+                              }))
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -960,8 +979,12 @@ export function AdminClients() {
                         />
                       </div>
                       <div>
-                        <label className="flex items-center justify-center px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
-                          <span>{uploadingLabel ? 'Uploading...' : '📸 Add Photo & Save Label'}</span>
+                        <label className="flex items-center justify-center gap-2 px-4 py-3.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider w-full active:bg-slate-100 transition-colors">
+                          <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>{uploadingLabel ? 'Uploading...' : 'Add Photo & Save Label'}</span>
                           <input
                             type="file"
                             accept="image/*"
