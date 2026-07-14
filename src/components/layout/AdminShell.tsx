@@ -144,8 +144,8 @@ export function AdminShell() {
         {/* Top Section: Logo & Name */}
         <div className="p-5 flex-shrink-0">
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-center p-1.5 shadow-sm shrink-0">
-              <img src="/logo1a.png" alt="Logo" className="w-full h-full object-contain" />
+            <div className="w-10 h-10 flex items-center justify-center shrink-0">
+              <img src="/logo2a.png" alt="Logo" className="w-full h-full object-contain" />
             </div>
             <div
               className={`transition-all duration-300 whitespace-nowrap ${
