@@ -174,6 +174,116 @@ interface Client {
   property_management?: PropertyManagement;
 }
 
+// -------------------------------------------------------------
+// SEARCH DROPDOWN FOR PROPERTY MANAGEMENT (With search input and inline Edit/Delete)
+// -------------------------------------------------------------
+interface PMSearchDropdownProps {
+  value: string;
+  options: PropertyManagement[];
+  onChange: (value: string) => void;
+  onEdit: (pm: PropertyManagement) => void;
+  onDelete: (pm: PropertyManagement) => void;
+  placeholder?: string;
+}
+
+function PMSearchDropdown({ value, options, onChange, onEdit, onDelete, placeholder = 'Select an option' }: PMSearchDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((o) => o.id === value);
+  const filteredOptions = options.filter((opt) => opt.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-medium text-slate-800 text-left shadow-2xs"
+      >
+        <span>{selectedOption ? selectedOption.name : placeholder}</span>
+        <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 animate-slideDown flex flex-col max-h-72">
+          {/* Search bar inside dropdown */}
+          <div className="px-3 pb-2 pt-1 border-b border-slate-100 flex-shrink-0">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Type to search..."
+              className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
+            />
+          </div>
+
+          <div className="overflow-y-auto flex-1 py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-3 text-xs text-slate-400 font-semibold text-center">No options found</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.id}
+                  className={`flex items-center justify-between px-3 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors group/item ${
+                    opt.id === value ? 'bg-primary/5 text-primary-dark font-semibold' : 'text-slate-700'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.id);
+                      setIsOpen(false);
+                    }}
+                    className="flex-1 text-left py-0.5 text-sm font-semibold truncate cursor-pointer"
+                  >
+                    {opt.name}
+                  </button>
+
+                  <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(opt)}
+                      title="Edit Name"
+                      className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(opt)}
+                      title="Delete PM"
+                      className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminClients() {
   // DB States
   const [clients, setClients] = useState<Client[]>([]);
@@ -206,6 +316,8 @@ export function AdminClients() {
 
   // Confirmation modal states
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [editingPM, setEditingPM] = useState<PropertyManagement | null>(null);
+  const [pmToDelete, setPmToDelete] = useState<PropertyManagement | null>(null);
 
   // Area Options
   const areaOptions = [
@@ -470,23 +582,64 @@ export function AdminClients() {
     if (!newPMName.trim()) return;
     setSavingPM(true);
     try {
-      const { data, error } = await supabase
-        .from('property_managements')
-        .insert({ name: newPMName.trim() })
-        .select()
-        .single();
-      
-      if (error) throw error;
+      if (editingPM) {
+        // UPDATE Property Management
+        const { error } = await supabase
+          .from('property_managements')
+          .update({ name: newPMName.trim() })
+          .eq('id', editingPM.id);
+        
+        if (error) throw error;
 
-      setPms((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-      setCurrentClient((prev) => ({ ...prev, property_management_id: data.id }));
+        setPms((prev) =>
+          prev
+            .map((p) => (p.id === editingPM.id ? { ...p, name: newPMName.trim() } : p))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
+      } else {
+        // INSERT Property Management
+        const { data, error } = await supabase
+          .from('property_managements')
+          .insert({ name: newPMName.trim() })
+          .select()
+          .single();
+        
+        if (error) throw error;
+
+        setPms((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+        setCurrentClient((prev) => ({ ...prev, property_management_id: data.id }));
+      }
       setNewPMName('');
+      setEditingPM(null);
       setIsPMModalOpen(false);
     } catch (err: any) {
-      console.error('Failed to create property management:', err);
+      console.error('Failed to create/edit property management:', err);
       alert(err.code === '23505' ? 'This Property Management name already exists.' : 'Failed to save Property Management.');
     } finally {
       setSavingPM(false);
+    }
+  };
+
+  // Delete Property Management
+  const executeDeletePM = async (pm: PropertyManagement) => {
+    try {
+      const { error } = await supabase
+        .from('property_managements')
+        .delete()
+        .eq('id', pm.id);
+      
+      if (error) throw error;
+
+      setPms((prev) => prev.filter((p) => p.id !== pm.id));
+      if (currentClient.property_management_id === pm.id) {
+        setCurrentClient((prev) => ({ ...prev, property_management_id: '' }));
+      }
+      if (filterPM === pm.id) {
+        setFilterPM('ALL');
+      }
+    } catch (err) {
+      console.error('Error deleting property management:', err);
+      alert('Failed to delete Property Management. Make sure it is not linked to active clients.');
     }
   };
 
@@ -841,16 +994,28 @@ export function AdminClients() {
                       <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Property Management Connection</span>
                       <button
                         type="button"
-                        onClick={() => setIsPMModalOpen(true)}
+                        onClick={() => {
+                          setEditingPM(null);
+                          setNewPMName('');
+                          setIsPMModalOpen(true);
+                        }}
                         className="text-xs font-bold text-primary-dark hover:underline flex items-center gap-0.5"
                       >
                         + New PM
                       </button>
                     </div>
-                    <CustomDropdown
+                    <PMSearchDropdown
                       value={currentClient.property_management_id || ''}
-                      options={pms.map((pm) => ({ label: pm.name, value: pm.id }))}
+                      options={pms}
                       onChange={(val) => setCurrentClient((prev) => ({ ...prev, property_management_id: val }))}
+                      onEdit={(pm) => {
+                        setEditingPM(pm);
+                        setNewPMName(pm.name);
+                        setIsPMModalOpen(true);
+                      }}
+                      onDelete={(pm) => {
+                        setPmToDelete(pm);
+                      }}
                       placeholder="Select Property Management Connection"
                     />
                   </div>
@@ -1151,14 +1316,25 @@ export function AdminClients() {
       )}
 
       {/* -------------------------------------------------------------
-          INLINE PROPERTY MANAGEMENT CREATE MODAL
+          INLINE PROPERTY MANAGEMENT CREATE/EDIT MODAL
           ------------------------------------------------------------- */}
       {isPMModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full space-y-4 border border-slate-100 animate-scaleIn">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h4 className="font-extrabold text-slate-800 text-sm">Add Property Management</h4>
-              <button onClick={() => setIsPMModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">✕</button>
+              <h4 className="font-extrabold text-slate-800 text-sm">
+                {editingPM ? 'Edit Property Management' : 'Add Property Management'}
+              </h4>
+              <button
+                onClick={() => {
+                  setNewPMName('');
+                  setEditingPM(null);
+                  setIsPMModalOpen(false);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-sm"
+              >
+                ✕
+              </button>
             </div>
             
             <div>
@@ -1175,7 +1351,11 @@ export function AdminClients() {
             <div className="flex items-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setIsPMModalOpen(false)}
+                onClick={() => {
+                  setNewPMName('');
+                  setEditingPM(null);
+                  setIsPMModalOpen(false);
+                }}
                 className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
               >
                 Cancel
@@ -1208,6 +1388,23 @@ export function AdminClients() {
           }
         }}
         onCancel={() => setClientToDelete(null)}
+      />
+
+      {/* Custom Confirmation Dialog for Property Management Deletion */}
+      <ConfirmationModal
+        isOpen={pmToDelete !== null}
+        title="Delete Property Management"
+        message={`Are you sure you want to delete ${pmToDelete?.name}? This action will permanently remove this management company. Any clients connected to this company will lose their connection.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={async () => {
+          if (pmToDelete) {
+            await executeDeletePM(pmToDelete);
+            setPmToDelete(null);
+          }
+        }}
+        onCancel={() => setPmToDelete(null)}
       />
     </div>
   );
