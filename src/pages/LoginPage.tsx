@@ -75,31 +75,42 @@ export function LoginPage() {
   return (
     <div className="min-h-dvh bg-gray-100 flex items-stretch">
       {/* LEFT SIDE: Form Container */}
-      <div className="w-full lg:w-[45%] flex flex-col justify-between bg-white px-8 py-10 md:px-16 md:py-16 relative">
+      <div className="w-full lg:w-[45%] flex flex-col justify-between px-8 py-10 md:px-16 md:py-16 relative overflow-hidden bg-slate-950 text-white">
+        {/* Dark image background with low opacity cover */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center opacity-15 pointer-events-none filter brightness-50 contrast-125 scale-105"
+          style={{ backgroundImage: 'url("/vr1logo.png")' }}
+        />
+        {/* Soft overlay gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-950/80 to-slate-950/98 pointer-events-none" />
+        
+        {/* Glow effect */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+
         {/* Header / Branding */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             <img 
               src="/vr1logo.png" 
               alt="VR Bright Logo" 
-              className="w-10 h-10 object-contain bg-white rounded-xl shadow-md p-1" 
+              className="w-10 h-10 object-contain bg-white/10 rounded-xl shadow-md p-1.5 backdrop-blur-md border border-white/10" 
             />
-            <span className="text-gray-900 text-2xl font-bold tracking-tight">VRBright</span>
+            <span className="text-white text-2xl font-bold tracking-tight">VRBright</span>
           </div>
           {/* Online/Offline indicator */}
           <div
-            className={`w-3.5 h-3.5 rounded-full ring-4 ring-gray-100 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}
+            className={`w-3.5 h-3.5 rounded-full ring-4 ring-white/10 ${isOnline ? 'bg-green-400' : 'bg-red-500'}`}
             title={isOnline ? 'Online' : 'Offline'}
           />
         </div>
 
         {/* Form Body */}
-        <div className="my-auto max-w-md w-full mx-auto pt-10 pb-6">
-          <h2 className="text-3xl font-extrabold text-gray-900 leading-tight tracking-tight mb-2">Welcome Back</h2>
-          <p className="text-sm text-gray-500 mb-8 font-medium">Please enter your credentials to access the portal.</p>
+        <div className="my-auto max-w-md w-full mx-auto pt-10 pb-6 z-10">
+          <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Welcome Back</h2>
+          <p className="text-sm text-gray-400 mb-8 font-medium">Please enter your credentials to access the portal.</p>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-semibold leading-relaxed">
+            <div className="mb-6 p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-sm text-red-200 font-semibold leading-relaxed">
               {error}
             </div>
           )}
@@ -118,7 +129,7 @@ export function LoginPage() {
                 placeholder="your@email.com"
                 required
                 autoComplete="email"
-                className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white focus:border-transparent transition-all placeholder:text-gray-400 font-medium"
+                className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
               />
             </div>
 
@@ -136,12 +147,12 @@ export function LoginPage() {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full border border-gray-200 rounded-2xl px-4 py-3.5 pr-11 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white focus:border-transparent transition-all placeholder:text-gray-400 font-medium"
+                  className="w-full border border-white/10 rounded-2xl px-4 py-3.5 pr-11 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 p-1.5 active:scale-90 transition-transform"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1.5 active:scale-90 transition-transform"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
@@ -160,7 +171,7 @@ export function LoginPage() {
 
             {/* Forgot password */}
             <div className="text-right">
-              <button type="button" className="text-xs text-primary-dark font-bold hover:underline">
+              <button type="button" className="text-xs text-primary font-bold hover:underline">
                 Forgot password?
               </button>
             </div>
@@ -171,7 +182,7 @@ export function LoginPage() {
               variant="primary"
               size="lg"
               disabled={loading}
-              className="w-full mt-4 h-12 rounded-2xl font-bold uppercase tracking-wider shadow-md shadow-primary/20"
+              className="w-full mt-4 h-12 rounded-2xl font-bold uppercase tracking-wider shadow-md shadow-primary/20 bg-primary hover:bg-primary-dark transition-all duration-200"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -189,8 +200,8 @@ export function LoginPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center lg:text-left mt-auto">
-          <p className="text-xs text-gray-400 font-semibold">
+        <div className="text-center lg:text-left mt-auto z-10">
+          <p className="text-xs text-gray-500 font-semibold">
             VRBright &mdash; &copy; {new Date().getFullYear()} · All rights reserved.
           </p>
         </div>
