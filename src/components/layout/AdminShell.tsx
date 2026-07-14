@@ -152,7 +152,7 @@ export function AdminShell() {
         </div>
 
         {/* Middle Section: Collapsible Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.to || (item.to !== '/admin' && location.pathname.startsWith(item.to));
             return (
