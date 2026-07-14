@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import {
   getDMsForUser,
@@ -85,6 +85,8 @@ export default function ChatPage() {
   const { setActiveConversationId } = useActiveConversation()
   const [searchParams, setSearchParams] = useSearchParams()
   const isOnline = useOnlineStatus()
+  const location = useLocation()
+  const prefix = location.pathname.startsWith('/admin') ? '/admin' : ''
 
   const [activeTab, setActiveTab] = useState<Tab>('chats')
 
@@ -933,7 +935,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-1">
             {(activeTab === 'chats' || (activeTab === 'groups' && canCreateGroups(user?.tipo_user_bubble))) && (
               <button
-                onClick={() => navigate(activeTab === 'groups' ? '/chat/groups/new' : '/chat/new')}
+                onClick={() => navigate(activeTab === 'groups' ? `${prefix}/chat/groups/new` : `${prefix}/chat/new`)}
                 className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center"
                 aria-label="New"
               >

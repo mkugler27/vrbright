@@ -122,6 +122,9 @@ export default function App() {
                       <Route path="/admin/calendar" element={<AdminCalendar />} />
                       <Route path="/admin/worklist" element={<AdminWorklist />} />
                       <Route path="/admin/settings" element={<AdminSettings />} />
+                      <Route path="/admin/chat" element={<ChatPage />} />
+                      <Route path="/admin/chat/new" element={<NewChatPage />} />
+                      <Route path="/admin/chat/groups/new" element={<NewGroupPage />} />
                     </Route>
                   </Routes>
                 </AppFrame>

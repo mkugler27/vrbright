@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { getSupabaseUserById, searchUsersForGroup, createGroupConversation, canCreateGroups } from '../services/chatApi'
 import type { User } from '../services/supabase'
@@ -11,6 +11,8 @@ function getInitials(name: string): string {
 export default function NewGroupPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const prefix = location.pathname.startsWith('/admin') ? '/admin' : ''
 
   const [myId, setMyId] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -25,7 +27,7 @@ export default function NewGroupPage() {
   useEffect(() => {
     if (!user) return
     if (!canCreateGroups(user.tipo_user_bubble)) {
-      navigate('/chat', { replace: true })
+      navigate(`${prefix}/chat`, { replace: true })
     }
   }, [user, navigate])
 
@@ -84,7 +86,7 @@ export default function NewGroupPage() {
         setCreating(false)
         return
       }
-      navigate(`/chat?c=${convId}`)
+      navigate(`${prefix}/chat?c=${convId}`)
     } catch (e) {
       console.error(e)
       setError('Unexpected error. Please try again.')
@@ -110,7 +112,7 @@ export default function NewGroupPage() {
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shrink-0">
-        <button onClick={() => navigate('/chat')} className="p-2 rounded-full hover:bg-gray-100">
+        <button onClick={() => navigate(`${prefix}/chat`)} className="p-2 rounded-full hover:bg-gray-100">
           <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>

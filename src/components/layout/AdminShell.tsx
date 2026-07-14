@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useOnlineStatus } from '../../hooks/useOnlineStatus';
+import { useUnreadCount } from '../../context/UnreadContext';
 import { ConfirmationModal } from '../ui/ConfirmationModal';
 
 export function AdminShell() {
@@ -9,6 +10,7 @@ export function AdminShell() {
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();
   const location = useLocation();
+  const { count: unreadCount } = useUnreadCount();
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -38,6 +40,15 @@ export function AdminShell() {
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+    },
+    {
+      to: '/admin/chat',
+      label: 'Chat',
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
       ),
     },
@@ -183,6 +194,15 @@ export function AdminShell() {
                 >
                   {item.label}
                 </span>
+
+                {/* Unread count badge for Chat */}
+                {item.to === '/admin/chat' && unreadCount > 0 && (
+                  <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 min-w-[18px] h-4.5 px-1 bg-red-500 rounded-full text-white text-[9px] font-extrabold flex items-center justify-center shadow-sm ${
+                    collapsed ? 'right-2.5 top-2.5 translate-y-0' : ''
+                  }`}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
 
                 {/* Collapsed Tooltip */}
                 {collapsed && (

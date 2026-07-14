@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import {
   createIndividualConversation,
@@ -19,6 +19,8 @@ type UserWithStatus = User & {
 export default function NewChatPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const prefix = location.pathname.startsWith('/admin') ? '/admin' : ''
   const isOnline = useOnlineStatus()
   const [users, setUsers] = useState<UserWithStatus[]>([])
   const [loading, setLoading] = useState(true)
@@ -169,13 +171,13 @@ export default function NewChatPage() {
 
     // Reuse existing conversation if present
     if (targetUser.conversation_id) {
-      navigate(`/chat?c=${targetUser.conversation_id}`)
+      navigate(`${prefix}/chat?c=${targetUser.conversation_id}`)
       return
     }
 
     const convId = await createIndividualConversation(me.id, targetUser.id)
     setCreating(null)
-    if (convId) navigate(`/chat?c=${convId}`)
+    if (convId) navigate(`${prefix}/chat?c=${convId}`)
   }
 
   function formatTime(dateStr: string | null): string {
@@ -206,7 +208,7 @@ export default function NewChatPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 shadow-sm">
         <button
-          onClick={() => navigate('/chat')}
+          onClick={() => navigate(`${prefix}/chat`)}
           className="p-2 rounded-full hover:bg-gray-100 transition-colors"
         >
           <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
