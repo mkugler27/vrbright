@@ -195,13 +195,13 @@ export function AdminShell() {
                   {item.label}
                 </span>
 
-                {/* Unread count badge for Chat */}
+                {/* Unread count dot for Chat */}
                 {item.to === '/admin/chat' && unreadCount > 0 && (
-                  <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 min-w-[18px] h-4.5 px-1 bg-red-500 rounded-full text-white text-[9px] font-extrabold flex items-center justify-center shadow-sm ${
-                    collapsed ? 'right-2.5 top-2.5 translate-y-0' : ''
-                  }`}>
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
+                  <span className={`absolute bg-red-500 rounded-full shadow-sm ${
+                    collapsed 
+                      ? 'w-2 h-2 right-2.5 top-2.5' 
+                      : 'w-2 h-2 right-4.5 top-1/2 -translate-y-1/2'
+                  }`} />
                 )}
 
                 {/* Collapsed Tooltip */}
