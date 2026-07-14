@@ -78,11 +78,11 @@ export function LoginPage() {
       <div className="w-full lg:w-[45%] flex flex-col justify-between px-8 py-10 md:px-16 md:py-16 relative overflow-hidden bg-slate-950 text-white">
         {/* Dark image background with low opacity cover */}
         <div 
-          className="absolute inset-0 bg-cover bg-center opacity-15 pointer-events-none filter brightness-50 contrast-125 scale-105"
+          className="absolute inset-0 bg-cover bg-center opacity-40 pointer-events-none filter contrast-125 scale-105"
           style={{ backgroundImage: 'url("/vr1logo.png")' }}
         />
         {/* Soft overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 via-slate-950/80 to-slate-950/98 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-950/60 to-slate-950/95 pointer-events-none" />
         
         {/* Glow effect */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[350px] h-[350px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
@@ -91,7 +91,7 @@ export function LoginPage() {
         <div className="flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             <img 
-              src="/vr1logo.png" 
+              src="/logo1a.png" 
               alt="VR Bright Logo" 
               className="w-10 h-10 object-contain bg-white/10 rounded-xl shadow-md p-1.5 backdrop-blur-md border border-white/10" 
             />
