@@ -328,6 +328,7 @@ export function AdminClients() {
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [editingPM, setEditingPM] = useState<PropertyManagement | null>(null);
   const [pmToDelete, setPmToDelete] = useState<PropertyManagement | null>(null);
+  const [expandedLogoUrl, setExpandedLogoUrl] = useState<string | null>(null);
 
   // Area Options
   const areaOptions = [
@@ -692,25 +693,27 @@ export function AdminClients() {
     }
   };
 
-  // Filter clients list
-  const filteredClients = clients.filter((client) => {
-    // Search by Name
-    if (searchName && !client.name.toLowerCase().includes(searchName.toLowerCase())) return false;
-    
-    // Filter Type
-    if (filterType !== 'ALL' && client.type !== filterType) return false;
+  // Filter and sort clients list
+  const filteredClients = clients
+    .filter((client) => {
+      // Search by Name
+      if (searchName && !client.name.toLowerCase().includes(searchName.toLowerCase())) return false;
+      
+      // Filter Type
+      if (filterType !== 'ALL' && client.type !== filterType) return false;
 
-    // Filter Status
-    if (filterStatus !== 'ALL') {
-      const wantActive = filterStatus === 'ACTIVE';
-      if (client.active !== wantActive) return false;
-    }
+      // Filter Status
+      if (filterStatus !== 'ALL') {
+        const wantActive = filterStatus === 'ACTIVE';
+        if (client.active !== wantActive) return false;
+      }
 
-    // Filter Property Management
-    if (filterPM !== 'ALL' && client.property_management_id !== filterPM) return false;
+      // Filter Property Management
+      if (filterPM !== 'ALL' && client.property_management_id !== filterPM) return false;
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   // Aggregated Sum totals
   const totalUnits = filteredClients.reduce((acc, curr) => acc + (curr.units || 0), 0);
@@ -851,7 +854,12 @@ export function AdminClients() {
                     {/* Logo/Avatar */}
                     <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 shrink-0 overflow-hidden shadow-xs">
                       {client.logo_url ? (
-                        <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain" />
+                        <img
+                          src={client.logo_url}
+                          alt={client.name}
+                          onClick={() => setExpandedLogoUrl(client.logo_url || null)}
+                          className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-200"
+                        />
                       ) : (
                         <span className="text-lg font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
                       )}
@@ -984,7 +992,12 @@ export function AdminClients() {
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-2xs">
                           {client.logo_url ? (
-                            <img src={client.logo_url} alt={client.name} className="w-full h-full object-contain" />
+                            <img
+                              src={client.logo_url}
+                              alt={client.name}
+                              onClick={() => setExpandedLogoUrl(client.logo_url || null)}
+                              className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-200"
+                            />
                           ) : (
                             <span className="text-sm font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
                           )}
@@ -1697,6 +1710,33 @@ export function AdminClients() {
         }}
         onCancel={() => setPmToDelete(null)}
       />
+
+      {/* Expanded Client Logo Lightbox Modal */}
+      {expandedLogoUrl && (
+        <div
+          className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-4 z-[60] overflow-hidden cursor-pointer"
+          onClick={() => setExpandedLogoUrl(null)}
+        >
+          <div className="relative max-w-3xl max-h-[85vh] bg-white rounded-3xl p-3 shadow-2xl border border-white/10 animate-scaleIn flex flex-col items-center justify-center">
+            {/* Close Button */}
+            <button
+              onClick={() => setExpandedLogoUrl(null)}
+              className="absolute -top-3.5 -right-3.5 w-8 h-8 bg-slate-800 text-white hover:bg-slate-900 rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all z-10 cursor-pointer"
+              aria-label="Close Preview"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img
+              src={expandedLogoUrl}
+              alt="Expanded Client Logo"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
