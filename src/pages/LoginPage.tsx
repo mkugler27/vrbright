@@ -16,6 +16,14 @@ export function LoginPage() {
   const navigate = useNavigate()
   const { setUser } = useAuth()
 
+  // First access password reset states
+  const [mustChangePassword, setMustChangePassword] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [tempUserId, setTempUserId] = useState('')
+  const [tempProfile, setTempProfile] = useState<any>(null)
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -54,6 +62,14 @@ export function LoginPage() {
         return
       }
 
+      if (profile.requires_password_change) {
+        setTempUserId(authData.user.id)
+        setTempProfile(profile)
+        setMustChangePassword(true)
+        setLoading(false)
+        return
+      }
+
       setUser({
         id: authData.user.id,
         email: email,
@@ -69,6 +85,61 @@ export function LoginPage() {
       console.error('Login error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (newPassword.length < 6) {
+      setError('A nova senha deve ter pelo menos 6 caracteres.')
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError('As senhas não coincidem.')
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      // Update password in Supabase Auth
+      const { error: authErr } = await supabase.auth.updateUser({ password: newPassword })
+      if (authErr) {
+        setError(authErr.message)
+        setChangingPassword(false)
+        return
+      }
+
+      // Update requires_password_change to false in public.users profile
+      const { error: profileErr } = await supabase
+        .from('users')
+        .update({ requires_password_change: false })
+        .eq('id', tempUserId)
+        
+      if (profileErr) {
+        setError(profileErr.message)
+        setChangingPassword(false)
+        return
+      }
+
+      // Set user context and navigate to home
+      setUser({
+        id: tempUserId,
+        email: email,
+        nome: tempProfile.nome || email.split('@')[0],
+        profile_picture: tempProfile.avatar_url,
+        tipo_user_bubble: tempProfile.tipo_user_bubble,
+        bubble_id: tempProfile.bubble_id
+      })
+
+      navigate('/')
+    } catch (err) {
+      setError('Erro ao alterar a senha. Tente novamente.')
+      console.error(err)
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -102,101 +173,168 @@ export function LoginPage() {
             className={`w-3.5 h-3.5 rounded-full ring-4 ring-white/10 ${isOnline ? 'bg-green-400' : 'bg-red-500'}`}
             title={isOnline ? 'Online' : 'Offline'}
           />
-        </div>
-
-        {/* Form Body */}
+        </div>        {/* Form Body */}
         <div className="my-auto max-w-md w-full mx-auto pt-10 pb-6 z-10">
-          <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Welcome Back</h2>
-          <p className="text-sm text-gray-400 mb-8 font-medium">Please enter your credentials to access the portal.</p>
+          {mustChangePassword ? (
+            <>
+              <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Altere sua senha</h2>
+              <p className="text-sm text-gray-400 mb-8 font-medium">Este é seu primeiro acesso. Por favor, defina uma nova senha segura para prosseguir.</p>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-sm text-red-200 font-semibold leading-relaxed">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-5">
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="email">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-                autoComplete="email"
-                className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="password">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  autoComplete="current-password"
-                  className="w-full border border-white/10 rounded-2xl px-4 py-3.5 pr-11 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1.5 active:scale-90 transition-transform"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Forgot password */}
-            <div className="text-right">
-              <button type="button" className="text-xs text-primary font-bold hover:underline">
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit */}
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              disabled={loading}
-              className="w-full mt-4 h-12 rounded-2xl font-bold uppercase tracking-wider shadow-md shadow-primary/20 bg-primary hover:bg-primary-dark transition-all duration-200"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
+              {error && (
+                <div className="mb-6 p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-sm text-red-200 font-semibold leading-relaxed">
+                  {error}
+                </div>
               )}
-            </Button>
-          </form>
+
+              <form onSubmit={handleChangePassword} className="space-y-5">
+                {/* New Password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="new-password">
+                    Nova Senha
+                  </label>
+                  <input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    required
+                    className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
+                  />
+                </div>
+
+                {/* Confirm New Password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="confirm-password">
+                    Confirme a Nova Senha
+                  </label>
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                    required
+                    className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  disabled={changingPassword}
+                  className="w-full mt-4 h-12 rounded-2xl font-bold uppercase tracking-wider shadow-md shadow-primary/20 bg-primary hover:bg-primary-dark transition-all duration-200"
+                >
+                  {changingPassword ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Salvando senha...
+                    </span>
+                  ) : (
+                    'Salvar Senha e Entrar'
+                  )}
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Welcome Back</h2>
+              <p className="text-sm text-gray-400 mb-8 font-medium">Please enter your credentials to access the portal.</p>
+
+              {error && (
+                <div className="mb-6 p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-sm text-red-200 font-semibold leading-relaxed">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-5">
+                {/* Email */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="email">
+                    Email Address
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                    autoComplete="email"
+                    className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="password">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      autoComplete="current-password"
+                      className="w-full border border-white/10 rounded-2xl px-4 py-3.5 pr-11 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-1.5 active:scale-90 transition-transform"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542 7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Forgot password */}
+                <div className="text-right">
+                  <button type="button" className="text-xs text-primary font-bold hover:underline">
+                    Forgot password?
+                  </button>
+                </div>
+
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  disabled={loading}
+                  className="w-full mt-4 h-12 rounded-2xl font-bold uppercase tracking-wider shadow-md shadow-primary/20 bg-primary hover:bg-primary-dark transition-all duration-200"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Signing in...
+                    </span>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+              </form>
+            </>
+          )}
         </div>
 
         {/* Footer */}

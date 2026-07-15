@@ -30,4 +30,16 @@ export type User = {
   telefone?: string
   emergency_contact?: string
   emergency_name?: string
+  nickname?: string
+  company_name?: string
+  ein?: string
+  address?: string
+  dob?: string
+  date_hired?: string
+  fired_date?: string
+  works_comp_url?: string
+  works_comp_valid_until?: string
+  insurance_url?: string
+  insurance_valid_until?: string
+  requires_password_change?: boolean
 }
