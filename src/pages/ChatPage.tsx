@@ -923,7 +923,6 @@ export default function ChatPage() {
             <div className="flex items-center gap-1.5">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`}
-                title={isOnline ? 'Online' : 'Offline'}
               />
               {!isOnline && (
                 <span className="text-[10px] bg-red-50 text-red-600 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
@@ -1005,7 +1004,6 @@ export default function ChatPage() {
               {getParticipantNames(activeConversation)}
               <span 
                 className={`w-2 h-2 rounded-full ${isOtherUserOnline ? 'bg-emerald-500' : 'bg-red-500'}`} 
-                title={isOtherUserOnline ? "Online" : "Offline"} 
               />
             </p>
             <p className="text-xs text-gray-500 capitalize flex items-center gap-1.5">
@@ -1038,7 +1036,6 @@ export default function ChatPage() {
                 filterWOId || filterDate || filterSearch ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-500 hover:text-gray-700'
               }`}
               aria-label="Search and Filter"
-              title="Search and Filter"
             >
               <svg className="w-5.5 h-5.5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.59l-5.432 5.432a2.25 2.25 0 00-.659 1.59v3.492a2.25 2.25 0 01-1.11 1.954l-3.038 1.724A.75.75 0 0110 18.15v-4.226a2.25 2.25 0 00-.659-1.59L3.91 6.902A2.25 2.25 0 013.25 5.313V4.774c0-.54.384-1.006.917-1.096A50.06 50.06 0 0112 3z" />
@@ -1272,7 +1269,6 @@ export default function ChatPage() {
                             onClick={(e) => { e.stopPropagation(); handleDelete(msg); }}
                             className="hover:text-red-300 opacity-70 hover:opacity-100 transition-colors"
                             aria-label="Delete message"
-                            title="Delete message"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>
