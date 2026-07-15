@@ -330,6 +330,90 @@ export function AdminClients() {
   const [pmToDelete, setPmToDelete] = useState<PropertyManagement | null>(null);
   const [expandedLogoUrl, setExpandedLogoUrl] = useState<string | null>(null);
   const [mapPopupAddress, setMapPopupAddress] = useState<string | null>(null);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
+
+  // Auto calculate route from user location to active map address
+  useEffect(() => {
+    const address = mapPopupAddress || '';
+    if (!address) {
+      setRouteInfo(null);
+      return;
+    }
+
+    let isMounted = true;
+    async function calculateDistance() {
+      setRouteLoading(true);
+      setRouteInfo(null);
+      
+      try {
+        let lat = userCoords?.lat;
+        let lon = userCoords?.lon;
+        
+        if (!lat || !lon) {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 5000
+            });
+          });
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+          setUserCoords({ lat, lon });
+        }
+
+        // Geocode destination client address using Nominatim (OpenStreetMap)
+        const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
+        const geoRes = await fetch(geocodeUrl, {
+          headers: {
+            'User-Agent': 'VRBright-Admin-Portal/1.0'
+          }
+        });
+        const geoData = await geoRes.json();
+        
+        if (!geoData || geoData.length === 0) {
+          throw new Error('Address location coordinates not found');
+        }
+        
+        const destLat = parseFloat(geoData[0].lat);
+        const destLon = parseFloat(geoData[0].lon);
+
+        // Fetch routing route from OSRM
+        const routeUrl = `https://router.project-osrm.org/route/v1/driving/${lon},${lat};${destLon},${destLat}?overview=false`;
+        const routeRes = await fetch(routeUrl);
+        const routeData = await routeRes.json();
+
+        if (!routeData.routes || routeData.routes.length === 0) {
+          throw new Error('No driving route found');
+        }
+
+        const route = routeData.routes[0];
+        const distanceKm = route.distance / 1000;
+        const distanceMiles = distanceKm * 0.621371; // Convert to miles
+        
+        const durationMins = Math.round(route.duration / 60);
+
+        if (isMounted) {
+          setRouteInfo({
+            distance: `${distanceMiles.toFixed(1)} miles`,
+            duration: `${durationMins} mins`
+          });
+        }
+      } catch (err) {
+        console.warn('Could not calculate routing:', err);
+      } finally {
+        if (isMounted) {
+          setRouteLoading(false);
+        }
+      }
+    }
+
+    calculateDistance();
+    return () => {
+      isMounted = false;
+    };
+  }, [mapPopupAddress]);
 
   // Area Options
   const areaOptions = [
@@ -1792,6 +1876,29 @@ export function AdminClients() {
                 </svg>
               </button>
             </div>
+
+            {/* Route calculations */}
+            {(routeLoading || routeInfo) && (
+              <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3 flex items-center justify-between gap-4 animate-fadeIn shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100/75 flex items-center justify-center text-blue-600 shrink-0">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 block">Estimated Travel from Your Location</span>
+                    {routeLoading ? (
+                      <span className="text-xs text-slate-500 font-semibold animate-pulse block mt-0.5">Calculating distance and driving time...</span>
+                    ) : (
+                      <span className="text-sm font-extrabold text-slate-800 block mt-0.5">
+                        {routeInfo?.distance} <span className="text-slate-300 font-normal mx-2">•</span> {routeInfo?.duration} driving time
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Map Frame Container */}
             <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-slate-100 shadow-inner bg-slate-50 flex items-center justify-center relative">
