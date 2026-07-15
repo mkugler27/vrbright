@@ -885,13 +885,19 @@ export function AdminClients() {
                 {/* Sub details */}
                 <div className="space-y-1.5 text-xs text-slate-500 font-medium pt-0.5">
                   {client.address && (
-                    <div className="flex items-start gap-2">
-                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 hover:text-primary transition-colors group cursor-pointer"
+                      title="View on Google Maps"
+                    >
+                      <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                      <span className="line-clamp-2 leading-tight">{client.address} ({client.area})</span>
-                    </div>
+                      <span className="line-clamp-2 leading-tight group-hover:underline">{client.address} ({client.area})</span>
+                    </a>
                   )}
                   {client.phone && (
                     <div className="flex items-center gap-2">
@@ -1020,10 +1026,27 @@ export function AdminClients() {
                       </div>
                     </td>
 
-                    {/* Address & Area */}
                     <td className="py-4 px-6">
-                      <div className="line-clamp-1 text-slate-800">{client.address || 'N/A'}</div>
-                      <div className="text-xs text-slate-400 mt-0.5 font-semibold">{client.area || 'No Area'}</div>
+                      {client.address ? (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors group cursor-pointer flex flex-col"
+                          title="View on Google Maps"
+                        >
+                          <span className="line-clamp-1 text-slate-800 group-hover:underline font-semibold flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5 text-slate-450 shrink-0 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {client.address}
+                          </span>
+                          <span className="text-xs text-slate-400 mt-0.5 font-semibold pl-4.5">{client.area || 'No Area'}</span>
+                        </a>
+                      ) : (
+                        <span className="text-slate-350 italic">N/A</span>
+                      )}
                     </td>
 
                     {/* Contact Person */}
