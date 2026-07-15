@@ -1767,7 +1767,7 @@ export function AdminClients() {
           onClick={() => setMapPopupAddress(null)}
         >
           <div
-            className="bg-white rounded-3xl p-5 shadow-2xl border border-slate-100 max-w-2xl w-full flex flex-col gap-4 animate-scaleIn cursor-default"
+            className="bg-white rounded-3xl p-5 shadow-2xl border border-slate-100 max-w-4xl w-full flex flex-col gap-4 animate-scaleIn cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -1794,7 +1794,7 @@ export function AdminClients() {
             </div>
 
             {/* Map Frame Container */}
-            <div className="w-full h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-inner bg-slate-50 flex items-center justify-center relative">
+            <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-slate-100 shadow-inner bg-slate-50 flex items-center justify-center relative">
               <iframe
                 title="Location Map Viewer"
                 width="100%"
