@@ -56,7 +56,7 @@ export function LoginPage() {
       }
 
       if (profile.ativo === false) {
-        setError('Sua conta está bloqueada pelo Administrador.')
+        setError('Your account has been blocked by the Administrator.')
         await supabase.auth.signOut()
         setLoading(false)
         return
@@ -93,12 +93,12 @@ export function LoginPage() {
     setError('')
 
     if (newPassword.length < 6) {
-      setError('A nova senha deve ter pelo menos 6 caracteres.')
+      setError('The new password must be at least 6 characters.')
       return
     }
 
     if (newPassword !== confirmNewPassword) {
-      setError('As senhas não coincidem.')
+      setError('Passwords do not match.')
       return
     }
 
@@ -136,7 +136,7 @@ export function LoginPage() {
 
       navigate('/')
     } catch (err) {
-      setError('Erro ao alterar a senha. Tente novamente.')
+      setError('Error changing password. Please try again.')
       console.error(err)
     } finally {
       setChangingPassword(false)
@@ -177,8 +177,8 @@ export function LoginPage() {
         <div className="my-auto max-w-md w-full mx-auto pt-10 pb-6 z-10">
           {mustChangePassword ? (
             <>
-              <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Altere sua senha</h2>
-              <p className="text-sm text-gray-400 mb-8 font-medium">Este é seu primeiro acesso. Por favor, defina uma nova senha segura para prosseguir.</p>
+              <h2 className="text-3xl font-extrabold text-white leading-tight tracking-tight mb-2">Change your password</h2>
+              <p className="text-sm text-gray-400 mb-8 font-medium">This is your first access. Please set a new secure password to proceed.</p>
 
               {error && (
                 <div className="mb-6 p-4 bg-red-950/40 border border-red-800/40 rounded-2xl text-sm text-red-200 font-semibold leading-relaxed">
@@ -190,14 +190,14 @@ export function LoginPage() {
                 {/* New Password */}
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="new-password">
-                    Nova Senha
+                    New Password
                   </label>
                   <input
                     id="new-password"
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder="Minimum 6 characters"
                     required
                     className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
                   />
@@ -206,14 +206,14 @@ export function LoginPage() {
                 {/* Confirm New Password */}
                 <div>
                   <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2" htmlFor="confirm-password">
-                    Confirme a Nova Senha
+                    Confirm New Password
                   </label>
                   <input
                     id="confirm-password"
                     type="password"
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Repita a nova senha"
+                    placeholder="Repeat new password"
                     required
                     className="w-full border border-white/10 rounded-2xl px-4 py-3.5 text-sm bg-white/5 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white/10 focus:border-transparent transition-all placeholder:text-gray-500 font-medium"
                   />
@@ -232,10 +232,10 @@ export function LoginPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                       </svg>
-                      Salvando senha...
+                      Saving password...
                     </span>
                   ) : (
-                    'Salvar Senha e Entrar'
+                    'Save Password & Sign In'
                   )}
                 </Button>
               </form>

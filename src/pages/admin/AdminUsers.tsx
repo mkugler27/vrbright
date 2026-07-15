@@ -14,6 +14,14 @@ function formatUSPhone(value: string) {
   return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 }
 
+function formatDateUS(dateStr?: string) {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  return `${month}/${day}/${year}`;
+}
+
 export function AdminUsers() {
 
   const [users, setUsers] = useState<User[]>([]);
@@ -236,7 +244,7 @@ export function AdminUsers() {
       return { label: `Expires in ${diffDays}d`, color: 'text-amber-600 bg-amber-50 border-amber-100 font-bold' };
     }
     return {
-      label: `Valid until ${expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+      label: `Valid until ${formatDateUS(expiryDateStr)}`,
       color: 'text-emerald-600 bg-emerald-50 border-emerald-100 font-semibold',
     };
   };
@@ -893,7 +901,18 @@ export function AdminUsers() {
                   <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 space-y-3">
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Workers Compensation</span>
                     <div>
-                      {currentUser.works_comp_url && !worksCompFile ? (
+                      {worksCompFile ? (
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700">
+                          <span className="truncate">📎 {worksCompFile.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setWorksCompFile(null)}
+                            className="text-[10px] text-red-500 hover:underline font-bold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : currentUser.works_comp_url ? (
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-2.5 text-xs">
                           <a
                             href={currentUser.works_comp_url}
@@ -912,12 +931,15 @@ export function AdminUsers() {
                           </button>
                         </div>
                       ) : (
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          onChange={(e) => setWorksCompFile(e.target.files?.[0] || null)}
-                          className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                        />
+                        <label className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider transition-colors active:bg-slate-50">
+                          <span>Choose PDF File</span>
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={(e) => setWorksCompFile(e.target.files?.[0] || null)}
+                            className="hidden"
+                          />
+                        </label>
                       )}
                     </div>
                     <div>
@@ -935,7 +957,18 @@ export function AdminUsers() {
                   <div className="border border-slate-100 rounded-2xl p-4 bg-slate-50/50 space-y-3">
                     <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider">General Liability Insurance</span>
                     <div>
-                      {currentUser.insurance_url && !insuranceFile ? (
+                      {insuranceFile ? (
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-semibold text-slate-700">
+                          <span className="truncate">📎 {insuranceFile.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setInsuranceFile(null)}
+                            className="text-[10px] text-red-500 hover:underline font-bold"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : currentUser.insurance_url && !insuranceFile ? (
                         <div className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-2.5 text-xs">
                           <a
                             href={currentUser.insurance_url}
@@ -954,12 +987,15 @@ export function AdminUsers() {
                           </button>
                         </div>
                       ) : (
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          onChange={(e) => setInsuranceFile(e.target.files?.[0] || null)}
-                          className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                        />
+                        <label className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-dashed border-slate-300 hover:border-primary rounded-xl cursor-pointer bg-white text-xs font-bold text-slate-500 uppercase tracking-wider transition-colors active:bg-slate-50">
+                          <span>Choose PDF File</span>
+                          <input
+                            type="file"
+                            accept=".pdf"
+                            onChange={(e) => setInsuranceFile(e.target.files?.[0] || null)}
+                            className="hidden"
+                          />
+                        </label>
                       )}
                     </div>
                     <div>
