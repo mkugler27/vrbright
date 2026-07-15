@@ -1205,22 +1205,26 @@ export function AdminClients() {
           ------------------------------------------------------------- */}
       {isClientModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] border border-slate-100 overflow-hidden animate-scaleIn">
+          <form
+            onSubmit={handleSaveClient}
+            className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] border border-slate-100 overflow-hidden animate-scaleIn"
+          >
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
               <h3 className="font-extrabold text-slate-800 text-lg">
                 {currentClient.id ? 'Edit Customer' : 'New Customer'}
               </h3>
               <button
+                type="button"
                 onClick={() => setIsClientModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center text-lg active:scale-90 transition-transform"
+                className="w-8 h-8 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center text-lg active:scale-90 transition-transform cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             {/* Modal Scrollable Body */}
-            <form onSubmit={handleSaveClient} className="flex-grow overflow-y-auto p-6 space-y-6">
+            <div className="flex-grow overflow-y-auto p-6 space-y-6">
               {/* Type Switcher tabs */}
               <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
                 <button
@@ -1696,32 +1700,33 @@ export function AdminClients() {
                 />
               </div>
 
-              {/* Actions Footer */}
-              <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsClientModalOpen(false)}
-                  className="flex-grow px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingClient}
-                  className="flex-grow px-4 py-3 text-white bg-primary hover:bg-primary-dark text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98] shadow-md shadow-primary/10 flex items-center justify-center gap-2"
-                >
-                  {savingClient ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Saving Client...
-                    </>
-                  ) : (
-                    'Save Client'
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
+            </div>
+
+            {/* Fixed Actions Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsClientModalOpen(false)}
+                className="flex-grow px-4 py-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98] cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={savingClient}
+                className="flex-grow px-4 py-3 text-white bg-primary hover:bg-primary-dark text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98] shadow-md shadow-primary/10 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {savingClient ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Saving Client...
+                  </>
+                ) : (
+                  'Save Client'
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
