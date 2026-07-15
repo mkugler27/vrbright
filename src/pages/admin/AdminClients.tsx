@@ -1378,7 +1378,7 @@ export function AdminClients() {
                   <h4 className="font-extrabold text-slate-800 text-sm border-b border-slate-100 pb-2 pt-2">Contacts Information</h4>
 
                   {/* Property Manager Contacts */}
-                  <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
+                  <div className="border border-slate-100 rounded-2xl p-4 space-y-3 bg-slate-50/60">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                         <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1431,7 +1431,7 @@ export function AdminClients() {
                   </div>
 
                   {/* Supervisor Contacts */}
-                  <div className="border border-slate-150 rounded-2xl p-4 space-y-3 bg-slate-50/20">
+                  <div className="border border-slate-100 rounded-2xl p-4 space-y-3 bg-slate-50/60">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                         <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1564,7 +1564,7 @@ export function AdminClients() {
                     {currentLabels.length > 0 && (
                       <div className="grid grid-cols-2 gap-3 pt-2">
                         {currentLabels.map((lbl, idx) => (
-                          <div key={idx} className="bg-white rounded-xl p-3 border border-slate-150 flex gap-3 relative group shadow-2xs">
+                          <div key={idx} className="bg-white rounded-xl p-3 border border-slate-100 flex gap-3 relative group shadow-2xs">
                             <img src={lbl.image_url} alt="Label" className="w-16 h-16 object-cover rounded-lg border border-slate-100 shrink-0 bg-slate-50" />
                             <div className="min-w-0 flex-1 flex flex-col justify-between">
                               <p className="text-xs text-slate-600 font-medium leading-relaxed line-clamp-3">{lbl.notes || 'No description'}</p>
