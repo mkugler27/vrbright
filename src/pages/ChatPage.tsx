@@ -92,7 +92,8 @@ export default function ChatPage() {
 
   // Conversation message stream filtering/search states
   const [filterWOId, setFilterWOId] = useState<string | null>(null)
-  const [filterDate, setFilterDate] = useState<string>('')
+  const [filterStartDate, setFilterStartDate] = useState<string>('')
+  const [filterEndDate, setFilterEndDate] = useState<string>('')
   const [filterSearch, setFilterSearch] = useState<string>('')
   const [showFilterPopover, setShowFilterPopover] = useState(false)
   const filterPopoverRef = useRef<HTMLDivElement>(null)
@@ -107,7 +108,8 @@ export default function ChatPage() {
   // Reset filters when switching conversations
   useEffect(() => {
     setFilterWOId(null)
-    setFilterDate('')
+    setFilterStartDate('')
+    setFilterEndDate('')
     setFilterSearch('')
     setShowFilterPopover(false)
   }, [activeConversation?.id])
@@ -142,10 +144,13 @@ export default function ChatPage() {
       if (filterWOId && msg.work_order_id !== filterWOId) {
         return false
       }
-      // 2. Filter by Date (YYYY-MM-DD)
-      if (filterDate) {
+      // 2. Filter by Date Range (YYYY-MM-DD)
+      if (filterStartDate || filterEndDate) {
         const msgDateStr = new Date(msg.created_at).toISOString().split('T')[0]
-        if (msgDateStr !== filterDate) {
+        if (filterStartDate && msgDateStr < filterStartDate) {
+          return false
+        }
+        if (filterEndDate && msgDateStr > filterEndDate) {
           return false
         }
       }
@@ -160,7 +165,7 @@ export default function ChatPage() {
       }
       return true
     })
-  }, [messages, filterWOId, filterDate, filterSearch])
+  }, [messages, filterWOId, filterStartDate, filterEndDate, filterSearch])
 
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'ok' | 'reconnecting' | 'error'>('ok')
@@ -1033,7 +1038,7 @@ export default function ChatPage() {
             <button
               onClick={() => setShowFilterPopover(!showFilterPopover)}
               className={`p-1.5 rounded-full hover:bg-gray-100 transition-colors ${
-                filterWOId || filterDate || filterSearch ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-500 hover:text-gray-700'
+                filterWOId || filterStartDate || filterEndDate || filterSearch ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-gray-500 hover:text-gray-700'
               }`}
               aria-label="Search and Filter"
             >
@@ -1046,11 +1051,12 @@ export default function ChatPage() {
               <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 p-4 z-30 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-gray-800 text-sm">Filters & Search</h3>
-                  {(filterWOId || filterDate || filterSearch) && (
+                  {(filterWOId || filterStartDate || filterEndDate || filterSearch) && (
                     <button
                       onClick={() => {
                         setFilterWOId(null)
-                        setFilterDate('')
+                        setFilterStartDate('')
+                        setFilterEndDate('')
                         setFilterSearch('')
                       }}
                       className="text-xs text-red-600 hover:text-red-800 font-bold"
@@ -1077,15 +1083,29 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                {/* Date Filter */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Filter by Date</label>
-                  <input
-                    type="date"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500"
-                  />
+                 {/* Date Period Filter */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Filter by Date Period</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-0.5">Start Date</span>
+                      <input
+                        type="date"
+                        value={filterStartDate}
+                        onChange={(e) => setFilterStartDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-gray-700"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block mb-0.5">End Date</span>
+                      <input
+                        type="date"
+                        value={filterEndDate}
+                        onChange={(e) => setFilterEndDate(e.target.value)}
+                        className="w-full px-2.5 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-gray-700"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Work Order Filter */}
@@ -1122,7 +1142,7 @@ export default function ChatPage() {
         </div>
 
         {/* Active Filters Bar */}
-        {(filterWOId || filterDate || filterSearch) && (
+        {(filterWOId || filterStartDate || filterEndDate || filterSearch) && (
           <div className="bg-blue-50/50 px-4 py-2 border-b border-gray-100 flex items-center gap-2 flex-wrap shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">Active Filters:</span>
             {filterSearch && (
@@ -1131,10 +1151,16 @@ export default function ChatPage() {
                 <button onClick={() => setFilterSearch('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
               </span>
             )}
-            {filterDate && (
+            {filterStartDate && (
               <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium shadow-sm">
-                Date: {new Date(filterDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                <button onClick={() => setFilterDate('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
+                Start: {new Date(filterStartDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <button onClick={() => setFilterStartDate('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
+              </span>
+            )}
+            {filterEndDate && (
+              <span className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-medium shadow-sm">
+                End: {new Date(filterEndDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                <button onClick={() => setFilterEndDate('')} className="text-blue-400 hover:text-blue-600 font-bold ml-0.5">×</button>
               </span>
             )}
             {filterWOId && (
@@ -1146,7 +1172,8 @@ export default function ChatPage() {
             <button
               onClick={() => {
                 setFilterWOId(null)
-                setFilterDate('')
+                setFilterStartDate('')
+                setFilterEndDate('')
                 setFilterSearch('')
               }}
               className="text-xs text-red-600 hover:text-red-800 font-semibold ml-auto"
