@@ -329,6 +329,7 @@ export function AdminClients() {
   const [editingPM, setEditingPM] = useState<PropertyManagement | null>(null);
   const [pmToDelete, setPmToDelete] = useState<PropertyManagement | null>(null);
   const [expandedLogoUrl, setExpandedLogoUrl] = useState<string | null>(null);
+  const [mapPopupAddress, setMapPopupAddress] = useState<string | null>(null);
 
   // Area Options
   const areaOptions = [
@@ -885,19 +886,18 @@ export function AdminClients() {
                 {/* Sub details */}
                 <div className="space-y-1.5 text-xs text-slate-500 font-medium pt-0.5">
                   {client.address && (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-start gap-2 hover:text-primary transition-colors group cursor-pointer"
-                      title="View on Google Maps"
+                    <button
+                      type="button"
+                      onClick={() => setMapPopupAddress(client.address || null)}
+                      className="flex items-start gap-2 hover:text-primary text-left transition-colors group cursor-pointer w-full bg-transparent border-0 p-0"
+                      title="View Map"
                     >
                       <svg className="w-4.5 h-4.5 text-red-500 shrink-0 mt-0.5 group-hover:text-red-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <span className="line-clamp-2 leading-tight group-hover:underline">{client.address} ({client.area})</span>
-                    </a>
+                    </button>
                   )}
                   {client.phone && (
                     <div className="flex items-center gap-2">
@@ -1028,12 +1028,11 @@ export function AdminClients() {
 
                     <td className="py-4 px-6">
                       {client.address ? (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(client.address)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:text-primary transition-colors group cursor-pointer flex flex-col"
-                          title="View on Google Maps"
+                        <button
+                          type="button"
+                          onClick={() => setMapPopupAddress(client.address || null)}
+                          className="hover:text-primary text-left transition-colors group cursor-pointer flex flex-col w-full bg-transparent border-0 p-0"
+                          title="View Map"
                         >
                           <span className="line-clamp-1 text-slate-800 group-hover:underline font-semibold flex items-center gap-1.5">
                             <svg className="w-4 h-4 text-red-500 shrink-0 group-hover:text-red-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1043,7 +1042,7 @@ export function AdminClients() {
                             {client.address}
                           </span>
                           <span className="text-xs text-slate-400 mt-0.5 font-semibold pl-5.5">{client.area || 'No Area'}</span>
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-slate-350 italic">N/A</span>
                       )}
@@ -1757,6 +1756,70 @@ export function AdminClients() {
               className="max-w-full max-h-[80vh] object-contain rounded-2xl cursor-default"
               onClick={(e) => e.stopPropagation()}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Map Lightbox Modal */}
+      {mapPopupAddress && (
+        <div
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[60]"
+          onClick={() => setMapPopupAddress(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-5 shadow-2xl border border-slate-100 max-w-2xl w-full flex flex-col gap-4 animate-scaleIn cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
+                  <svg className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Location Map
+                </h3>
+                <p className="text-xs text-slate-500 font-semibold mt-0.5 line-clamp-1">{mapPopupAddress}</p>
+              </div>
+              <button
+                onClick={() => setMapPopupAddress(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-505 hover:bg-slate-200 hover:text-slate-800 flex items-center justify-center transition-colors cursor-pointer"
+                aria-label="Close Map"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Map Frame Container */}
+            <div className="w-full h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-inner bg-slate-50 flex items-center justify-center relative">
+              <iframe
+                title="Location Map Viewer"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                allowFullScreen
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(mapPopupAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+              />
+            </div>
+
+            {/* Directions Link */}
+            <div className="flex justify-end">
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapPopupAddress)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4.5 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Open in Google Maps
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
       )}
