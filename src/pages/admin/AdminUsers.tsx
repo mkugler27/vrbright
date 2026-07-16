@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase, type User } from '../../services/supabase';
+import { CustomDropdown } from '../../components/ui/CustomDropdown';
 
 const ROLE_OPTIONS = ['Owner', 'Director', 'Manager', 'Supervisor', 'Worker', 'Helper', 'Trainee'] as const;
 
@@ -22,6 +23,34 @@ function formatDateUS(dateStr?: string) {
   return `${month}/${day}/${year}`;
 }
 
+function formatUSDateInput(value: string) {
+  const clean = value.replace(/[^\d]/g, '');
+  const len = clean.length;
+  if (len === 0) return '';
+  if (len <= 2) return clean;
+  if (len <= 4) return `${clean.slice(0, 2)}/${clean.slice(2)}`;
+  return `${clean.slice(0, 2)}/${clean.slice(2, 4)}/${clean.slice(4, 8)}`;
+}
+
+function dbDateToUS(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [year, month, day] = parts;
+  return `${month}/${day}/${year}`;
+}
+
+function usDateToDB(dateStr?: string | null): string | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+  const [month, day, year] = parts;
+  if (!month || !day || !year || year.length !== 4) return null;
+  const paddedMonth = month.padStart(2, '0');
+  const paddedDay = day.padStart(2, '0');
+  return `${year}-${paddedMonth}-${paddedDay}`;
+}
+
 export function AdminUsers() {
 
   const [users, setUsers] = useState<User[]>([]);
@@ -31,6 +60,7 @@ export function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all'); // all, active, inactive
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [activePopoverUserId, setActivePopoverUserId] = useState<string | null>(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,6 +77,27 @@ export function AdminUsers() {
   // Delete Confirm State
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Scrollbar checking
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [hasScrollbar, setHasScrollbar] = useState(false);
+
+  const checkScrollbar = () => {
+    if (scrollContainerRef.current) {
+      const { scrollHeight, clientHeight } = scrollContainerRef.current;
+      setHasScrollbar(scrollHeight > clientHeight);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(checkScrollbar, 50);
+    return () => clearTimeout(timer);
+  }, [users, search, roleFilter, statusFilter, viewMode, loading]);
+
+  useEffect(() => {
+    window.addEventListener('resize', checkScrollbar);
+    return () => window.removeEventListener('resize', checkScrollbar);
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -71,6 +122,26 @@ export function AdminUsers() {
     }
   };
 
+  const toggleUserActiveStatus = async (user: User) => {
+    setError('');
+    try {
+      const newAtivo = user.ativo === false;
+      const { error: updateErr } = await supabase
+        .from('users')
+        .update({ ativo: newAtivo })
+        .eq('id', user.id);
+
+      if (updateErr) throw updateErr;
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, ativo: newAtivo } : u))
+      );
+    } catch (err: any) {
+      console.error('Error toggling active status:', err);
+      setError(err.message || 'Failed to update active status');
+    }
+  };
+
   // Document upload helpers
   const uploadToStorage = async (userId: string, bucket: string, folder: string, file: File): Promise<string> => {
     const fileExt = file.name.split('.').pop();
@@ -90,6 +161,11 @@ export function AdminUsers() {
     setCurrentUser({
       ativo: true,
       tipo_user_bubble: 'Worker',
+      dob: '',
+      date_hired: '',
+      fired_date: '',
+      works_comp_valid_until: '',
+      insurance_valid_until: '',
     });
     setTempPassword('');
     setAvatarFile(null);
@@ -100,7 +176,14 @@ export function AdminUsers() {
   };
 
   const handleOpenEditUser = (user: User) => {
-    setCurrentUser(user);
+    setCurrentUser({
+      ...user,
+      dob: dbDateToUS(user.dob),
+      date_hired: dbDateToUS(user.date_hired),
+      fired_date: dbDateToUS(user.fired_date),
+      works_comp_valid_until: dbDateToUS(user.works_comp_valid_until),
+      insurance_valid_until: dbDateToUS(user.insurance_valid_until),
+    });
     setTempPassword('');
     setAvatarFile(null);
     setAvatarPreview(user.avatar_url || '');
@@ -162,6 +245,11 @@ export function AdminUsers() {
         avatar_url: avatarUrl,
         works_comp_url: worksCompUrl,
         insurance_url: insuranceUrl,
+        dob: usDateToDB(currentUser.dob),
+        date_hired: usDateToDB(currentUser.date_hired),
+        fired_date: usDateToDB(currentUser.fired_date),
+        works_comp_valid_until: usDateToDB(currentUser.works_comp_valid_until),
+        insurance_valid_until: usDateToDB(currentUser.insurance_valid_until),
       };
 
       const { error: saveErr } = await supabase
@@ -229,7 +317,7 @@ export function AdminUsers() {
 
   // Expiry date highlight checks
   const getDocumentStatus = (expiryDateStr?: string) => {
-    if (!expiryDateStr) return { label: 'No Date', color: 'text-slate-400 bg-slate-50' };
+    if (!expiryDateStr) return { label: 'No Date', color: 'text-slate-400 bg-slate-50 border-slate-100' };
     const expiry = new Date(expiryDateStr + 'T00:00:00');
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -271,14 +359,14 @@ export function AdminUsers() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-7rem)] space-y-6">
       {error && (
-        <div className="p-4 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-2xl">
+        <div className="p-4 bg-red-50 border border-red-100 text-red-600 text-xs font-semibold rounded-2xl shrink-0">
           {error}
         </div>
       )}
       {/* Upper header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight">User Directory</h2>
           <p className="text-xs text-slate-400 font-medium">Manage corporate profiles, supervisor privileges, and painter documents.</p>
@@ -292,7 +380,7 @@ export function AdminUsers() {
       </div>
 
       {/* Filter and search bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">
+      <div className="shrink-0 bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Keyword Search */}
           <div className="md:col-span-5 relative">
@@ -310,31 +398,27 @@ export function AdminUsers() {
 
           {/* User Type (Role) */}
           <div className="md:col-span-3">
-            <select
+            <CustomDropdown
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium text-slate-700"
-            >
-              <option value="all">All User Roles</option>
-              {ROLE_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              options={[
+                { label: 'All User Roles', value: 'all' },
+                ...ROLE_OPTIONS.map((opt) => ({ label: opt, value: opt })),
+              ]}
+              onChange={setRoleFilter}
+            />
           </div>
 
           {/* Active Status */}
           <div className="md:col-span-2">
-            <select
+            <CustomDropdown
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium text-slate-700"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+              options={[
+                { label: 'All Statuses', value: 'all' },
+                { label: 'Active', value: 'active' },
+                { label: 'Inactive', value: 'inactive' },
+              ]}
+              onChange={setStatusFilter}
+            />
           </div>
 
           {/* Grid/List switchers */}
@@ -369,13 +453,13 @@ export function AdminUsers() {
 
       {/* Main Listing View */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-100 shadow-xs min-h-0 py-20 gap-3">
           <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           <span className="text-sm text-slate-400 font-bold">Loading users...</span>
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div className="bg-white rounded-3xl p-16 border border-slate-100 text-center space-y-4">
-          <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-3xl p-16 border border-slate-100 text-center min-h-0 space-y-4">
+          <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-2">
             <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
             </svg>
@@ -387,20 +471,81 @@ export function AdminUsers() {
         </div>
       ) : viewMode === 'card' ? (
         /* CARD MODE GRID */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-cascade-card">
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 animate-cascade-card pb-2">
           {filteredUsers.map((u) => {
-            const wc = getDocumentStatus(u.works_comp_valid_until);
-            const ins = getDocumentStatus(u.insurance_valid_until);
-
             return (
-              <div key={u.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-2xs hover:shadow-xs transition-shadow flex flex-col justify-between relative overflow-hidden group">
-                {/* Active indicator */}
-                <div className={`absolute top-4 right-4 text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
-                  u.ativo !== false 
-                    ? 'text-emerald-700 bg-emerald-50 border-emerald-100' 
-                    : 'text-slate-500 bg-slate-100 border-slate-200'
-                }`}>
-                  {u.ativo !== false ? 'Active' : 'Inactive'}
+              <div key={u.id} className="bg-white rounded-3xl border border-slate-100 p-5 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-visible group">
+                {/* Active indicator popover */}
+                <div className="absolute top-4 right-4 z-10">
+                  <div className="relative inline-block text-left">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePopoverUserId(activePopoverUserId === u.id ? null : u.id);
+                      }}
+                      className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border cursor-pointer hover:shadow-xs transition-all flex items-center gap-1.5 ${
+                        u.ativo !== false 
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-100 hover:bg-emerald-100/50' 
+                          : 'text-slate-500 bg-slate-100 border-slate-200 hover:bg-slate-200/50'
+                      }`}
+                    >
+                      <span>{u.ativo !== false ? 'Active' : 'Inactive'}</span>
+                      <svg className="w-2.5 h-2.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    </button>
+
+                    {activePopoverUserId === u.id && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActivePopoverUserId(null);
+                          }}
+                        />
+                        <div className="absolute right-0 mt-1.5 w-32 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 animate-slideDown text-left">
+                          <p className="text-[9px] font-bold text-slate-400 px-3 py-1 uppercase tracking-wider">Status</p>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (u.ativo === false) {
+                                toggleUserActiveStatus(u);
+                              }
+                              setActivePopoverUserId(null);
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              <span>Active</span>
+                            </div>
+                            {u.ativo !== false && <span className="text-emerald-500 font-bold">✓</span>}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (u.ativo !== false) {
+                                toggleUserActiveStatus(u);
+                              }
+                              setActivePopoverUserId(null);
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                              <span>Inactive</span>
+                            </div>
+                            {u.ativo === false && <span className="text-slate-500 font-bold">✓</span>}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -430,71 +575,29 @@ export function AdminUsers() {
                   </div>
 
                   {/* Document & Company info block */}
-                  <div className="border-t border-slate-100 pt-3 space-y-2 text-xs">
-                    {u.telefone && (
+                  {u.telefone && (
+                    <div className="border-t border-slate-100 pt-3 text-xs">
                       <div className="flex justify-between items-center text-slate-600">
                         <span className="font-bold text-slate-400">Phone:</span>
                         <span className="font-medium text-slate-700">{formatUSPhone(u.telefone)}</span>
                       </div>
-                    )}
-                    
-                    {/* Works Comp */}
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-400">Works Comp:</span>
-                        {u.works_comp_url ? (
-                          <a
-                            href={u.works_comp_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
-                          >
-                            View PDF ↗
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-slate-300 font-bold">Missing PDF</span>
-                        )}
-                      </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md border text-center ${wc.color}`}>
-                        {wc.label}
-                      </span>
                     </div>
-
-                    {/* General Liability Insurance */}
-                    <div className="flex flex-col gap-0.5">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-slate-400">Insurance:</span>
-                        {u.insurance_url ? (
-                          <a
-                            href={u.insurance_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
-                          >
-                            View PDF ↗
-                          </a>
-                        ) : (
-                          <span className="text-[10px] text-slate-300 font-bold">Missing PDF</span>
-                        )}
-                      </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md border text-center ${ins.color}`}>
-                        {ins.label}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Edit and Delete Actions */}
-                <div className="flex items-center gap-2 pt-4 mt-3 border-t border-slate-100">
+                <div className="flex items-center justify-end gap-1 pt-4 mt-3 border-t border-slate-100">
                   <button
                     onClick={() => handleOpenEditUser(u)}
-                    className="flex-1 py-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-90 transition-all cursor-pointer"
                   >
-                    Edit Profile
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
                   </button>
                   <button
                     onClick={() => setUserToDelete(u)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg active:scale-90 transition-all cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -505,129 +608,208 @@ export function AdminUsers() {
             );
           })}
         </div>
-      ) : (
-        /* DETAILED LIST MODE (TABLE) */
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  <th className="py-4 px-6">User</th>
-                  <th className="py-4 px-6">Role</th>
-                  <th className="py-4 px-6">Phone / Contact</th>
-                  <th className="py-4 px-6">Works Comp</th>
-                  <th className="py-4 px-6">Insurance</th>
-                  <th className="py-4 px-6">Status</th>
-                  <th className="py-4 px-6 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredUsers.map((u) => {
-                  const wc = getDocumentStatus(u.works_comp_valid_until);
-                  const ins = getDocumentStatus(u.insurance_valid_until);
+      </div>
+    ) : (
+      /* DETAILED LIST MODE (TABLE) */
+      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-x-auto overflow-y-hidden flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-w-[900px] min-h-0">
+          {/* Header Row */}
+          <div className="shrink-0 bg-slate-200 border-b border-slate-300/80">
+            <div 
+              className="grid grid-cols-12 text-xs font-black text-slate-600 uppercase tracking-wider py-4 pl-6"
+              style={{ paddingRight: hasScrollbar ? '39px' : '24px' }}
+            >
+              <div className="col-span-3">User</div>
+              <div className="col-span-1">Role</div>
+              <div className="col-span-2">Phone / Contact</div>
+              <div className="col-span-2">Works Comp</div>
+              <div className="col-span-2">Insurance</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1 text-right">Actions</div>
+            </div>
+          </div>
 
-                  return (
-                    <tr key={u.id} className="hover:bg-slate-50/40 transition-colors">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          {u.avatar_url ? (
-                            <img
-                              src={u.avatar_url}
-                              alt={u.nome}
-                              className="w-9 h-9 rounded-xl object-cover border border-slate-100 shadow-2xs shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary font-black text-xs flex items-center justify-center border border-primary/20 shrink-0">
-                              {u.nome.slice(0, 2).toUpperCase()}
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-extrabold text-slate-800">
-                              {u.nome}
-                              {u.nickname && <span className="text-[10px] text-slate-400 font-bold ml-1">({u.nickname})</span>}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-medium">{u.email}</p>
-                          </div>
+          {/* Body Rows */}
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-100 text-sm">
+            {filteredUsers.map((u) => {
+              const wc = getDocumentStatus(u.works_comp_valid_until);
+              const ins = getDocumentStatus(u.insurance_valid_until);
+
+              return (
+                <div key={u.id} className="grid grid-cols-12 items-center hover:bg-slate-50/40 transition-colors py-4 px-6">
+                  {/* User */}
+                  <div className="col-span-3 pr-4">
+                    <div className="flex items-center gap-3">
+                      {u.avatar_url ? (
+                        <img
+                          src={u.avatar_url}
+                          alt={u.nome}
+                          className="w-9 h-9 rounded-xl object-cover border border-slate-100 shadow-2xs shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary font-black text-xs flex items-center justify-center border border-primary/20 shrink-0">
+                          {u.nome.slice(0, 2).toUpperCase()}
                         </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className={`inline-block border text-[9px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md ${getRoleBadgeColor(u.tipo_user_bubble)}`}>
-                          {u.tipo_user_bubble || 'Worker'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 font-medium text-slate-700">
-                        {u.telefone ? formatUSPhone(u.telefone) : '—'}
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border w-fit ${wc.color}`}>
-                            {wc.label}
-                          </span>
-                          {u.works_comp_url && (
-                            <a
-                              href={u.works_comp_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[9px] font-bold text-blue-600 hover:underline"
-                            >
-                              Open PDF ↗
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col gap-0.5">
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border w-fit ${ins.color}`}>
-                            {ins.label}
-                          </span>
-                          {u.insurance_url && (
-                            <a
-                              href={u.insurance_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-[9px] font-bold text-blue-600 hover:underline"
-                            >
-                              Open PDF ↗
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border ${
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-slate-800 truncate">
+                          {u.nome}
+                          {u.nickname && <span className="text-xs text-slate-400 font-bold ml-1">({u.nickname})</span>}
+                        </p>
+                        <p className="text-xs text-slate-400 font-medium truncate">{u.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Role */}
+                  <div className="col-span-1">
+                    <span className={`inline-block border text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md ${getRoleBadgeColor(u.tipo_user_bubble)}`}>
+                      {u.tipo_user_bubble || 'Worker'}
+                    </span>
+                  </div>
+
+                  {/* Phone */}
+                  <div className="col-span-2 font-medium text-slate-700">
+                    {u.telefone ? formatUSPhone(u.telefone) : '—'}
+                  </div>
+
+                  {/* Works Comp */}
+                  <div className="col-span-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border w-fit ${wc.color}`}>
+                        {wc.label}
+                      </span>
+                      {u.works_comp_url && (
+                        <a
+                          href={u.works_comp_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-bold text-blue-600 hover:underline"
+                        >
+                          Open PDF ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Insurance */}
+                  <div className="col-span-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border w-fit ${ins.color}`}>
+                        {ins.label}
+                      </span>
+                      {u.insurance_url && (
+                        <a
+                          href={u.insurance_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-bold text-blue-600 hover:underline"
+                        >
+                          Open PDF ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-span-1 overflow-visible">
+                    <div className="relative inline-block text-left">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActivePopoverUserId(activePopoverUserId === u.id ? null : u.id);
+                        }}
+                        className={`text-[11px] font-black px-2 py-0.5 rounded-md border cursor-pointer hover:shadow-xs transition-all flex items-center gap-1 ${
                           u.ativo !== false
-                            ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
-                            : 'text-slate-500 bg-slate-100 border-slate-200'
-                        }`}>
-                          {u.ativo !== false ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleOpenEditUser(u)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => setUserToDelete(u)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-100 hover:bg-emerald-100/50'
+                            : 'text-slate-500 bg-slate-100 border-slate-200 hover:bg-slate-200/50'
+                        }`}
+                      >
+                        <span>{u.ativo !== false ? 'Active' : 'Inactive'}</span>
+                        <svg className="w-2.5 h-2.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </button>
+
+                      {activePopoverUserId === u.id && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActivePopoverUserId(null);
+                            }}
+                          />
+                          <div className="absolute left-0 mt-1.5 w-32 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50 animate-slideDown text-left">
+                            <p className="text-[9px] font-bold text-slate-400 px-3 py-1 uppercase tracking-wider">Status</p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (u.ativo === false) {
+                                  toggleUserActiveStatus(u);
+                                }
+                                setActivePopoverUserId(null);
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Active</span>
+                              </div>
+                              {u.ativo !== false && <span className="text-emerald-500 font-bold">✓</span>}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (u.ativo !== false) {
+                                  toggleUserActiveStatus(u);
+                                }
+                                setActivePopoverUserId(null);
+                              }}
+                              className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                <span>Inactive</span>
+                              </div>
+                              {u.ativo === false && <span className="text-slate-500 font-bold">✓</span>}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-1 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleOpenEditUser(u)}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setUserToDelete(u)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+      </div>
       )}
 
       {/* CREATE / EDIT USER MODAL */}
@@ -747,9 +929,11 @@ export function AdminUsers() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Date of Birth</label>
                     <input
-                      type="date"
+                      type="text"
                       value={currentUser.dob || ''}
-                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, dob: e.target.value }))}
+                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, dob: formatUSDateInput(e.target.value) }))}
+                      placeholder="MM/DD/YYYY"
+                      maxLength={10}
                       className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
                     />
                   </div>
@@ -803,45 +987,39 @@ export function AdminUsers() {
 
                 {/* Role selection & active status toggling */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end bg-slate-50/50 p-4 border border-slate-100 rounded-2xl">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">User System Role</label>
-                    <select
-                      value={currentUser.tipo_user_bubble || 'Worker'}
-                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, tipo_user_bubble: e.target.value }))}
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-medium text-slate-700"
-                    >
-                      {ROLE_OPTIONS.map((role) => (
-                        <option key={role} value={role}>
-                          {role}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <CustomDropdown
+                    label="User System Role"
+                    value={currentUser.tipo_user_bubble || 'Worker'}
+                    options={ROLE_OPTIONS.map((role) => ({ label: role, value: role }))}
+                    onChange={(val) => setCurrentUser((prev) => ({ ...prev, tipo_user_bubble: val }))}
+                  />
                   
                   {/* Account state toggles */}
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Account Active:</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={currentUser.ativo !== false}
                         onChange={(e) => setCurrentUser((prev) => ({ ...prev, ativo: e.target.checked }))}
                         className="sr-only peer"
                       />
-                      <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                      <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                      <div className="absolute left-0 -top-1 w-5.5 h-5.5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[18px] peer-checked:bg-primary-dark peer-checked:border-primary-dark"></div>
                     </label>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Needs Pw Change:</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
                       <input
                         type="checkbox"
                         checked={currentUser.requires_password_change !== false}
                         onChange={(e) => setCurrentUser((prev) => ({ ...prev, requires_password_change: e.target.checked }))}
                         className="sr-only peer"
                       />
-                      <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                      <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                      <div className="absolute left-0 -top-1 w-5.5 h-5.5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[18px] peer-checked:bg-primary-dark peer-checked:border-primary-dark"></div>
                     </label>
                   </div>
                 </div>
@@ -876,18 +1054,22 @@ export function AdminUsers() {
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Date of Hire</label>
                     <input
-                      type="date"
+                      type="text"
                       value={currentUser.date_hired || ''}
-                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, date_hired: e.target.value }))}
+                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, date_hired: formatUSDateInput(e.target.value) }))}
+                      placeholder="MM/DD/YYYY"
+                      maxLength={10}
                       className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Termination Date</label>
                     <input
-                      type="date"
+                      type="text"
                       value={currentUser.fired_date || ''}
-                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, fired_date: e.target.value }))}
+                      onChange={(e) => setCurrentUser((prev) => ({ ...prev, fired_date: formatUSDateInput(e.target.value) }))}
+                      placeholder="MM/DD/YYYY"
+                      maxLength={10}
                       className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all font-medium text-slate-800"
                     />
                   </div>
@@ -945,9 +1127,11 @@ export function AdminUsers() {
                     <div>
                       <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Expiration Date</span>
                       <input
-                        type="date"
+                        type="text"
                         value={currentUser.works_comp_valid_until || ''}
-                        onChange={(e) => setCurrentUser((prev) => ({ ...prev, works_comp_valid_until: e.target.value }))}
+                        onChange={(e) => setCurrentUser((prev) => ({ ...prev, works_comp_valid_until: formatUSDateInput(e.target.value) }))}
+                        placeholder="MM/DD/YYYY"
+                        maxLength={10}
                         className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary font-medium text-slate-700"
                       />
                     </div>
@@ -1001,9 +1185,11 @@ export function AdminUsers() {
                     <div>
                       <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Expiration Date</span>
                       <input
-                        type="date"
+                        type="text"
                         value={currentUser.insurance_valid_until || ''}
-                        onChange={(e) => setCurrentUser((prev) => ({ ...prev, insurance_valid_until: e.target.value }))}
+                        onChange={(e) => setCurrentUser((prev) => ({ ...prev, insurance_valid_until: formatUSDateInput(e.target.value) }))}
+                        placeholder="MM/DD/YYYY"
+                        maxLength={10}
                         className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-primary font-medium text-slate-700"
                       />
                     </div>

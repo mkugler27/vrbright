@@ -131,10 +131,19 @@ export function AdminShell() {
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
       {/* Sidebar Container */}
       <aside
-        className={`flex-shrink-0 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-all duration-300 ease-in-out relative z-30 ${
+        className={`flex-shrink-0 bg-transparent border-r border-slate-200/80 flex flex-col justify-between transition-all duration-300 ease-in-out relative z-30 ${
           collapsed ? 'w-20' : 'w-64'
         }`}
       >
+        {/* Aurora/Glow Background Wrapper (Modern Ambient Glows) */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10 bg-white">
+          {/* Soft Purple/Indigo Splash at top right */}
+          <div className="absolute -top-10 -right-10 w-44 h-44 rounded-full bg-indigo-200/25 blur-3xl" />
+          {/* Soft Mint Splash at bottom left */}
+          <div className="absolute bottom-10 -left-10 w-48 h-48 rounded-full bg-primary/20 blur-3xl" />
+          {/* Extra Subtle Yellow/Peach Splash in middle */}
+          <div className="absolute top-[40%] -right-16 w-36 h-36 rounded-full bg-amber-100/30 blur-2xl" />
+        </div>
         {/* Collapse Toggle Button */}
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -170,7 +179,7 @@ export function AdminShell() {
         </div>
 
         {/* Middle Section: Collapsible Navigation Links */}
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1">
+        <nav className={`flex-1 px-3 py-2 space-y-1 ${collapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'}`}>
           {menuItems.map((item) => {
             const isActive = location.pathname === item.to || (item.to !== '/admin' && location.pathname.startsWith(item.to));
             return (
@@ -206,8 +215,14 @@ export function AdminShell() {
 
                 {/* Collapsed Tooltip */}
                 {collapsed && (
-                  <div className="absolute left-full ml-4 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-200 z-50 whitespace-nowrap shadow-md">
-                    {item.label}
+                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 px-3 py-2 bg-slate-950/95 backdrop-blur-xs text-white text-[11px] font-bold rounded-xl opacity-0 scale-0 -translate-x-2.5 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] z-50 whitespace-nowrap shadow-xl border border-slate-800/80 flex items-center gap-2 origin-left">
+                    {/* Tooltip Caret */}
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-950/95" />
+                    
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-subtle shrink-0" />
+                    <span className="tracking-wider uppercase font-extrabold text-[10px] text-slate-200">
+                      {item.label}
+                    </span>
                   </div>
                 )}
               </NavLink>
@@ -217,17 +232,30 @@ export function AdminShell() {
 
         {/* Bottom Section: Profile & Sign Out */}
         <div className="p-4 border-t border-slate-100 flex-shrink-0">
-          <div className="flex items-center justify-between gap-3 overflow-hidden">
+          <div className={`flex items-center justify-between gap-3 ${collapsed ? 'overflow-visible' : 'overflow-hidden'}`}>
             <div className="flex items-center gap-3 shrink-0">
-              <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold overflow-hidden shadow-sm">
-                {user?.profile_picture ? (
-                  <img
-                    src={user.profile_picture.startsWith('//') ? `https:${user.profile_picture}` : user.profile_picture}
-                    alt={user?.nome}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  user?.nome?.charAt(0).toUpperCase() || 'A'
+              <div className="relative group shrink-0">
+                <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-700 font-bold overflow-hidden shadow-sm cursor-pointer">
+                  {user?.profile_picture ? (
+                    <img
+                      src={user.profile_picture.startsWith('//') ? `https:${user.profile_picture}` : user.profile_picture}
+                      alt={user?.nome}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    user?.nome?.charAt(0).toUpperCase() || 'A'
+                  )}
+                </div>
+
+                {/* Profile Collapsed Tooltip */}
+                {collapsed && (
+                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 px-3 py-2 bg-slate-950/95 backdrop-blur-xs text-white text-[11px] font-bold rounded-xl opacity-0 scale-0 -translate-x-2.5 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] z-50 whitespace-nowrap shadow-xl border border-slate-800/80 flex flex-col gap-0.5 origin-left">
+                    {/* Tooltip Caret */}
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-950/95" />
+                    
+                    <span className="font-extrabold text-slate-100">{user?.nome}</span>
+                    <span className="text-[9px] text-slate-400 font-semibold">{user?.email}</span>
+                  </div>
                 )}
               </div>
               <div
@@ -243,14 +271,26 @@ export function AdminShell() {
             {/* Logout Action */}
             <button
               onClick={handleLogout}
-              className={`p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors active:scale-95 shrink-0 ${
+              className={`relative group p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors active:scale-95 shrink-0 ${
                 collapsed ? 'mx-auto' : ''
               }`}
-              title="Sign Out"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
+
+              {/* Logout Collapsed Tooltip */}
+              {collapsed && (
+                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3.5 px-3 py-2 bg-slate-950/95 backdrop-blur-xs text-white text-[11px] font-bold rounded-xl opacity-0 scale-0 -translate-x-2.5 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] z-50 whitespace-nowrap shadow-xl border border-slate-800/80 flex items-center gap-2 origin-left">
+                  {/* Tooltip Caret */}
+                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-950/95" />
+                  
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse-subtle shrink-0" />
+                  <span className="tracking-wider uppercase font-extrabold text-[10px] text-slate-200">
+                    Sign Out
+                  </span>
+                </div>
+              )}
             </button>
           </div>
         </div>
@@ -262,7 +302,9 @@ export function AdminShell() {
         <header className="h-16 border-b border-slate-200/80 bg-white flex items-center justify-between px-6 flex-shrink-0 z-20">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold text-slate-800">
-              {location.pathname === '/admin' ? 'Dashboard' : menuItems.find(i => location.pathname.startsWith(i.to))?.label || 'Admin'}
+              {[...menuItems]
+                .sort((a, b) => b.to.length - a.to.length)
+                .find(i => location.pathname.startsWith(i.to))?.label || 'Admin'}
             </h2>
           </div>
           

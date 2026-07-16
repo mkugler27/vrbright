@@ -56,9 +56,16 @@ export function LoginPage() {
       }
 
       if (profile.ativo === false) {
-        setError('Your account has been blocked by the Administrator.')
-        await supabase.auth.signOut()
-        setLoading(false)
+        setUser({
+          id: authData.user.id,
+          email: email,
+          nome: profile.nome || email.split('@')[0],
+          profile_picture: profile.avatar_url,
+          tipo_user_bubble: profile.tipo_user_bubble,
+          bubble_id: profile.bubble_id,
+          ativo: false
+        })
+        navigate('/')
         return
       }
 
@@ -76,7 +83,8 @@ export function LoginPage() {
         nome: profile.nome || email.split('@')[0],
         profile_picture: profile.avatar_url,
         tipo_user_bubble: profile.tipo_user_bubble,
-        bubble_id: profile.bubble_id
+        bubble_id: profile.bubble_id,
+        ativo: true
       })
 
       navigate('/')

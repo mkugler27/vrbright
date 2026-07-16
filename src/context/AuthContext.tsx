@@ -9,6 +9,7 @@ export interface AuthUser {
   tipo_user_bubble?: string;  // Owner, Director, Manager, Supervisor, Worker, Helper, Trainee
   profile_picture?: string;
   bubble_id?: string;
+  ativo?: boolean;
 }
 
 interface AuthContextType {
@@ -68,19 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await getSupabaseUserByEmail(user.email);
       if (!mounted || !profile) return;
       
-      if (profile.ativo === false) {
-        await supabase.auth.signOut();
-        logout();
-        return;
-      }
-
       setUser({
         id: user.id,
         email: user.email,
         nome: profile.nome || user.email.split('@')[0],
         profile_picture: profile.avatar_url,
         tipo_user_bubble: profile.tipo_user_bubble,
-        bubble_id: profile.bubble_id
+        bubble_id: profile.bubble_id,
+        ativo: profile.ativo !== false
       });
     }
     syncProfile();
@@ -99,26 +95,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // 1. Is it the current logged-in user?
           if (user && updatedUser.id === user.id) {
-            if (updatedUser.ativo === false) {
-              await supabase.auth.signOut();
-              logout();
-            } else {
-              const newNome = updatedUser.nome || user.email.split('@')[0];
-              if (
-                user.nome !== newNome ||
-                user.profile_picture !== updatedUser.avatar_url ||
-                user.tipo_user_bubble !== updatedUser.tipo_user_bubble ||
-                user.bubble_id !== updatedUser.bubble_id
-              ) {
-                setUser({
-                  id: user.id,
-                  email: user.email,
-                  nome: newNome,
-                  profile_picture: updatedUser.avatar_url,
-                  tipo_user_bubble: updatedUser.tipo_user_bubble,
-                  bubble_id: updatedUser.bubble_id
-                });
-              }
+            const newNome = updatedUser.nome || user.email.split('@')[0];
+            const newAtivo = updatedUser.ativo !== false;
+            if (
+              user.nome !== newNome ||
+              user.profile_picture !== updatedUser.avatar_url ||
+              user.tipo_user_bubble !== updatedUser.tipo_user_bubble ||
+              user.bubble_id !== updatedUser.bubble_id ||
+              user.ativo !== newAtivo
+            ) {
+              setUser({
+                id: user.id,
+                email: user.email,
+                nome: newNome,
+                profile_picture: updatedUser.avatar_url,
+                tipo_user_bubble: updatedUser.tipo_user_bubble,
+                bubble_id: updatedUser.bubble_id,
+                ativo: newAtivo
+              });
             }
           }
 

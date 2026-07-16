@@ -234,3 +234,20 @@ src/
 ├── services/            # api.ts, db.ts, sync.ts, imageCompressor.ts
 └── types/               # WorkOrder, Photo, SyncQueueItem, User interfaces
 ```
+
+---
+
+## 8. Table Headers (Cabeçalhos de Tabela)
+
+**Toda tabela de listagem (como a de Usuários ou Clientes) deve usar um fundo destacado no cabeçalho:**
+- Cor de fundo: `bg-slate-200/80` (nunca `bg-slate-50` ou `bg-slate-100` para garantir contraste visível com o fundo do card/página)
+- Texto: `text-slate-600`
+- Borda inferior: `border-b border-slate-300/80`
+
+---
+
+## 9. Modals and Notifications (Modais e Notificações)
+
+**Nunca usar os diálogos nativos do navegador (`confirm()`, `alert()`) para confirmações importantes ou avisos de formulário:**
+- Toda confirmação de exclusão ou ação crítica deve usar um modal customizado integrado na página (com overlay de fundo e animação premium de entrada).
+- Avisos de validação de formulários (como itens duplicados ou campos incorretos) devem ser exibidos inline diretamente na interface, logo abaixo do campo correspondente, em vez de disparar popups de alerta.

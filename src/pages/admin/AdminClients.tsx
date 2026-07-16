@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { CustomDropdown } from '../../components/ui/CustomDropdown';
 
 // US phone formatting utility
 function formatUSPhone(value: string) {
@@ -59,74 +60,7 @@ async function compressImage(file: File, maxSizeKB = 500): Promise<File> {
   });
 }
 
-// -------------------------------------------------------------
-// CUSTOM DROPDOWN COMPONENT (To comply with the rule of no native selects)
-// -------------------------------------------------------------
-interface CustomDropdownProps {
-  label?: string;
-  value: string;
-  options: { label: string; value: string }[];
-  onChange: (value: string) => void;
-  placeholder?: string;
-  className?: string;
-}
-
-function CustomDropdown({ label, value, options, onChange, placeholder = 'Select an option', className = '' }: CustomDropdownProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const selectedOption = options.find((o) => o.value === value);
-
-  return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
-      {label && <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">{label}</label>}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between border border-slate-200 rounded-xl px-4 py-3 text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-medium text-slate-800 text-left"
-      >
-        <span>{selectedOption ? selectedOption.label : placeholder}</span>
-        <svg className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto py-1 animate-slideDown">
-          {options.length === 0 ? (
-            <div className="px-4 py-2.5 text-xs text-slate-400 font-medium">No options available</div>
-          ) : (
-            options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => {
-                  onChange(opt.value);
-                  setIsOpen(false);
-                }}
-                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors hover:bg-slate-50 ${
-                  opt.value === value ? 'bg-primary/10 text-primary-dark font-semibold' : 'text-slate-700'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+// CustomDropdown component is imported from '../../components/ui/CustomDropdown'
 
 // -------------------------------------------------------------
 // MAIN CLIENT TYPES DEFINITIONS
@@ -303,6 +237,27 @@ export function AdminClients() {
     localStorage.setItem('vrbright_clients_view_mode', viewMode);
   }, [viewMode]);
 
+  // Scrollbar checking
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [hasScrollbar, setHasScrollbar] = useState(false);
+
+  const checkScrollbar = () => {
+    if (scrollContainerRef.current) {
+      const { scrollHeight, clientHeight } = scrollContainerRef.current;
+      setHasScrollbar(scrollHeight > clientHeight);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(checkScrollbar, 50);
+    return () => clearTimeout(timer);
+  }, [clients, searchName, filterType, filterStatus, filterPM, viewMode, loading]);
+
+  useEffect(() => {
+    window.addEventListener('resize', checkScrollbar);
+    return () => window.removeEventListener('resize', checkScrollbar);
+  }, []);
+
   // Form Modals states
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isPMModalOpen, setIsPMModalOpen] = useState(false);
@@ -331,12 +286,14 @@ export function AdminClients() {
   const [userCoords, setUserCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   // Auto calculate route from user location to active map address
   useEffect(() => {
     const address = mapPopupAddress || '';
     if (!address) {
       setRouteInfo(null);
+      setRouteError(null);
       return;
     }
 
@@ -344,6 +301,7 @@ export function AdminClients() {
     async function calculateDistance() {
       setRouteLoading(true);
       setRouteInfo(null);
+      setRouteError(null);
       
       try {
         let lat = userCoords?.lat;
@@ -363,11 +321,7 @@ export function AdminClients() {
 
         // Geocode destination client address using Nominatim (OpenStreetMap)
         const geocodeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-        const geoRes = await fetch(geocodeUrl, {
-          headers: {
-            'User-Agent': 'VRBright-Admin-Portal/1.0'
-          }
-        });
+        const geoRes = await fetch(geocodeUrl);
         const geoData = await geoRes.json();
         
         if (!geoData || geoData.length === 0) {
@@ -398,8 +352,11 @@ export function AdminClients() {
             duration: `${durationMins} mins`
           });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Could not calculate routing:', err);
+        if (isMounted) {
+          setRouteError(err.message || 'Could not calculate route');
+        }
       } finally {
         if (isMounted) {
           setRouteLoading(false);
@@ -804,9 +761,23 @@ export function AdminClients() {
   const totalResidentialCount = filteredClients.filter((c) => c.type === 'residential').length;
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-[calc(100vh-7rem)] space-y-6">
+      {/* Upper header */}
+      <div className="shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Clients</h2>
+          <p className="text-xs text-slate-400 font-medium">Manage properties, commercial locations, and client label photos.</p>
+        </div>
+        <button
+          onClick={handleNewClient}
+          className="px-5 py-3 bg-primary hover:bg-primary-dark text-white text-sm font-extrabold rounded-2xl shadow-md shadow-primary/10 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+        >
+          <span>+ Add Client</span>
+        </button>
+      </div>
+
       {/* Aggregated Counters widgets */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="shrink-0 grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col justify-between h-28">
           <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Total Clients</span>
           <span className="text-3xl font-extrabold text-slate-800 leading-none">{filteredClients.length}</span>
@@ -826,13 +797,64 @@ export function AdminClients() {
       </div>
 
       {/* Action Header & Filters bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
-          <div className="flex items-center gap-3">
-            <h3 className="font-extrabold text-slate-800 text-base">Clients Management</h3>
-            
-            {/* View Mode Toggle Buttons */}
-            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl shrink-0">
+      <div className="shrink-0 bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          {/* Keyword Search */}
+          <div className="md:col-span-4 relative">
+            <input
+              type="text"
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              placeholder="Search by client name..."
+              className="w-full border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-slate-400 font-medium text-slate-800"
+            />
+            <svg className="w-5 h-5 text-slate-400 absolute left-3 top-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          {/* Type filter custom dropdown */}
+          <div className="md:col-span-2">
+            <CustomDropdown
+              value={filterType}
+              options={[
+                { label: 'All Types', value: 'ALL' },
+                { label: 'Commercial Only', value: 'commercial' },
+                { label: 'Residential Only', value: 'residential' },
+              ]}
+              onChange={setFilterType}
+            />
+          </div>
+
+          {/* Status filter custom dropdown */}
+          <div className="md:col-span-2">
+            <CustomDropdown
+              value={filterStatus}
+              options={[
+                { label: 'All Statuses', value: 'ALL' },
+                { label: 'Active Only', value: 'ACTIVE' },
+                { label: 'Inactive Only', value: 'INACTIVE' },
+              ]}
+              onChange={setFilterStatus}
+            />
+          </div>
+
+          {/* Property management filter custom dropdown */}
+          <div className="md:col-span-2">
+            <CustomDropdown
+              value={filterPM}
+              options={[
+                { label: 'All PMs', value: 'ALL' },
+                ...pms.map((pm) => ({ label: pm.name, value: pm.id })),
+              ]}
+              onChange={setFilterPM}
+              placeholder="Filter by Property Management"
+            />
+          </div>
+
+          {/* View Mode Toggle Buttons */}
+          <div className="md:col-span-2 flex items-center justify-end">
+            <div className="flex bg-slate-100 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => setViewMode('card')}
@@ -840,7 +862,7 @@ export function AdminClients() {
                   viewMode === 'card' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
                 </svg>
               </button>
@@ -851,89 +873,45 @@ export function AdminClients() {
                   viewMode === 'list' ? 'bg-white text-slate-800 shadow-2xs' : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
                 </svg>
               </button>
             </div>
           </div>
-          <button
-            onClick={handleNewClient}
-            className="px-5 py-2.5 rounded-2xl bg-primary text-white text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary-dark transition-all duration-200 active:scale-95 text-center flex items-center justify-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add New Client
-          </button>
-        </div>
-
-        {/* Inputs and custom dropdown filter grids */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-          {/* Search name */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
-              placeholder="Search by client name..."
-              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all placeholder:text-slate-400 font-medium"
-            />
-          </div>
-
-          {/* Type filter custom dropdown */}
-          <CustomDropdown
-            value={filterType}
-            options={[
-              { label: 'All Types', value: 'ALL' },
-              { label: 'Commercial Only', value: 'commercial' },
-              { label: 'Residential Only', value: 'residential' },
-            ]}
-            onChange={setFilterType}
-          />
-
-          {/* Status filter custom dropdown */}
-          <CustomDropdown
-            value={filterStatus}
-            options={[
-              { label: 'All Statuses', value: 'ALL' },
-              { label: 'Active Only', value: 'ACTIVE' },
-              { label: 'Inactive Only', value: 'INACTIVE' },
-            ]}
-            onChange={setFilterStatus}
-          />
-
-          {/* Property management filter custom dropdown */}
-          <CustomDropdown
-            value={filterPM}
-            options={[
-              { label: 'All PMs', value: 'ALL' },
-              ...pms.map((pm) => ({ label: pm.name, value: pm.id })),
-            ]}
-            onChange={setFilterPM}
-            placeholder="Filter by Property Management"
-          />
         </div>
       </div>
 
       {/* Clients grid list */}
       {loading ? (
-        <div className="text-center text-slate-400 text-sm py-12">Loading clients records...</div>
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-100 shadow-xs min-h-0 py-20 gap-3">
+          <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-slate-400 font-bold">Loading client records...</span>
+        </div>
       ) : filteredClients.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-xs">
-          <p className="text-slate-400 text-sm font-medium">No client records found matching the active filters.</p>
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-3xl p-16 border border-slate-100 text-center min-h-0 space-y-4">
+          <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-2">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="font-extrabold text-slate-700 text-base">No Clients Found</h4>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1 leading-relaxed">No client records found matching the active filters.</p>
+          </div>
         </div>
       ) : viewMode === 'card' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredClients.map((client) => (
-            <div key={client.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs relative flex flex-col justify-between gap-3.5 group hover:shadow-md transition-shadow">
-              
-              {/* Header card details */}
-              <div className="space-y-2.5">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    {/* Logo/Avatar */}
-                    <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 shrink-0 overflow-hidden shadow-xs">
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 animate-cascade-card pb-2">
+            {filteredClients.map((client) => (
+              <div key={client.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-xs relative flex flex-col justify-between gap-3.5 group hover:shadow-md transition-shadow">
+                
+                {/* Header card details */}
+                <div className="space-y-2.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      {/* Logo/Avatar */}
+                      <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1.5 shrink-0 overflow-hidden shadow-xs">
                       {client.logo_url ? (
                         <img
                           src={client.logo_url}
@@ -1034,160 +1012,168 @@ export function AdminClients() {
             </div>
           ))}
         </div>
-      ) : (
-        /* Detailed List View (Table Mode) */
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="border-b border-slate-100 text-slate-400 text-xs font-bold uppercase tracking-wider bg-slate-50/50">
-                <th className="py-4 px-6">Client Name</th>
-                <th className="py-4 px-6">Address & Area</th>
-                <th className="py-4 px-6">Contact Person</th>
-                <th className="py-4 px-6 text-center">Units</th>
-                <th className="py-4 px-6">Property Management</th>
-                <th className="py-4 px-6 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
-              {filteredClients.map((client) => {
-                let contactName = '';
-                let contactRole = '';
-                if (client.type === 'commercial') {
-                  if (client.pm_is_main) {
-                    contactName = client.pm_name || '';
-                    contactRole = 'Property Manager';
-                  } else if (client.sup_is_main) {
-                    contactName = client.sup_name || '';
-                    contactRole = 'Supervisor';
-                  } else {
-                    contactName = client.pm_name || client.sup_name || '';
-                    contactRole = client.pm_name ? 'Property Manager' : 'Supervisor';
-                  }
+      </div>
+    ) : (
+      /* Detailed List View (Table Mode) */
+      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-xs overflow-x-auto overflow-y-hidden flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-w-[900px] min-h-0">
+          {/* Header Row */}
+          <div className="shrink-0 bg-slate-200 border-b border-slate-300/80">
+            <div 
+              className="grid grid-cols-12 text-[10px] font-black text-slate-600 uppercase tracking-wider py-4 pl-6"
+              style={{ paddingRight: hasScrollbar ? '39px' : '24px' }}
+            >
+              <div className="col-span-3">Client Name</div>
+              <div className="col-span-3">Address & Area</div>
+              <div className="col-span-2">Contact Person</div>
+              <div className="col-span-1 text-center">Units</div>
+              <div className="col-span-2">Property Management</div>
+              <div className="col-span-1 text-right">Actions</div>
+            </div>
+          </div>
+
+          {/* Body Rows */}
+          <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-100 text-sm font-medium text-slate-700">
+            {filteredClients.map((client) => {
+              let contactName = '';
+              let contactRole = '';
+              if (client.type === 'commercial') {
+                if (client.pm_is_main) {
+                  contactName = client.pm_name || '';
+                  contactRole = 'Property Manager';
+                } else if (client.sup_is_main) {
+                  contactName = client.sup_name || '';
+                  contactRole = 'Supervisor';
                 } else {
-                  contactName = client.additional_name || '';
-                  contactRole = 'Additional Contact';
+                  contactName = client.pm_name || client.sup_name || '';
+                  contactRole = client.pm_name ? 'Property Manager' : 'Supervisor';
                 }
+              } else {
+                contactName = client.additional_name || '';
+                contactRole = 'Additional Contact';
+              }
 
-                return (
-                  <tr key={client.id} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Name & Logo & Status */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-2xs">
-                          {client.logo_url ? (
-                            <img
-                              src={client.logo_url}
-                              alt={client.name}
-                              onClick={() => setExpandedLogoUrl(client.logo_url || null)}
-                              className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-200"
-                            />
-                          ) : (
-                            <span className="text-sm font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-bold text-slate-800 line-clamp-1">{client.name}</div>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
-                              client.type === 'commercial' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'
-                            }`}>
-                              {client.type}
-                            </span>
-                            <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
-                              client.active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
-                            }`}>
-                              {client.active ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-                        </div>
+              return (
+                <div key={client.id} className="grid grid-cols-12 items-center hover:bg-slate-50/50 transition-colors py-4 px-6">
+                  {/* Name & Logo & Status */}
+                  <div className="col-span-3 pr-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-2xs">
+                        {client.logo_url ? (
+                          <img
+                            src={client.logo_url}
+                            alt={client.name}
+                            onClick={() => setExpandedLogoUrl(client.logo_url || null)}
+                            className="w-full h-full object-contain cursor-zoom-in hover:scale-105 transition-all duration-200"
+                          />
+                        ) : (
+                          <span className="text-sm font-bold text-slate-400 uppercase">{client.name.charAt(0)}</span>
+                        )}
                       </div>
-                    </td>
-
-                    <td className="py-4 px-6">
-                      {client.address ? (
-                        <button
-                          type="button"
-                          onClick={() => setMapPopupAddress(client.address || null)}
-                          className="hover:text-primary text-left transition-colors group cursor-pointer flex flex-col w-full bg-transparent border-0 p-0"
-                        >
-                          <span className="line-clamp-1 text-slate-800 group-hover:underline font-semibold flex items-center gap-1.5">
-                            <svg className="w-4 h-4 text-red-500 shrink-0 group-hover:text-red-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            {client.address}
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-800 line-clamp-1 truncate">{client.name}</div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                            client.type === 'commercial' ? 'bg-blue-50 text-blue-600' : 'bg-teal-50 text-teal-600'
+                          }`}>
+                            {client.type}
                           </span>
-                          <span className="text-xs text-slate-400 mt-0.5 font-semibold pl-5.5">{client.area || 'No Area'}</span>
-                        </button>
-                      ) : (
-                        <span className="text-slate-350 italic">N/A</span>
-                      )}
-                    </td>
-
-                    {/* Contact Person */}
-                    <td className="py-4 px-6">
-                      {contactName ? (
-                        <div>
-                          <div className="font-semibold text-slate-800 line-clamp-1">{contactName}</div>
-                          <div className="text-xs text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{contactRole}</div>
+                          <span className={`text-[9px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                            client.active ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
+                          }`}>
+                            {client.active ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
-                      ) : (
-                        <span className="text-slate-350 text-xs italic font-medium">No Contact</span>
-                      )}
-                    </td>
-
-                    {/* Units */}
-                    <td className="py-4 px-6 text-center">
-                      {client.type === 'commercial' && client.units > 0 ? (
-                        <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">
-                          {client.units}
-                        </span>
-                      ) : (
-                        <span className="text-slate-350">—</span>
-                      )}
-                    </td>
-
-                    {/* Property Management */}
-                    <td className="py-4 px-6">
-                      {client.property_management ? (
-                        <div className="text-blue-600 font-bold text-xs flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg w-fit">
-                          <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                          {client.property_management.name}
-                        </div>
-                      ) : (
-                        <span className="text-slate-350">—</span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditClient(client)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-50 rounded-lg active:scale-90 transition-all cursor-pointer"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => setClientToDelete(client)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg active:scale-90 transition-all cursor-pointer"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  </div>
+
+                  {/* Address & Area */}
+                  <div className="col-span-3 pr-4">
+                    {client.address ? (
+                      <button
+                        type="button"
+                        onClick={() => setMapPopupAddress(client.address || null)}
+                        className="flex items-start gap-1.5 text-left text-xs font-semibold text-slate-600 hover:text-primary transition-colors group cursor-pointer bg-transparent border-0 p-0 w-full"
+                      >
+                        <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="line-clamp-2 leading-tight group-hover:underline">
+                          {client.address}
+                          <span className="text-[10px] text-slate-400 font-bold ml-1">({client.area})</span>
+                        </span>
+                      </button>
+                    ) : (
+                      <span className="text-slate-350">—</span>
+                    )}
+                  </div>
+
+                  {/* Contact Person */}
+                  <div className="col-span-2 pr-4 min-w-0">
+                    {contactName ? (
+                      <div>
+                        <div className="font-extrabold text-slate-700 text-xs truncate">{contactName}</div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5 truncate">{contactRole}</div>
+                      </div>
+                    ) : (
+                      <span className="text-slate-350">—</span>
+                    )}
+                  </div>
+
+                  {/* Units */}
+                  <div className="col-span-1 text-center">
+                    {client.type === 'commercial' && client.units > 0 ? (
+                      <span className="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">
+                        {client.units}
+                      </span>
+                    ) : (
+                      <span className="text-slate-350">—</span>
+                    )}
+                  </div>
+
+                  {/* Property Management */}
+                  <div className="col-span-2 pr-4 min-w-0">
+                    {client.property_management ? (
+                      <div className="text-blue-600 font-bold text-xs flex items-center gap-1.5 bg-blue-50/50 px-2 py-1 rounded-lg w-fit max-w-full">
+                        <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <span className="truncate">{client.property_management.name}</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-350">—</span>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-1 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleEditClient(client)}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-slate-50 rounded-lg active:scale-90 transition-all cursor-pointer"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setClientToDelete(client)}
+                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg active:scale-90 transition-all cursor-pointer"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
       )}
 
       {/* -------------------------------------------------------------
@@ -1240,14 +1226,15 @@ export function AdminClients() {
               {/* Status / Active Toggle */}
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold text-slate-600">Active Account:</span>
-                <label className="relative inline-flex items-center cursor-pointer">
+                <label className="relative inline-flex items-center cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={currentClient.active}
                     onChange={(e) => setCurrentClient((prev) => ({ ...prev, active: e.target.checked }))}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                  <div className="absolute left-0 -top-1 w-5.5 h-5.5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[18px] peer-checked:bg-primary-dark peer-checked:border-primary-dark"></div>
                 </label>
               </div>
 
@@ -1382,7 +1369,7 @@ export function AdminClients() {
                       </span>
                       <div className="flex items-center gap-2.5">
                         <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Main Contact:</span>
-                        <label className="relative inline-flex items-center cursor-pointer">
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
                           <input
                             type="checkbox"
                             checked={currentClient.pm_is_main || false}
@@ -1395,7 +1382,8 @@ export function AdminClients() {
                             }
                             className="sr-only peer"
                           />
-                          <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                          <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                          <div className="absolute left-0 -top-1 w-5.5 h-5.5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[18px] peer-checked:bg-primary-dark peer-checked:border-primary-dark"></div>
                         </label>
                       </div>
                     </div>
@@ -1435,7 +1423,7 @@ export function AdminClients() {
                       </span>
                       <div className="flex items-center gap-2.5">
                         <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Main Contact:</span>
-                        <label className="relative inline-flex items-center cursor-pointer">
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
                           <input
                             type="checkbox"
                             checked={currentClient.sup_is_main || false}
@@ -1448,7 +1436,8 @@ export function AdminClients() {
                             }
                             className="sr-only peer"
                           />
-                          <div className="w-10 h-5.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[18px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4.5 after:w-4.5 after:transition-all peer-checked:bg-primary"></div>
+                          <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                          <div className="absolute left-0 -top-1 w-5.5 h-5.5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[18px] peer-checked:bg-primary-dark peer-checked:border-primary-dark"></div>
                         </label>
                       </div>
                     </div>
@@ -1873,7 +1862,7 @@ export function AdminClients() {
             </div>
 
             {/* Route calculations */}
-            {(routeLoading || routeInfo) && (
+            {(routeLoading || routeInfo || routeError) && (
               <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3 flex items-center justify-between gap-4 animate-fadeIn shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-blue-100/75 flex items-center justify-center text-blue-600 shrink-0">
@@ -1885,6 +1874,12 @@ export function AdminClients() {
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-600 block">Estimated Travel from Your Location</span>
                     {routeLoading ? (
                       <span className="text-xs text-slate-500 font-semibold animate-pulse block mt-0.5">Calculating distance and driving time...</span>
+                    ) : routeError ? (
+                      <span className="text-xs text-red-500 font-bold block mt-0.5">
+                        {routeError.toLowerCase().includes('denied')
+                          ? 'Location permission denied. Please allow location access in your browser.'
+                          : `Unable to calculate route: ${routeError}`}
+                      </span>
                     ) : (
                       <span className="text-sm font-extrabold text-slate-800 block mt-0.5">
                         {routeInfo?.distance} <span className="text-slate-300 font-normal mx-2">•</span> {routeInfo?.duration} driving time

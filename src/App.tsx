@@ -17,6 +17,7 @@ import NewGroupPage from './pages/NewGroupPage';
 import { AdjustmentPage } from './pages/AdjustmentPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
+import { InactivePage } from './pages/InactivePage';
 
 // Admin Shell & Pages
 import { AdminShell } from './components/layout/AdminShell';
@@ -33,16 +34,25 @@ import { AdminSettings } from './pages/admin/AdminSettings';
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.ativo === false) return <Navigate to="/inactive" replace />;
   return <>{children}</>;
 }
 
 function AdminProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.ativo === false) return <Navigate to="/inactive" replace />;
   
   const isAdmin = ['owner', 'director', 'manager'].includes((user.tipo_user_bubble || '').toLowerCase());
   if (!isAdmin) return <Navigate to="/" replace />;
   
+  return <>{children}</>;
+}
+
+function InactiveRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.ativo !== false) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -83,6 +93,7 @@ export default function App() {
                 <AppFrame>
                   <Routes>
                     <Route path="/login" element={<LoginPage />} />
+                    <Route path="/inactive" element={<InactiveRoute><InactivePage /></InactiveRoute>} />
                     
                     {/* Worker Routes */}
                     <Route
