@@ -29,9 +29,9 @@ export function InactivePage() {
 
         {/* Message */}
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-white tracking-tight">Sem Acesso ao Sistema</h2>
+          <h2 className="text-2xl font-bold text-white tracking-tight">Access Denied</h2>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Sua conta está desativada no momento. Por favor, entre em contato com o administrador para habilitar seu acesso.
+            Your account is currently inactive. Please contact the administrator to enable your access.
           </p>
         </div>
 
@@ -42,7 +42,7 @@ export function InactivePage() {
             onClick={handleLogout}
             className="w-full py-3 px-4 bg-white/10 hover:bg-white/15 active:scale-[0.98] text-white text-sm font-semibold rounded-2xl transition-all duration-200 cursor-pointer border border-white/10"
           >
-            Sair da Conta (Logout)
+            Sign Out
           </button>
         </div>
       </div>
