@@ -197,9 +197,9 @@ export function AdminProposals() {
   };
 
   return (
-    <div className="h-full flex flex-col min-h-0 relative select-none">
+    <div className="flex flex-col h-full space-y-6 relative select-none text-left">
       {/* HEADER SECTION */}
-      <div className="flex flex-wrap items-center justify-between gap-4 py-6 px-8 shrink-0 bg-transparent">
+      <div className="flex flex-wrap items-center justify-between gap-4 shrink-0 bg-transparent">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">Proposals</h1>
           <p className="text-xs text-slate-500 font-medium">Create and manage estimations, track contract status, and generate custom client PDFs.</p>
@@ -230,7 +230,7 @@ export function AdminProposals() {
       </div>
 
       {/* TABLE VIEW CONTAINER */}
-      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-x-auto overflow-y-hidden flex flex-col min-h-0 mx-8 mb-6">
+      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-2xs overflow-x-auto overflow-y-hidden flex flex-col min-h-0">
         <div className="flex-1 flex flex-col min-w-[950px] min-h-0">
           
           {/* Header Row */}
@@ -361,7 +361,6 @@ export function AdminProposals() {
                     <button
                       onClick={() => navigate(`/admin/proposals/${p.id}/edit`)}
                       className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
-                      title="Edit Proposal"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -370,7 +369,6 @@ export function AdminProposals() {
                     <button
                       onClick={() => window.open(`/admin/proposals/${p.id}/print`, '_blank')}
                       className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
-                      title="Print PDF"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0a2.25 2.25 0 01-2.25 2.25H8.59a2.25 2.25 0 01-2.25-2.25M16.5 13.5v-2.25A2.25 2.25 0 0014.25 9h-4.5A2.25 2.25 0 007.5 11.25V13.5m9 0h-9m10.125-3.375a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
