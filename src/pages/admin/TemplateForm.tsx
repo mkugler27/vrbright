@@ -816,7 +816,7 @@ function SortableTemplateRow({
         )}
 
         {/* Unit Price */}
-        <div className="w-20 flex flex-col gap-0.5">
+        <div className="w-32 flex flex-col gap-0.5">
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit Price</span>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
