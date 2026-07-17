@@ -71,7 +71,7 @@ export function TemplateForm() {
   const [customEditId, setCustomEditId] = useState<string | null>(null);
   const [customHtml, setCustomHtml] = useState('');
   const [customPrice, setCustomPrice] = useState<number>(0);
-  const [customApplyQuant, setCustomApplyQuant] = useState(true);
+  const [globalApplyQuantity, setGlobalApplyQuantity] = useState(true);
 
   // DND Kit Sensors
   const sensors = useSensors(
@@ -124,6 +124,9 @@ export function TemplateForm() {
           .eq('template_id', id)
           .order('sequence');
 
+        const initialGlobalApply = tempItems && tempItems.length > 0 ? tempItems.some(i => i.apply_quantity) : true;
+        setGlobalApplyQuantity(initialGlobalApply);
+
         setItems(
           (tempItems || []).map((item) => ({
             id: item.id,
@@ -161,6 +164,23 @@ export function TemplateForm() {
     }
   };
 
+  const handleToggleGlobalApplyQuantity = (checked: boolean) => {
+    setGlobalApplyQuantity(checked);
+    setItems((prev) =>
+      prev.map((item) => {
+        const qtyVal = checked ? (item.quantity === '' ? 1 : Number(item.quantity)) : '';
+        const priceVal = item.unit_price;
+        const subtotal = checked ? Number(qtyVal) * priceVal : priceVal;
+        return {
+          ...item,
+          apply_quantity: checked,
+          quantity: qtyVal,
+          subtotal,
+        };
+      })
+    );
+  };
+
   // Add Price List Item
   const handleAddPriceListItem = async (serviceId: string) => {
     if (!serviceId) return;
@@ -185,9 +205,9 @@ export function TemplateForm() {
           id: crypto.randomUUID(),
           service_id: sItem.id,
           description: sItem.description,
-          quantity: 1,
+          quantity: globalApplyQuantity ? 1 : '',
           unit_price: 0,
-          apply_quantity: true,
+          apply_quantity: globalApplyQuantity,
           subtotal: 0,
         },
       ]);
@@ -207,15 +227,15 @@ export function TemplateForm() {
       setItems((prev) =>
         prev.map((item) => {
           if (item.id === customEditId) {
-            const qtyVal = customApplyQuant ? (item.quantity === '' ? 1 : Number(item.quantity)) : '';
+            const qtyVal = globalApplyQuantity ? (item.quantity === '' ? 1 : Number(item.quantity)) : '';
             const priceVal = customPrice;
-            const subtotal = customApplyQuant ? Number(qtyVal) * priceVal : priceVal;
+            const subtotal = globalApplyQuantity ? Number(qtyVal) * priceVal : priceVal;
 
             return {
               ...item,
               description: customHtml,
               unit_price: priceVal,
-              apply_quantity: customApplyQuant,
+              apply_quantity: globalApplyQuantity,
               quantity: qtyVal,
               subtotal,
             };
@@ -224,8 +244,8 @@ export function TemplateForm() {
         })
       );
     } else {
-      const qtyVal = customApplyQuant ? 1 : '';
-      const subtotal = customApplyQuant ? 1 * customPrice : customPrice;
+      const qtyVal = globalApplyQuantity ? 1 : '';
+      const subtotal = globalApplyQuantity ? 1 * customPrice : customPrice;
 
       setItems((prev) => [
         ...prev,
@@ -235,7 +255,7 @@ export function TemplateForm() {
           description: customHtml,
           quantity: qtyVal,
           unit_price: customPrice,
-          apply_quantity: customApplyQuant,
+          apply_quantity: globalApplyQuantity,
           subtotal,
         },
       ]);
@@ -245,7 +265,6 @@ export function TemplateForm() {
     setCustomEditId(null);
     setCustomHtml('');
     setCustomPrice(0);
-    setCustomApplyQuant(true);
     setShowCustomModal(false);
   };
 
@@ -253,14 +272,13 @@ export function TemplateForm() {
     setCustomEditId(item.id);
     setCustomHtml(item.description);
     setCustomPrice(item.unit_price);
-    setCustomApplyQuant(item.apply_quantity);
     setShowCustomModal(true);
   };
 
   // Update item field inputs
   const handleUpdateItemInput = (
     itemId: string,
-    field: 'quantity' | 'unit_price' | 'apply_quantity',
+    field: 'quantity' | 'unit_price',
     value: any
   ) => {
     setItems((prev) =>
@@ -268,25 +286,21 @@ export function TemplateForm() {
         if (item.id === itemId) {
           let qty = item.quantity;
           let price = item.unit_price;
-          let applyQuant = item.apply_quantity;
 
           if (field === 'quantity') {
             qty = value === '' ? '' : Number(value);
           } else if (field === 'unit_price') {
-            price = Number(value);
-          } else if (field === 'apply_quantity') {
-            applyQuant = !!value;
-            qty = applyQuant ? (qty === '' ? 1 : qty) : '';
+            price = value === '' ? 0 : Number(value);
           }
 
-          const multiplier = applyQuant ? (qty === '' ? 1 : Number(qty)) : 1;
+          const multiplier = globalApplyQuantity ? (qty === '' ? 1 : Number(qty)) : 1;
           const subtotal = multiplier * price;
 
           return {
             ...item,
             quantity: qty,
             unit_price: price,
-            apply_quantity: applyQuant,
+            apply_quantity: globalApplyQuantity,
             subtotal,
           };
         }
@@ -397,9 +411,9 @@ export function TemplateForm() {
         template_id: templateId,
         service_id: item.service_id,
         description: item.description,
-        quantity: item.quantity === '' ? null : item.quantity,
+        quantity: globalApplyQuantity ? (item.quantity === '' ? 1 : item.quantity) : null,
         unit_price: item.unit_price,
-        apply_quantity: item.apply_quantity,
+        apply_quantity: globalApplyQuantity,
         sequence: idx + 1,
       }));
 
@@ -500,7 +514,22 @@ export function TemplateForm() {
             {/* SERVICES BUILDER CARD */}
             <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-2xs space-y-4 text-left">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-                <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Template Services</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Template Services</h2>
+                  <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 border border-slate-150 rounded-xl">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">APPLY QUANT</span>
+                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={globalApplyQuantity}
+                        onChange={(e) => handleToggleGlobalApplyQuantity(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
+                      <div className="absolute left-0 -top-[3px] w-5 h-5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[20px] peer-checked:bg-primary peer-checked:border-primary"></div>
+                    </label>
+                  </div>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -508,7 +537,6 @@ export function TemplateForm() {
                       setCustomEditId(null);
                       setCustomHtml('');
                       setCustomPrice(0);
-                      setCustomApplyQuant(true);
                       setShowCustomModal(true);
                     }}
                     className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold rounded-xl active:scale-98 transition-all cursor-pointer"
@@ -630,32 +658,16 @@ export function TemplateForm() {
               <RichTextEditor value={customHtml} onChange={setCustomHtml} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {/* Unit Price */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Unit Price</label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={customPrice || ''}
-                  onChange={(e) => setCustomPrice(Number(e.target.value))}
-                  className="w-full border border-slate-200 focus:border-primary rounded-xl px-3.5 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
-                />
-              </div>
-
-              {/* Apply Quant Toggle */}
-              <div className="flex items-center justify-between pt-6">
-                <span className="text-xs font-black text-slate-500 uppercase tracking-wider">APPLY QUANT</span>
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={customApplyQuant}
-                    onChange={(e) => setCustomApplyQuant(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary" />
-                </label>
-              </div>
+            {/* Unit Price */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black text-slate-500 uppercase tracking-wider">Unit Price / Value</label>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={customPrice || ''}
+                onChange={(e) => setCustomPrice(Number(e.target.value))}
+                className="w-full border border-slate-200 focus:border-primary rounded-xl px-3.5 py-2.5 text-sm text-slate-700 focus:outline-none bg-white transition-all font-semibold"
+              />
             </div>
 
             {/* Buttons */}
@@ -726,7 +738,7 @@ interface SortableTemplateRowProps {
   index: number;
   onEditCustom: (item: TemplateItemState) => void;
   onRemove: (itemId: string) => void;
-  onUpdateField: (itemId: string, field: 'quantity' | 'unit_price' | 'apply_quantity', value: any) => void;
+  onUpdateField: (itemId: string, field: 'quantity' | 'unit_price', value: any) => void;
 }
 
 function SortableTemplateRow({
@@ -737,26 +749,35 @@ function SortableTemplateRow({
   onRemove,
   onUpdateField,
 }: SortableTemplateRowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+    opacity: isDragging ? 0.35 : 1,
   };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex flex-col md:flex-row md:items-center justify-between p-4 bg-slate-50 hover:bg-slate-100/50 border border-slate-100 hover:border-slate-200 rounded-2xl gap-4 select-none relative"
+      className={`p-4 bg-slate-50/70 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
+        isDragging ? 'shadow-lg border-primary/20 scale-[1.01]' : 'hover:border-slate-300/80'
+      }`}
     >
-      {/* drag handle & index */}
+      {/* Drag & Number indicator */}
       <div className="flex items-center gap-2.5 shrink-0">
-        <div {...attributes} {...listeners} className="p-1 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600 cursor-grab active:cursor-grabbing">
+        <div
+          {...attributes}
+          {...listeners}
+          className="p-1 hover:bg-slate-200/80 rounded-lg text-slate-400 hover:text-slate-650 transition-colors cursor-grab active:cursor-grabbing"
+        >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6h16.5" />
           </svg>
         </div>
-        <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-600 font-extrabold text-[10px] flex items-center justify-center shrink-0">
+        <span className="w-5.5 h-5.5 rounded-full bg-slate-200 text-slate-700 font-black text-[11px] flex items-center justify-center shrink-0">
           {index}
         </span>
       </div>
@@ -764,11 +785,11 @@ function SortableTemplateRow({
       {/* Description */}
       <div className="flex-1 min-w-0 pr-4">
         {item.service_id ? (
-          <p className="text-xs font-extrabold text-slate-800 leading-relaxed truncate">{item.description}</p>
+          <p className="text-sm font-black text-slate-800 leading-relaxed truncate">{item.description}</p>
         ) : (
           <div className="flex items-center gap-2">
             <div
-              className="text-xs font-extrabold text-slate-800 leading-relaxed truncate max-w-md"
+              className="text-sm font-black text-slate-855 leading-relaxed truncate max-w-md"
               dangerouslySetInnerHTML={{ __html: item.description }}
             />
             <button
@@ -786,54 +807,39 @@ function SortableTemplateRow({
 
       {/* Inputs */}
       <div className="flex flex-wrap items-center gap-4 shrink-0 md:justify-end">
-        {/* Toggle APPLY QUANT */}
-        <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 border border-slate-100 rounded-xl">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">APPLY QUANT</span>
-          <label className="relative inline-flex items-center cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={item.apply_quantity}
-              onChange={(e) => onUpdateField(item.id, 'apply_quantity', e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-10 h-3.5 bg-slate-200 peer-checked:bg-primary/40 rounded-full transition-colors duration-200"></div>
-            <div className="absolute left-0 -top-[3px] w-5 h-5 bg-white border border-slate-200/80 rounded-full shadow-xs transition-all duration-200 transform peer-checked:translate-x-[20px] peer-checked:bg-primary peer-checked:border-primary"></div>
-          </label>
-        </div>
-
         {/* Qty (if applicable) */}
         {item.apply_quantity && (
-          <div className="w-16 flex flex-col gap-0.5">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Qty</span>
+          <div className="w-20 flex flex-col gap-0.5">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Qty</span>
             <input
               type="number"
               placeholder="1"
               value={item.quantity}
               onChange={(e) => onUpdateField(item.id, 'quantity', e.target.value)}
-              className="w-full border border-slate-200 focus:border-primary rounded-xl px-2 py-1 text-xs text-slate-700 text-center focus:outline-none bg-white font-extrabold"
+              className="w-full border border-slate-200 focus:border-primary rounded-xl px-3 py-1.5 text-sm text-slate-800 text-left focus:outline-none bg-white font-extrabold"
             />
           </div>
         )}
 
         {/* Unit Price */}
         <div className="w-32 flex flex-col gap-0.5">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Unit Price</span>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Unit Price</span>
           <div className="relative">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">$</span>
             <input
               type="number"
               placeholder="0.00"
               value={item.unit_price || ''}
               onChange={(e) => onUpdateField(item.id, 'unit_price', e.target.value)}
-              className="w-full border border-slate-200 focus:border-primary rounded-xl pl-5 pr-2 py-1 text-xs text-slate-700 text-center focus:outline-none bg-white font-extrabold"
+              className="w-full border border-slate-200 focus:border-primary rounded-xl pl-6 pr-3 py-1.5 text-sm text-slate-800 text-left focus:outline-none bg-white font-extrabold"
             />
           </div>
         </div>
 
         {/* Subtotal */}
-        <div className="min-w-[60px] text-right flex flex-col gap-0.5 pr-2">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Subtotal</span>
-          <span className="text-xs font-black text-slate-800">${item.subtotal.toFixed(2)}</span>
+        <div className="min-w-[80px] text-left flex flex-col gap-0.5 pr-2">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Subtotal</span>
+          <span className="text-sm font-black text-slate-800">${item.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
 
         {/* Remove */}
