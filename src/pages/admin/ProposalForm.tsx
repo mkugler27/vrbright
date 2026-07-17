@@ -902,15 +902,17 @@ export function ProposalForm() {
                 {/* Proposal status */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500">Status</label>
-                  <select
+                  <SearchableDropdown
                     value={status}
-                    onChange={(e) => setStatus(e.target.value as any)}
-                    className="w-full border border-slate-200 focus:border-primary rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all capitalize"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="approved">Approved</option>
-                    <option value="declined">Declined</option>
-                  </select>
+                    onChange={(val) => setStatus(val as any)}
+                    placeholder="Select status..."
+                    options={[
+                      { label: 'Pending', value: 'pending' },
+                      { label: 'Approved', value: 'approved' },
+                      { label: 'Declined', value: 'declined' },
+                    ]}
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Title */}
