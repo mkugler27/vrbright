@@ -963,7 +963,7 @@ export function ProposalForm() {
                       onChange={(val) => {
                         if (val) handleAddPriceListItem(val);
                       }}
-                      className="w-52 text-left"
+                      className="w-80 text-left"
                     />
                   )}
                 </div>
