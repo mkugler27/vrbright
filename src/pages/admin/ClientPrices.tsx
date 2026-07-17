@@ -462,78 +462,83 @@ export function ClientPrices() {
       </div>
 
       {/* AUDIT LOG TIMELINE SIDE DRAWER */}
-      {showLogsDrawer && selectedClient && (
+      {selectedClient && (
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-45 transition-opacity"
+            className={`fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-45 transition-opacity duration-300 ${
+              showLogsDrawer ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+            }`}
             onClick={() => setShowLogsDrawer(false)}
           />
 
           {/* Drawer content */}
-          <div className="fixed right-0 top-0 bottom-0 w-96 bg-white border-l border-slate-200/80 shadow-2xl z-50 flex flex-col animate-slideLeft">
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Price Change Log</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{selectedClient.name}</p>
+          <div className={`fixed right-0 top-0 bottom-0 bg-white border-l border-slate-200/80 shadow-2xl z-50 flex flex-col transition-all duration-300 ease-in-out ${
+            showLogsDrawer ? 'w-96 opacity-100' : 'w-0 opacity-0 pointer-events-none'
+          } overflow-hidden`}>
+            <div className="w-96 h-full flex flex-col shrink-0">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-sm uppercase tracking-wider">Price Change Log</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{selectedClient.name}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowLogsDrawer(false)}
+                  className="p-1.5 hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-650 rounded-xl cursor-pointer transition-all"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={() => setShowLogsDrawer(false)}
-                className="p-1.5 hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer transition-all"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            {/* Logs list body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 text-left">
-              {loadingLogs ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-2">
-                  <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                  <span className="text-xs text-slate-400 font-bold">Loading history...</span>
-                </div>
-              ) : auditLogs.length === 0 ? (
-                <p className="text-xs text-slate-400 font-bold text-center py-8">No price logs registered for this client.</p>
-              ) : (
-                <div className="relative border-l border-slate-200 pl-4 ml-2 space-y-6">
-                  {auditLogs.map((log) => (
-                    <div key={log.id} className="relative space-y-1">
-                      {/* Timeline dot */}
-                      <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border border-white bg-slate-400 ring-4 ring-white" />
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-black text-slate-700 bg-slate-100 border border-slate-200/50 rounded px-1.5 py-0.25 uppercase tracking-wider">
-                          {log.action.replace('_', ' ')}
-                        </span>
-                        <span className="text-[9px] font-extrabold text-slate-400">
-                          {new Date(log.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })} {new Date(log.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </span>
+              {/* Logs list body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 text-left">
+                {loadingLogs ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-2">
+                    <span className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <span className="text-xs text-slate-400 font-bold">Loading history...</span>
+                  </div>
+                ) : auditLogs.length === 0 ? (
+                  <p className="text-xs text-slate-400 font-bold text-center py-8">No price logs registered for this client.</p>
+                ) : (
+                  <div className="relative border-l border-slate-200 pl-4 ml-2 space-y-6">
+                    {auditLogs.map((log) => (
+                      <div key={log.id} className="relative space-y-1">
+                        {/* Timeline dot */}
+                        <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border border-white bg-slate-400 ring-4 ring-white" />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-black text-slate-700 bg-slate-100 border border-slate-200/50 rounded px-1.5 py-0.25 uppercase tracking-wider">
+                            {log.action.replace('_', ' ')}
+                          </span>
+                          <span className="text-[9px] font-extrabold text-slate-400">
+                            {new Date(log.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })} {new Date(log.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 font-semibold leading-relaxed">{log.details}</p>
+                        <p className="text-[9px] font-bold text-slate-400">Changed by: {log.changed_by}</p>
                       </div>
-                      <p className="text-xs text-slate-600 font-semibold leading-relaxed">{log.details}</p>
-                      <p className="text-[9px] font-bold text-slate-400">Changed by: {log.changed_by}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-            {/* Footer */}
-            <div className="p-5 border-t border-slate-100 bg-slate-50 shrink-0 text-center">
-              <button
-                onClick={() => setShowLogsDrawer(false)}
-                className="w-full py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
-              >
-                Close Logs Panel
-              </button>
+              {/* Footer */}
+              <div className="p-5 border-t border-slate-100 bg-slate-50 shrink-0 text-center">
+                <button
+                  onClick={() => setShowLogsDrawer(false)}
+                  className="w-full py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
+                >
+                  Close Logs Panel
+                </button>
+              </div>
             </div>
-
           </div>
         </>
       )}

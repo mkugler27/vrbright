@@ -383,190 +383,178 @@ export function AdminProposals() {
         </div>
       </div>
 
-      {/* FILTER DRAWER PANEL */}
-      {showFilters && (
-        <>
-          {/* Backdrop Overlay */}
-          <div
-            className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 transition-opacity"
-            onClick={() => setShowFilters(false)}
-          />
-          
-          {/* Drawer content */}
-          <div className="fixed right-0 top-0 bottom-0 w-80 bg-white border-l border-slate-200/80 shadow-2xl z-50 flex flex-col animate-slideLeft">
+      {/* FILTERS SIDE DRAWER */}
+      <div
+        className={`fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-40 transition-opacity duration-300 ${
+          showFilters ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setShowFilters(false)}
+      />
+      
+      <div className={`fixed right-0 top-0 bottom-0 bg-white border-l border-slate-200/80 shadow-2xl z-50 flex flex-col transition-all duration-300 ease-in-out ${
+        showFilters ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none'
+      } overflow-hidden`}>
+        <div className="w-80 h-full flex flex-col shrink-0">
+          {/* Drawer Header */}
+          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+              </svg>
+              <h3 className="font-extrabold text-slate-800 text-base">Filters</h3>
+            </div>
+            <button
+              onClick={() => setShowFilters(false)}
+              className="p-1.5 hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-650 rounded-xl cursor-pointer transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Filter Fields Body */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <svg className="w-5 h-5 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
-                </svg>
-                <h3 className="font-extrabold text-slate-800 text-base">Filters</h3>
+            {/* Start Date */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Start date</label>
+                {filterStartDate && (
+                  <button onClick={() => setFilterStartDate('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
+                    Clear
+                  </button>
+                )}
               </div>
-              <button
-                onClick={() => setShowFilters(false)}
-                className="p-1.5 hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-400 hover:text-slate-600 rounded-xl cursor-pointer transition-all"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <input
+                type="date"
+                value={filterStartDate}
+                onChange={(e) => setFilterStartDate(e.target.value)}
+                className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
+              />
             </div>
 
-            {/* Filter Fields Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              
-              {/* Start Date */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Start date</label>
-                  {filterStartDate && (
-                    <button onClick={() => setFilterStartDate('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="date"
-                  value={filterStartDate}
-                  onChange={(e) => setFilterStartDate(e.target.value)}
-                  className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
-                />
-              </div>
-
-              {/* End Date */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-slate-600 uppercase tracking-wider">End date</label>
-                  {filterEndDate && (
-                    <button onClick={() => setFilterEndDate('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="date"
-                  value={filterEndDate}
-                  onChange={(e) => setFilterEndDate(e.target.value)}
-                  className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
-                />
-              </div>
-
-              {/* Title / ID# Search */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Title / ID#</label>
-                  {filterTitle && (
-                    <button onClick={() => setFilterTitle('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search by title or code..."
-                  value={filterTitle}
-                  onChange={(e) => setFilterTitle(e.target.value)}
-                  className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3.5 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none bg-white transition-all"
-                />
-              </div>
-
-              {/* Type Pills */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Type</label>
-                  {filterType && (
-                    <button onClick={() => setFilterType('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200/50">
-                  <button
-                    type="button"
-                    onClick={() => setFilterType(filterType === 'custom' ? '' : 'custom')}
-                    className={`py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition-all ${
-                      filterType === 'custom'
-                        ? 'bg-white text-slate-800 shadow-xs font-extrabold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Custom
+            {/* End Date */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black text-slate-600 uppercase tracking-wider">End date</label>
+                {filterEndDate && (
+                  <button onClick={() => setFilterEndDate('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
+                    Clear
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterType(filterType === 'price_list' ? '' : 'price_list')}
-                    className={`py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition-all ${
-                      filterType === 'price_list'
-                        ? 'bg-white text-slate-800 shadow-xs font-extrabold'
-                        : 'text-slate-500 hover:text-slate-800'
-                    }`}
-                  >
-                    Price List
-                  </button>
-                </div>
+                )}
               </div>
-
-              {/* Status Pills */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Status</label>
-                  {filterStatus && (
-                    <button onClick={() => setFilterStatus('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
-                      Clear
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {(['approved', 'pending', 'declined'] as const).map((sVal) => {
-                    const active = filterStatus === sVal;
-                    return (
-                      <button
-                        key={sVal}
-                        type="button"
-                        onClick={() => setFilterStatus(filterStatus === sVal ? '' : sVal)}
-                        className={`w-full py-2 px-3 border rounded-xl text-xs font-extrabold text-left capitalize transition-all cursor-pointer flex items-center justify-between ${
-                          active
-                            ? sVal === 'approved'
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-black shadow-2xs'
-                              : sVal === 'declined'
-                              ? 'bg-rose-50 border-rose-300 text-rose-800 font-black shadow-2xs'
-                              : 'bg-amber-50 border-amber-300 text-amber-800 font-black shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${
-                            sVal === 'approved' ? 'bg-emerald-500' : sVal === 'declined' ? 'bg-rose-500' : 'bg-amber-500'
-                          }`} />
-                          <span>{sVal}</span>
-                        </div>
-                        {active && <span className="text-slate-500">✓</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
+              <input
+                type="date"
+                value={filterEndDate}
+                onChange={(e) => setFilterEndDate(e.target.value)}
+                className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
+              />
             </div>
 
-            {/* Clear All Footer */}
-            <div className="p-6 border-t border-slate-100 bg-slate-50">
-              <button
-                onClick={clearAllFilters}
-                className="w-full py-3 bg-primary hover:bg-primary/95 text-white text-xs font-black rounded-2xl shadow-md shadow-primary/20 hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7C4.68 9.547 4.632 10.768 4.632 12c0 1.232.047 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.092-1.209.138-2.43.138-3.662z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5l3 3m0 0l3-3m-3 3v-6" />
-                </svg>
-                <span>CLEAR FILTER</span>
-              </button>
+            {/* Title / ID# Search */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Title / ID#</label>
+                {filterTitle && (
+                  <button onClick={() => setFilterTitle('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Search by title or code..."
+                value={filterTitle}
+                onChange={(e) => setFilterTitle(e.target.value)}
+                className="w-full border border-slate-200 focus:border-primary focus:ring-1 focus:ring-primary/40 rounded-xl px-3.5 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none bg-white transition-all"
+              />
+            </div>
+
+            {/* Type Pills */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Type</label>
+                {filterType && (
+                  <button onClick={() => setFilterType('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200/50">
+                <button
+                  type="button"
+                  onClick={() => setFilterType(filterType === 'custom' ? '' : 'custom')}
+                  className={`py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition-all ${
+                    filterType === 'custom'
+                      ? 'bg-white text-slate-800 shadow-xs font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Custom
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterType(filterType === 'price_list' ? '' : 'price_list')}
+                  className={`py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition-all ${
+                    filterType === 'price_list'
+                      ? 'bg-white text-slate-800 shadow-xs font-extrabold'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Price List
+                </button>
+              </div>
+            </div>
+
+            {/* Status Pills */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-black text-slate-600 uppercase tracking-wider">Status</label>
+                {filterStatus && (
+                  <button onClick={() => setFilterStatus('')} className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer">
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {(['pending', 'approved', 'declined'] as const).map((st) => {
+                  const active = filterStatus === st;
+                  return (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setFilterStatus(active ? '' : st)}
+                      className={`w-full py-2.5 px-4 border rounded-xl text-left text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                        active
+                          ? 'bg-primary/5 border-primary/20 text-slate-800 font-black shadow-2xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
           </div>
-        </>
-      )}
+
+          {/* Clear All Footer */}
+          <div className="p-6 border-t border-slate-100 bg-slate-50">
+            <button
+              onClick={clearAllFilters}
+              className="w-full py-3 bg-primary hover:bg-primary/95 text-white text-xs font-black rounded-2xl shadow-md shadow-primary/20 hover:shadow-lg active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7C4.68 9.547 4.632 10.768 4.632 12c0 1.232.047 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.092-1.209.138-2.43.138-3.662z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 10.5l3 3m0 0l3-3m-3 3v-6" />
+              </svg>
+              <span>CLEAR FILTER</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

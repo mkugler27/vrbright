@@ -35,6 +35,7 @@ import { AdminFinance } from './pages/admin/AdminFinance';
 import { AdminCalendar } from './pages/admin/AdminCalendar';
 import { AdminWorklist } from './pages/admin/AdminWorklist';
 import { AdminSettings } from './pages/admin/AdminSettings';
+import { AdminDetails } from './pages/admin/AdminDetails';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -137,6 +138,7 @@ export default function App() {
                       <Route path="/admin/proposals/templates" element={<AdminTemplates />} />
                       <Route path="/admin/proposals/templates/new" element={<TemplateForm />} />
                       <Route path="/admin/proposals/templates/:id/edit" element={<TemplateForm />} />
+                      <Route path="/admin/proposals/details" element={<AdminDetails />} />
                       <Route path="/admin/client-prices" element={<ClientPrices />} />
                       <Route path="/admin/price-list" element={<AdminPriceList />} />
                       <Route path="/admin/users" element={<AdminUsers />} />
