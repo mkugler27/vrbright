@@ -842,7 +842,7 @@ export function ProposalForm() {
       )}
 
       {/* HEADER ACTION BAR */}
-      <div className="flex items-center justify-between py-6 px-8 shrink-0 bg-transparent border-b border-slate-200/50">
+      <div className="flex items-center justify-between pb-5 shrink-0 bg-transparent border-b border-slate-200/50">
         <div>
           <h1 className="text-2xl font-black text-slate-800 tracking-tight">
             {isEdit ? `Edit Proposal` : `New Proposal`}
@@ -876,7 +876,7 @@ export function ProposalForm() {
       </div>
 
       {/* FORM WORKSPACE BODY */}
-      <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto pt-6 space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           
           {/* LEFT: GENERAL DETAILS CARD */}
