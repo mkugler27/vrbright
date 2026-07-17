@@ -440,7 +440,7 @@ export function TemplateForm() {
   };
 
   return (
-    <div className="h-full flex flex-col min-h-0 bg-transparent relative select-none">
+    <div className="h-full flex flex-col min-h-0 bg-transparent relative">
       
       {/* HEADER BAR */}
       <div className="flex items-center justify-between pb-5 shrink-0 bg-transparent border-b border-slate-200/50">

@@ -106,7 +106,7 @@ export function AdminTemplates() {
   };
 
   return (
-    <div className="flex flex-col h-full space-y-6 relative select-none text-left">
+    <div className="flex flex-col h-full space-y-6 relative text-left">
       {/* HEADER SECTION */}
       <div className="flex flex-wrap items-center justify-between gap-4 shrink-0 bg-transparent">
         <div>
