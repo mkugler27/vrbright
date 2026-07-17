@@ -24,6 +24,11 @@ import { AdminShell } from './components/layout/AdminShell';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminClients } from './pages/admin/AdminClients';
 import { AdminProposals } from './pages/admin/AdminProposals';
+import { ProposalForm } from './pages/admin/ProposalForm';
+import { ProposalPrint } from './pages/admin/ProposalPrint';
+import { AdminTemplates } from './pages/admin/AdminTemplates';
+import { TemplateForm } from './pages/admin/TemplateForm';
+import { ClientPrices } from './pages/admin/ClientPrices';
 import { AdminPriceList } from './pages/admin/AdminPriceList';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminFinance } from './pages/admin/AdminFinance';
@@ -127,6 +132,12 @@ export default function App() {
                       <Route path="/admin" element={<AdminDashboard />} />
                       <Route path="/admin/clients" element={<AdminClients />} />
                       <Route path="/admin/proposals" element={<AdminProposals />} />
+                      <Route path="/admin/proposals/new" element={<ProposalForm />} />
+                      <Route path="/admin/proposals/:id/edit" element={<ProposalForm />} />
+                      <Route path="/admin/proposals/templates" element={<AdminTemplates />} />
+                      <Route path="/admin/proposals/templates/new" element={<TemplateForm />} />
+                      <Route path="/admin/proposals/templates/:id/edit" element={<TemplateForm />} />
+                      <Route path="/admin/client-prices" element={<ClientPrices />} />
                       <Route path="/admin/price-list" element={<AdminPriceList />} />
                       <Route path="/admin/users" element={<AdminUsers />} />
                       <Route path="/admin/finance" element={<AdminFinance />} />
@@ -137,6 +148,16 @@ export default function App() {
                       <Route path="/admin/chat/new" element={<NewChatPage />} />
                       <Route path="/admin/chat/groups/new" element={<NewGroupPage />} />
                     </Route>
+
+                    {/* Admin Print Route */}
+                    <Route 
+                      path="/admin/proposals/:id/print" 
+                      element={
+                        <AdminProtectedRoute>
+                          <ProposalPrint />
+                        </AdminProtectedRoute>
+                      } 
+                    />
                   </Routes>
                 </AppFrame>
               </UnreadProvider>
