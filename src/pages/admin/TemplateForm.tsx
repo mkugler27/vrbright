@@ -516,9 +516,9 @@ export function TemplateForm() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div className="flex items-center gap-4">
                   <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Template Services</h2>
-                  <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1 border border-slate-150 rounded-xl">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">APPLY QUANT</span>
-                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <div className="flex items-center gap-2 bg-transparent select-none">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">APPLY QUANT</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={globalApplyQuantity}
