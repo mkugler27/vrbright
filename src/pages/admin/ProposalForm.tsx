@@ -763,7 +763,7 @@ export function ProposalForm() {
       
       {/* 1. INITIAL WIZARD SETUP OVERLAY */}
       {showSetup && (
-        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-40">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-8 max-w-md w-full space-y-6 animate-slide-up text-left">
             <div>
               <h3 className="text-xl font-black text-slate-800 tracking-tight">New Proposal Setup</h3>
