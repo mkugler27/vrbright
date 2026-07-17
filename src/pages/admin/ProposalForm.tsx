@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
 
 import {
   DndContext,
@@ -889,18 +890,13 @@ export function ProposalForm() {
                 {/* Client selection */}
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500">Customer</label>
-                  <select
+                  <SearchableDropdown
                     value={clientId}
-                    onChange={(e) => setClientId(e.target.value)}
-                    className="w-full border border-slate-200 focus:border-primary rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none bg-white transition-all"
-                  >
-                    <option value="">Select client...</option>
-                    {clients.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setClientId(val)}
+                    placeholder="Select client..."
+                    options={clients.map((c) => ({ label: c.name, value: c.id }))}
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Proposal status */}
@@ -958,20 +954,15 @@ export function ProposalForm() {
                       Add Custom Item
                     </button>
                   ) : (
-                    <select
-                      onChange={(e) => {
-                        handleAddPriceListItem(e.target.value);
-                        e.target.value = '';
+                    <SearchableDropdown
+                      value=""
+                      placeholder="+ Add Service..."
+                      options={services.map((s) => ({ label: s.description, value: s.id }))}
+                      onChange={(val) => {
+                        if (val) handleAddPriceListItem(val);
                       }}
-                      className="text-xs bg-slate-100 hover:bg-slate-200/80 border-0 rounded-xl px-3.5 py-1.5 text-slate-700 font-bold focus:outline-none cursor-pointer"
-                    >
-                      <option value="">+ Add Service...</option>
-                      {services.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.description}
-                        </option>
-                      ))}
-                    </select>
+                      className="w-52 text-left"
+                    />
                   )}
                 </div>
               </div>

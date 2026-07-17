@@ -199,7 +199,11 @@ export function AdminShell() {
         {/* Middle Section: Collapsible Navigation Links */}
         <nav className={`flex-1 px-3 py-2 space-y-1 ${collapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-hidden'}`}>
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.to || (item.to !== '/admin' && location.pathname.startsWith(item.to));
+            const isActive =
+              location.pathname === item.to ||
+              (item.to !== '/admin' &&
+                location.pathname.startsWith(item.to) &&
+                !(item.to === '/admin/proposals' && location.pathname.startsWith('/admin/proposals/templates')));
             return (
               <NavLink
                 key={item.to}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
+import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
 
 import {
   DndContext,
@@ -514,20 +515,15 @@ export function TemplateForm() {
                   >
                     Add Custom Item
                   </button>
-                  <select
-                    onChange={(e) => {
-                      handleAddPriceListItem(e.target.value);
-                      e.target.value = '';
+                  <SearchableDropdown
+                    value=""
+                    placeholder="+ Add Service..."
+                    options={services.map((s) => ({ label: s.description, value: s.id }))}
+                    onChange={(val) => {
+                      if (val) handleAddPriceListItem(val);
                     }}
-                    className="text-xs bg-slate-100 hover:bg-slate-200/80 border-0 rounded-xl px-3.5 py-1.5 text-slate-700 font-bold focus:outline-none cursor-pointer"
-                  >
-                    <option value="">+ Add Service...</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.description}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-52 text-left"
+                  />
                 </div>
               </div>
 
