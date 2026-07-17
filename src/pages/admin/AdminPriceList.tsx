@@ -517,10 +517,10 @@ export function AdminPriceList() {
             {/* Modal Header */}
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-black text-slate-800 text-base">
+                <h3 className="font-black text-slate-800 text-lg">
                   Confirm Delete
                 </h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                   This action can be undone
                 </p>
               </div>
@@ -535,11 +535,11 @@ export function AdminPriceList() {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 text-sm text-slate-600 leading-relaxed space-y-3 shrink-0">
+            <div className="p-6 text-base text-slate-600 leading-relaxed space-y-3 shrink-0">
               <p>
                 Are you sure you want to delete <span className="font-extrabold text-slate-800">"{itemToDelete.description}"</span>?
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-slate-400">
                 It will be hidden from new services, but will be kept in the database for historical and traceability purposes.
               </p>
             </div>

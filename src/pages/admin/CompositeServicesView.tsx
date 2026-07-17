@@ -854,8 +854,8 @@ export function CompositeServicesView({ showDeleted, searchQuery }: CompositeSer
             {/* Modal Header */}
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="font-black text-slate-800 text-base">Confirm Delete</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                <h3 className="font-black text-slate-800 text-lg">Confirm Delete</h3>
+                <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
                   This action can be undone
                 </p>
               </div>
@@ -870,7 +870,7 @@ export function CompositeServicesView({ showDeleted, searchQuery }: CompositeSer
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 text-sm text-slate-600 leading-relaxed space-y-3 shrink-0">
+            <div className="p-6 text-base text-slate-600 leading-relaxed space-y-3 shrink-0">
               <p>
                 Are you sure you want to delete the composite service:{' '}
                 <span className="font-extrabold text-slate-800">
@@ -878,7 +878,7 @@ export function CompositeServicesView({ showDeleted, searchQuery }: CompositeSer
                 </span>
                 ?
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-sm text-slate-400">
                 It will be hidden from new Proposals and WOs, but will be kept in database history.
               </p>
             </div>

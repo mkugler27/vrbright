@@ -60,8 +60,8 @@ export function ConfirmationModal({
 
         {/* Text */}
         <div className="space-y-2">
-          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-          <p className="text-sm text-gray-500 leading-relaxed px-2">{message}</p>
+          <h3 className="text-xl font-bold text-gray-800">{title}</h3>
+          <p className="text-base text-gray-500 leading-relaxed px-2">{message}</p>
         </div>
 
         {/* Actions */}

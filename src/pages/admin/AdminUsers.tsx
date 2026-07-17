@@ -1231,8 +1231,8 @@ export function AdminUsers() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 space-y-6 shadow-2xl animate-scaleIn">
             <div className="space-y-2">
-              <h3 className="font-extrabold text-slate-800 text-lg">Delete User Profile</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <h3 className="font-extrabold text-slate-800 text-xl">Delete User Profile</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">
                 Are you sure you want to delete the user profile for <span className="font-bold text-slate-800">{userToDelete.nome}</span>? This action is permanent.
               </p>
             </div>
