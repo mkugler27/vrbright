@@ -1279,7 +1279,7 @@ export function ProposalForm() {
             {detailTemplates.length === 0 ? (
               <p className="text-sm text-slate-400 py-4 text-center">No details templates registered.</p>
             ) : (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                 {detailTemplates.map((temp) => (
                   <button
                     key={temp.id}
