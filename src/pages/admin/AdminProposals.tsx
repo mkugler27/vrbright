@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 interface Proposal {
   id: string;
@@ -35,6 +36,51 @@ export function AdminProposals() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [hasScrollbar, setHasScrollbar] = useState(false);
+
+  // Delete Pop-up State
+  const [deleteModalConfig, setDeleteModalConfig] = useState<{
+    isOpen: boolean;
+    proposalId: string;
+    proposalNumber: string;
+  }>({
+    isOpen: false,
+    proposalId: '',
+    proposalNumber: '',
+  });
+
+  const handleInitiateDelete = (id: string, number: string) => {
+    setDeleteModalConfig({
+      isOpen: true,
+      proposalId: id,
+      proposalNumber: number,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    const { proposalId } = deleteModalConfig;
+    if (!proposalId) return;
+
+    try {
+      setLoading(true);
+      // 1) Delete related child rows
+      await supabase.from('proposal_items').delete().eq('proposal_id', proposalId);
+      await supabase.from('proposal_details').delete().eq('proposal_id', proposalId);
+      await supabase.from('proposal_photos').delete().eq('proposal_id', proposalId);
+      await supabase.from('client_services').delete().eq('proposal_id', proposalId);
+
+      // 2) Delete proposal itself
+      const { error } = await supabase.from('proposals').delete().eq('id', proposalId);
+      if (error) throw error;
+
+      // 3) Update local state
+      setProposals(prev => prev.filter(p => p.id !== proposalId));
+    } catch (err) {
+      console.error('Error deleting proposal:', err);
+    } finally {
+      setLoading(false);
+      setDeleteModalConfig({ isOpen: false, proposalId: '', proposalNumber: '' });
+    }
+  };
 
   useEffect(() => {
     fetchProposals();
@@ -377,6 +423,15 @@ export function AdminProposals() {
                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" />
                        </svg>
                      </button>
+                    <button
+                      onClick={() => handleInitiateDelete(p.id, p.number)}
+                      className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg active:scale-90 transition-all cursor-pointer"
+                      title="Delete Proposal"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ))
@@ -558,6 +613,17 @@ export function AdminProposals() {
           </div>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={deleteModalConfig.isOpen}
+        title="Delete Proposal"
+        message={`Are you sure you want to delete proposal ${deleteModalConfig.proposalNumber}? This will permanently remove it along with all its services, details and attachments.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteModalConfig({ isOpen: false, proposalId: '', proposalNumber: '' })}
+      />
     </div>
   );
 }

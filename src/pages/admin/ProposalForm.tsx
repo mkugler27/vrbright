@@ -165,6 +165,33 @@ export function ProposalForm() {
     });
   };
 
+  // Delete Proposal Confirm Modal State
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleDeleteProposal = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      // 1) Delete related child rows
+      await supabase.from('proposal_items').delete().eq('proposal_id', id);
+      await supabase.from('proposal_details').delete().eq('proposal_id', id);
+      await supabase.from('proposal_photos').delete().eq('proposal_id', id);
+      await supabase.from('client_services').delete().eq('proposal_id', id);
+
+      // 2) Delete proposal itself
+      const { error } = await supabase.from('proposals').delete().eq('id', id);
+      if (error) throw error;
+
+      navigate('/admin/proposals');
+    } catch (err) {
+      console.error('Error deleting proposal:', err);
+      showAlert('Failed to delete proposal. Check console for error logs.', 'Error', true);
+    } finally {
+      setLoading(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   // DND Kit Sensors
   const sensors = useSensors(
     useSensor(SmartPointerSensor, {
@@ -922,6 +949,14 @@ export function ProposalForm() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
+          {isEdit && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 border border-rose-200 hover:bg-rose-50 text-rose-600 text-xs font-bold rounded-2xl active:scale-95 transition-all cursor-pointer"
+            >
+              Delete Proposal
+            </button>
+          )}
           <button
             onClick={() => navigate('/admin/proposals')}
             className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-2xl transition-all cursor-pointer"
@@ -1447,6 +1482,17 @@ export function ProposalForm() {
         showCancel={false}
         onConfirm={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
         isDestructive={alertConfig.isDestructive}
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        title="Delete Proposal"
+        message={`Are you sure you want to delete proposal ${proposalNumber}? This will permanently remove it along with all its services, details and attachments.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={handleDeleteProposal}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </div>
   );
