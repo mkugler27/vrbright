@@ -367,13 +367,14 @@ export function AdminProposals() {
                       </svg>
                     </button>
                     <button
-                      onClick={() => window.open(`/admin/proposals/${p.id}/print`, '_blank')}
-                      className="p-1.5 hover:bg-slate-100 text-slate-600 hover:text-slate-800 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0a2.25 2.25 0 01-2.25 2.25H8.59a2.25 2.25 0 01-2.25-2.25M16.5 13.5v-2.25A2.25 2.25 0 0014.25 9h-4.5A2.25 2.25 0 007.5 11.25V13.5m9 0h-9m10.125-3.375a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                      </svg>
-                    </button>
+                       onClick={() => window.open(`/admin/proposals/${p.id}/print`, '_blank')}
+                       className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg active:scale-90 transition-all cursor-pointer"
+                       title="Print Proposal"
+                     >
+                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
+                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" />
+                       </svg>
+                     </button>
                   </div>
                 </div>
               ))
