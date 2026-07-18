@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 interface SearchableDropdownProps {
   label?: string;
   value: string;
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; disabled?: boolean }[];
   onChange: (value: string) => void;
   placeholder?: string;
   searchPlaceholder?: string;
@@ -125,17 +125,25 @@ export function SearchableDropdown({
                 <button
                   key={opt.value}
                   type="button"
+                  disabled={opt.disabled}
                   onClick={() => {
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-slate-50 cursor-pointer ${
+                  className={`w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors cursor-pointer ${
                     opt.value === value
                       ? 'bg-primary/10 text-primary-dark font-extrabold'
-                      : 'text-slate-700'
+                      : opt.disabled
+                        ? 'text-slate-400 opacity-40 hover:bg-transparent cursor-not-allowed flex items-center justify-between'
+                        : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  {opt.label}
+                  <span className="truncate">{opt.label}</span>
+                  {opt.disabled && (
+                    <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0 ml-2">
+                      Added
+                    </span>
+                  )}
                 </button>
               ))
             )}

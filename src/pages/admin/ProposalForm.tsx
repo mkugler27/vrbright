@@ -1112,11 +1112,15 @@ export function ProposalForm() {
                       <SearchableDropdown
                         value=""
                         placeholder="+ Add Service..."
-                        options={services.map((s) => ({ label: s.description, value: s.id }))}
+                        options={services.map((s) => ({
+                          label: s.description,
+                          value: s.id,
+                          disabled: items.some((i) => i.service_id === s.id),
+                        }))}
                         onChange={(val) => {
                           if (val) handleAddPriceListItem(val);
                         }}
-                        className="w-80 text-left"
+                        className="w-[416px] text-left"
                       />
                       <button
                         type="button"
@@ -1135,11 +1139,15 @@ export function ProposalForm() {
                     <SearchableDropdown
                       value=""
                       placeholder="+ Add Service..."
-                      options={services.map((s) => ({ label: s.description, value: s.id }))}
+                      options={services.map((s) => ({
+                        label: s.description,
+                        value: s.id,
+                        disabled: items.some((i) => i.service_id === s.id),
+                      }))}
                       onChange={(val) => {
                         if (val) handleAddPriceListItem(val);
                       }}
-                      className="w-80 text-left"
+                      className="w-[416px] text-left"
                     />
                   )}
                 </div>
