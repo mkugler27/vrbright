@@ -287,13 +287,13 @@ export function AdminProposals() {
             >
               <div className="col-span-1">ID#</div>
               <div className="col-span-1">Date</div>
-              <div className="col-span-3">Customer</div>
+              <div className="col-span-2">Customer</div>
               <div className="col-span-2">Title</div>
               <div className="col-span-1">Type</div>
               <div className="col-span-1">Created by</div>
               <div className="col-span-1">Value</div>
               <div className="col-span-1">Status</div>
-              <div className="col-span-1 text-right">Actions</div>
+              <div className="col-span-2 text-right pr-2">Actions</div>
             </div>
           </div>
 
@@ -322,7 +322,7 @@ export function AdminProposals() {
                   <div className="col-span-1 text-slate-500 font-medium">{new Date(p.created_at).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' })}</div>
                   
                   {/* Customer */}
-                  <div className="col-span-3 min-w-0 pr-4">
+                  <div className="col-span-2 min-w-0 pr-4">
                     <p className="font-extrabold text-slate-800 truncate">{p.clients?.name || 'Unknown Client'}</p>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{p.client_type}</p>
                   </div>
@@ -405,7 +405,7 @@ export function AdminProposals() {
                   </div>
 
                   {/* Actions */}
-                  <div className="col-span-1 text-right flex items-center justify-end gap-1.5">
+                  <div className="col-span-2 text-right flex items-center justify-end gap-1.5 pr-2">
                     <button
                       onClick={() => navigate(`/admin/proposals/${p.id}/edit`)}
                       className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-90 transition-all cursor-pointer"
