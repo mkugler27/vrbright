@@ -740,9 +740,9 @@ export function TemplateForm() {
       {/* ATTACH DETAILS MODAL */}
       {showDetailsModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-md w-full space-y-4 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-lg w-full space-y-4 animate-slide-up text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">Select Detail Block</h3>
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">Select Detail Block</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer"
@@ -754,7 +754,7 @@ export function TemplateForm() {
             </div>
 
             {detailTemplates.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4 text-center">No details templates registered.</p>
+              <p className="text-sm text-slate-400 py-4 text-center">No details templates registered.</p>
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                 {detailTemplates.map((temp) => (
@@ -764,8 +764,8 @@ export function TemplateForm() {
                     onClick={() => handleAttachDetail(temp)}
                     className="w-full p-4 border border-slate-200 hover:border-primary/50 hover:bg-slate-50/50 rounded-2xl text-left transition-all space-y-1.5 cursor-pointer flex flex-col"
                   >
-                    <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">{temp.title}</span>
-                    <span className="text-[10px] text-slate-400 font-medium line-clamp-2 leading-relaxed">{temp.content}</span>
+                    <span className="text-sm font-extrabold text-slate-700 uppercase tracking-wider">{temp.title}</span>
+                    <span className="text-[12px] text-slate-400 font-medium line-clamp-2 leading-relaxed">{temp.content}</span>
                   </button>
                 ))}
               </div>
