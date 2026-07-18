@@ -48,6 +48,17 @@ export function AdminProposals() {
     proposalNumber: '',
   });
 
+  // Approve Proposal Confirm Modal State
+  const [approveConfirmConfig, setApproveConfirmConfig] = useState<{
+    isOpen: boolean;
+    proposalId: string;
+    proposalNumber: string;
+  }>({
+    isOpen: false,
+    proposalId: '',
+    proposalNumber: '',
+  });
+
   const handleInitiateDelete = (id: string, number: string) => {
     setDeleteModalConfig({
       isOpen: true,
@@ -382,7 +393,16 @@ export function AdminProposals() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (p.status !== statusVal) {
-                                    handleStatusChange(p.id, statusVal);
+                                    if (statusVal === 'approved') {
+                                      setApproveConfirmConfig({
+                                        isOpen: true,
+                                        proposalId: p.id,
+                                        proposalNumber: p.number,
+                                      });
+                                      setActivePopoverId(null);
+                                    } else {
+                                      handleStatusChange(p.id, statusVal);
+                                    }
                                   } else {
                                     setActivePopoverId(null);
                                   }
@@ -623,6 +643,23 @@ export function AdminProposals() {
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteModalConfig({ isOpen: false, proposalId: '', proposalNumber: '' })}
+      />
+
+      <ConfirmationModal
+        isOpen={approveConfirmConfig.isOpen}
+        title="Approve Proposal"
+        message={`Are you sure you want to approve proposal ${approveConfirmConfig.proposalNumber}? This will automatically add its services and contracted prices to the client's service record.`}
+        confirmLabel="Approve"
+        cancelLabel="Cancel"
+        isDestructive={false}
+        onConfirm={async () => {
+          const { proposalId } = approveConfirmConfig;
+          setApproveConfirmConfig({ isOpen: false, proposalId: '', proposalNumber: '' });
+          if (proposalId) {
+            await handleStatusChange(proposalId, 'approved');
+          }
+        }}
+        onCancel={() => setApproveConfirmConfig({ isOpen: false, proposalId: '', proposalNumber: '' })}
       />
     </div>
   );

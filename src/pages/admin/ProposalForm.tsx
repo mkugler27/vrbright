@@ -861,7 +861,7 @@ export function ProposalForm() {
       {/* 1. INITIAL WIZARD SETUP OVERLAY */}
       {showSetup && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-8 max-w-md w-full space-y-6 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-8 max-w-md w-full space-y-6 animate-scale-in text-left">
             <div>
               <h3 className="text-xl font-black text-slate-800 tracking-tight">New Proposal Setup</h3>
               <p className="text-xs text-slate-400 font-bold mt-1">Specify proposal characteristics below to start editing.</p>
@@ -1246,7 +1246,7 @@ export function ProposalForm() {
       {/* 2. RICH TEXT MODAL (FOR CUSTOM SERVICES) */}
       {showCustomModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-2xl w-full space-y-5 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-2xl w-full space-y-5 animate-scale-in text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">
                 {customEditId ? 'Edit Custom Description' : 'Add Custom Description'}
@@ -1303,7 +1303,7 @@ export function ProposalForm() {
       {/* 3. ATTACH DETAILS MODAL */}
       {showDetailsModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-lg w-full space-y-4 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-lg w-full space-y-4 animate-scale-in text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">Select Detail Block</h3>
               <button
@@ -1340,7 +1340,7 @@ export function ProposalForm() {
       {/* 4. IMPORT TEMPLATE MODAL */}
       {showTemplateModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-xl w-full space-y-4 animate-slide-up text-left flex flex-col max-h-[85vh]">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-xl w-full space-y-4 animate-scale-in text-left flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2 shrink-0">
               <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">Import Template</h3>
               <button

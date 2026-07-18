@@ -41,7 +41,7 @@ export function ConfirmationModal({
   return (
     <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 backdrop-blur-xs transition-opacity duration-300">
       {/* Modal Card */}
-      <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center space-y-5 border border-gray-100 transform transition-all duration-300 scale-100 animate-scaleIn">
+      <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center space-y-5 border border-gray-100 transform transition-all duration-300 scale-100 animate-scale-in">
         
         {/* Icon */}
         <div className="flex justify-center">

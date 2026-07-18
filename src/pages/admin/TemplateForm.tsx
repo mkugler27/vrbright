@@ -683,7 +683,7 @@ export function TemplateForm() {
       {/* RICH TEXT MODAL (FOR CUSTOM ITEMS) */}
       {showCustomModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-2xl w-full space-y-5 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-2xl w-full space-y-5 animate-scale-in text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-base font-black text-slate-800 uppercase tracking-wider">
                 {customEditId ? 'Edit Custom Description' : 'Add Custom Description'}
@@ -740,7 +740,7 @@ export function TemplateForm() {
       {/* ATTACH DETAILS MODAL */}
       {showDetailsModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-lg w-full space-y-4 animate-slide-up text-left">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-6 max-w-lg w-full space-y-4 animate-scale-in text-left">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="text-lg font-black text-slate-800 uppercase tracking-wider">Select Detail Block</h3>
               <button
