@@ -69,6 +69,32 @@ interface Template {
   details?: any[];
 }
 
+// Custom PointerSensor that ignores interactive elements to keep default input behavior & text selection intact
+export class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown' as const,
+      handler: ({ nativeEvent: event }: { nativeEvent: PointerEvent }) => {
+        const target = event.target as HTMLElement;
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable ||
+          target.closest('button') ||
+          target.closest('a') ||
+          target.closest('.rich-text-editor') ||
+          target.closest('[contenteditable="true"]')
+        ) {
+          return false;
+        }
+        return true;
+      },
+    },
+  ];
+}
+
+// DND Kit Sensors
 export function ProposalForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -139,7 +165,7 @@ export function ProposalForm() {
 
   // DND Kit Sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(SmartPointerSensor, {
       activationConstraint: {
         distance: 8,
       },
