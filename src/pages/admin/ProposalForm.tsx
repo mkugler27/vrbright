@@ -1063,7 +1063,7 @@ export function ProposalForm() {
           </div>
 
           {/* RIGHT: DETAILS SNAPSHOTS & PHOTOS GALLERY */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:sticky lg:top-0 lg:max-h-[calc(100vh-140px)] lg:overflow-y-auto pr-1.5 scrollbar-thin">
             
             {/* DETAILS ATTACHMENT CARD */}
             <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-2xs space-y-4 text-left">
