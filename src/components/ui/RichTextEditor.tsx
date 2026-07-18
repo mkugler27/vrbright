@@ -219,6 +219,21 @@ export function RichTextEditor({ value, onChange, placeholder = 'Type descriptio
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
           </svg>
         </button>
+
+        {/* Separator */}
+        <div className="w-[1px] h-5 bg-slate-200 mx-1" />
+
+        {/* Clear Format */}
+        <button
+          type="button"
+          onClick={() => execCmd('removeFormat')}
+          className="p-1.5 hover:bg-slate-200/80 rounded-lg text-slate-700 flex items-center justify-center cursor-pointer h-7 w-7"
+          title="Clear Formatting"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 5h12M9 5v14M15 19H9M4 19L20 5" />
+          </svg>
+        </button>
       </div>
 
       {/* EDITABLE CONTENT BOX */}
@@ -226,7 +241,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Type descriptio
         ref={editorRef}
         contentEditable
         onInput={handleInput}
-        className="w-full min-h-[160px] max-h-[350px] overflow-y-auto px-4 py-3 text-sm text-slate-800 focus:outline-none font-sans leading-relaxed"
+        className="w-full min-h-[160px] max-h-[350px] overflow-y-auto px-4 py-3 text-sm text-slate-800 focus:outline-none font-sans leading-relaxed rich-text-content"
         data-placeholder={placeholder}
       />
     </div>
