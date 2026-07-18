@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 import {
   DndContext,
@@ -115,6 +116,26 @@ export function ProposalForm() {
   // Template import checkboxes
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [templateItemChecks, setTemplateItemChecks] = useState<Record<string, boolean>>({});
+
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    isDestructive?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+  const showAlert = (message: string, title = 'Notice', isDestructive = false) => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      isDestructive,
+    });
+  };
 
   // DND Kit Sensors
   const sensors = useSensors(
@@ -368,7 +389,7 @@ export function ProposalForm() {
       setPhotos((prev) => [...prev, ...uploadedPhotos]);
     } catch (err) {
       console.error('Error uploading photos:', err);
-      alert('Failed to upload photos. Please try again.');
+      showAlert('Failed to upload photos. Please try again.', 'Error', true);
     } finally {
       setUploadingPhotos(false);
     }
@@ -388,7 +409,7 @@ export function ProposalForm() {
   const handleAttachDetail = (template: DetailTemplate) => {
     const isAlreadyAttached = details.some((d) => d.template_id === template.id);
     if (isAlreadyAttached) {
-      alert('This detail block is already attached.');
+      showAlert('This detail block is already attached.', 'Alert');
       return;
     }
 
@@ -437,7 +458,7 @@ export function ProposalForm() {
 
     // Check if service already added
     if (items.some((i) => i.service_id === serviceId)) {
-      alert('This service is already added to the proposal.');
+      showAlert('This service is already added to the proposal.', 'Alert');
       return;
     }
 
@@ -474,7 +495,7 @@ export function ProposalForm() {
   // Custom Item Modal Add/Edit save handler
   const handleSaveCustomItem = () => {
     if (!customHtml.trim()) {
-      alert('Description cannot be empty.');
+      showAlert('Description cannot be empty.', 'Validation Error');
       return;
     }
 
@@ -621,12 +642,12 @@ export function ProposalForm() {
   // Submit / Save Proposal
   const handleSaveProposal = async () => {
     if (!clientId) {
-      alert('Please select a customer.');
+      showAlert('Please select a customer.', 'Validation Error');
       return;
     }
 
     if (items.length === 0) {
-      alert('Please add at least one service item.');
+      showAlert('Please add at least one service item.', 'Validation Error');
       return;
     }
 
@@ -770,7 +791,7 @@ export function ProposalForm() {
       navigate('/admin/proposals');
     } catch (err) {
       console.error('Error saving proposal:', err);
-      alert('Failed to save proposal. Check console for error logs.');
+      showAlert('Failed to save proposal. Check console for error logs.', 'Error', true);
     } finally {
       setLoading(false);
     }
@@ -1387,6 +1408,15 @@ export function ProposalForm() {
           </div>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        confirmLabel="OK"
+        showCancel={false}
+        onConfirm={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
+        isDestructive={alertConfig.isDestructive}
+      />
     </div>
   );
 }

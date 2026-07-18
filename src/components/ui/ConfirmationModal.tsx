@@ -7,8 +7,9 @@ export interface ConfirmationModalProps {
   confirmLabel?: string
   cancelLabel?: string
   onConfirm: () => void
-  onCancel: () => void
+  onCancel?: () => void
   isDestructive?: boolean
+  showCancel?: boolean
 }
 
 export function ConfirmationModal({
@@ -18,8 +19,9 @@ export function ConfirmationModal({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   onConfirm,
-  onCancel,
+  onCancel = () => {},
   isDestructive = false,
+  showCancel = true,
 }: ConfirmationModalProps) {
   
   // Disable body scroll when modal is open
@@ -66,13 +68,15 @@ export function ConfirmationModal({
 
         {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98]"
-          >
-            {cancelLabel}
-          </button>
+          {showCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98]"
+            >
+              {cancelLabel}
+            </button>
+          )}
           <button
             type="button"
             onClick={onConfirm}
