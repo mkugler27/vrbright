@@ -4,6 +4,7 @@ import { supabase } from '../../services/supabase';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { useAuth } from '../../context/AuthContext';
 
 import {
   DndContext,
@@ -99,6 +100,7 @@ export function ProposalForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = !!id;
+  const { user } = useAuth();
 
   // Wizard / Setup States
   const [showSetup, setShowSetup] = useState(!isEdit);
@@ -680,7 +682,7 @@ export function ProposalForm() {
     try {
       setLoading(true);
 
-      const proposalData = {
+      const proposalData: any = {
         number: proposalNumber,
         number_seq: proposalSeq,
         client_id: clientId,
@@ -689,9 +691,12 @@ export function ProposalForm() {
         title,
         status,
         total_value: totalValue,
-        created_by: 'Admin', // Pull user context in production
         updated_at: new Date().toISOString(),
       };
+
+      if (!isEdit) {
+        proposalData.created_by = user?.nome || 'Admin';
+      }
 
       let proposalId = id;
 

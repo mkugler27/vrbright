@@ -294,7 +294,9 @@ export function AdminProposals() {
                   </div>
                   
                   {/* Created by */}
-                  <div className="col-span-1 text-slate-500 font-medium truncate pr-2">{p.created_by.split('@')[0]}</div>
+                  <div className="col-span-1 text-slate-500 font-medium truncate pr-2" title={p.created_by}>
+                    {p.created_by ? (p.created_by.includes('@') ? p.created_by.split('@')[0] : p.created_by) : 'Admin'}
+                  </div>
                   
                   {/* Value */}
                   <div className="col-span-1 font-extrabold text-slate-800">${p.total_value.toFixed(2)}</div>
