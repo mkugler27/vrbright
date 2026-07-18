@@ -1108,18 +1108,29 @@ export function ProposalForm() {
                     Import Template
                   </button>
                   {pricingType === 'custom' ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomEditId(null);
-                        setCustomHtml('');
-                        setCustomPrice(0);
-                        setShowCustomModal(true);
-                      }}
-                      className="px-3.5 py-1.5 bg-primary hover:bg-primary/95 text-white text-xs font-black rounded-xl active:scale-98 transition-all cursor-pointer"
-                    >
-                      Add Custom Item
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <SearchableDropdown
+                        value=""
+                        placeholder="+ Add Service..."
+                        options={services.map((s) => ({ label: s.description, value: s.id }))}
+                        onChange={(val) => {
+                          if (val) handleAddPriceListItem(val);
+                        }}
+                        className="w-80 text-left"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomEditId(null);
+                          setCustomHtml('');
+                          setCustomPrice(0);
+                          setShowCustomModal(true);
+                        }}
+                        className="px-3.5 py-2.5 bg-primary hover:bg-primary/95 text-white text-xs font-black rounded-xl active:scale-98 transition-all cursor-pointer shrink-0"
+                      >
+                        Add Custom Item
+                      </button>
+                    </div>
                   ) : (
                     <SearchableDropdown
                       value=""
