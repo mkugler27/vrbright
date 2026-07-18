@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 interface Client {
   id: string;
@@ -43,6 +44,17 @@ export function ClientPrices() {
   // Searches
   const [clientSearch, setClientSearch] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
+
+  // Delete Service Confirm State
+  const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{
+    isOpen: boolean;
+    serviceId: string;
+    description: string;
+  }>({
+    isOpen: false,
+    serviceId: '',
+    description: '',
+  });
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [hasScrollbar, setHasScrollbar] = useState(false);
@@ -185,8 +197,17 @@ export function ClientPrices() {
     }
   };
 
-  const handleDeleteService = async (serviceId: string, desc: string) => {
-    if (!window.confirm(`Are you sure you want to remove this contracted service from the client?`)) return;
+  const handleDeleteService = (serviceId: string, desc: string) => {
+    setDeleteConfirmConfig({
+      isOpen: true,
+      serviceId,
+      description: desc,
+    });
+  };
+
+  const executeDeleteService = async () => {
+    const { serviceId, description } = deleteConfirmConfig;
+    if (!serviceId) return;
 
     try {
       setLoadingServices(true);
@@ -204,7 +225,7 @@ export function ClientPrices() {
           client_id: selectedClientId,
           action: 'delete_service',
           changed_by: 'Admin',
-          details: `Removed contracted service: "${desc.replace(/<[^>]*>/g, '')}"`
+          details: `Removed contracted service: "${description.replace(/<[^>]*>/g, '')}"`
         });
 
       setServices(prev => prev.filter(s => s.id !== serviceId));
@@ -212,6 +233,7 @@ export function ClientPrices() {
       console.error('Error removing client service:', err);
     } finally {
       setLoadingServices(false);
+      setDeleteConfirmConfig({ isOpen: false, serviceId: '', description: '' });
     }
   };
 
@@ -274,14 +296,14 @@ export function ClientPrices() {
                   <button
                     key={c.id}
                     onClick={() => setSelectedClientId(c.id)}
-                    className={`w-full p-3 border rounded-2xl text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
+                    className={`w-full p-3.5 border rounded-2xl text-left transition-all cursor-pointer flex flex-col gap-0.5 ${
                       active
-                        ? 'bg-primary/5 border-primary/20 text-slate-800 font-extrabold shadow-2xs'
-                        : 'bg-white border-slate-150 hover:bg-slate-50 text-slate-600'
+                        ? 'bg-primary/[0.06] border-primary/30 shadow-xs ring-1 ring-primary/10'
+                        : 'bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50/40'
                     }`}
                   >
-                    <span className="text-xs font-extrabold truncate">{c.name}</span>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{c.type}</span>
+                    <span className={`text-xs font-black truncate ${active ? 'text-primary' : 'text-slate-700'}`}>{c.name}</span>
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${active ? 'text-primary/70' : 'text-slate-400'}`}>{c.type}</span>
                   </button>
                 );
               })
@@ -543,6 +565,16 @@ export function ClientPrices() {
         </>
       )}
 
+      <ConfirmationModal
+        isOpen={deleteConfirmConfig.isOpen}
+        title="Remove Contracted Price"
+        message={`Are you sure you want to remove this contracted service from the client?`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={executeDeleteService}
+        onCancel={() => setDeleteConfirmConfig({ isOpen: false, serviceId: '', description: '' })}
+      />
     </div>
   );
 }

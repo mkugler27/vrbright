@@ -168,6 +168,31 @@ export function ProposalForm() {
   // Delete Proposal Confirm Modal State
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // Remove Item/Detail/Photo Confirm State
+  const [removeConfirmConfig, setRemoveConfirmConfig] = useState<{
+    isOpen: boolean;
+    type: 'item' | 'detail' | 'photo';
+    id: string;
+    description: string;
+  }>({
+    isOpen: false,
+    type: 'item',
+    id: '',
+    description: '',
+  });
+
+  const executeRemoveConfirmed = () => {
+    const { type, id } = removeConfirmConfig;
+    if (type === 'item') {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } else if (type === 'detail') {
+      setDetails((prev) => prev.filter((d) => d.id !== id));
+    } else if (type === 'photo') {
+      setPhotos((prev) => prev.filter((p) => p.id !== id));
+    }
+    setRemoveConfirmConfig({ isOpen: false, type: 'item', id: '', description: '' });
+  };
+
   const handleDeleteProposal = async () => {
     if (!id) return;
     try {
@@ -451,7 +476,14 @@ export function ProposalForm() {
   };
 
   const handleRemovePhoto = (photoId: string) => {
-    setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    const photo = photos.find((p) => p.id === photoId);
+    if (!photo) return;
+    setRemoveConfirmConfig({
+      isOpen: true,
+      type: 'photo',
+      id: photoId,
+      description: photo.description || 'Attached photo',
+    });
   };
 
   const handleUpdatePhotoDesc = (photoId: string, desc: string) => {
@@ -481,7 +513,14 @@ export function ProposalForm() {
   };
 
   const handleRemoveDetail = (detailId: string) => {
-    setDetails((prev) => prev.filter((d) => d.id !== detailId));
+    const detail = details.find((d) => d.id === detailId);
+    if (!detail) return;
+    setRemoveConfirmConfig({
+      isOpen: true,
+      type: 'detail',
+      id: detailId,
+      description: detail.title,
+    });
   };
 
   const handleUpdateDetailContent = (detailId: string, content: string) => {
@@ -643,7 +682,14 @@ export function ProposalForm() {
   };
 
   const handleRemoveItem = (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+    setRemoveConfirmConfig({
+      isOpen: true,
+      type: 'item',
+      id: itemId,
+      description: item.description,
+    });
   };
 
   // Drag and Drop Sort Handler for Services
@@ -1493,6 +1539,17 @@ export function ProposalForm() {
         isDestructive={true}
         onConfirm={handleDeleteProposal}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={removeConfirmConfig.isOpen}
+        title={`Remove ${removeConfirmConfig.type === 'item' ? 'Service' : removeConfirmConfig.type === 'detail' ? 'Detail Block' : 'Photo'}`}
+        message={`Are you sure you want to remove this ${removeConfirmConfig.type === 'item' ? 'service item' : removeConfirmConfig.type === 'detail' ? 'detail text block' : 'photo attachment'}?`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={executeRemoveConfirmed}
+        onCancel={() => setRemoveConfirmConfig({ isOpen: false, type: 'item', id: '', description: '' })}
       />
     </div>
   );

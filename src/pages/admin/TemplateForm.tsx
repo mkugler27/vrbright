@@ -119,6 +119,29 @@ export function TemplateForm() {
     });
   };
 
+  // Remove Item/Detail Confirm State
+  const [removeConfirmConfig, setRemoveConfirmConfig] = useState<{
+    isOpen: boolean;
+    type: 'item' | 'detail';
+    id: string;
+    description: string;
+  }>({
+    isOpen: false,
+    type: 'item',
+    id: '',
+    description: '',
+  });
+
+  const executeRemoveConfirmed = () => {
+    const { type, id } = removeConfirmConfig;
+    if (type === 'item') {
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } else if (type === 'detail') {
+      setDetails((prev) => prev.filter((d) => d.id !== id));
+    }
+    setRemoveConfirmConfig({ isOpen: false, type: 'item', id: '', description: '' });
+  };
+
   // DND Kit Sensors
   const sensors = useSensors(
     useSensor(SmartPointerSensor, {
@@ -356,7 +379,14 @@ export function TemplateForm() {
   };
 
   const handleRemoveItem = (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return;
+    setRemoveConfirmConfig({
+      isOpen: true,
+      type: 'item',
+      id: itemId,
+      description: item.description,
+    });
   };
 
   const handleDragEndItems = (event: DragEndEvent) => {
@@ -391,7 +421,14 @@ export function TemplateForm() {
   };
 
   const handleRemoveDetail = (detailId: string) => {
-    setDetails((prev) => prev.filter((d) => d.id !== detailId));
+    const detail = details.find((d) => d.id === detailId);
+    if (!detail) return;
+    setRemoveConfirmConfig({
+      isOpen: true,
+      type: 'detail',
+      id: detailId,
+      description: detail.title,
+    });
   };
 
   const handleUpdateDetailContent = (detailId: string, content: string) => {
@@ -781,6 +818,17 @@ export function TemplateForm() {
         showCancel={false}
         onConfirm={() => setAlertConfig((prev) => ({ ...prev, isOpen: false }))}
         isDestructive={alertConfig.isDestructive}
+      />
+
+      <ConfirmationModal
+        isOpen={removeConfirmConfig.isOpen}
+        title={`Remove ${removeConfirmConfig.type === 'item' ? 'Service' : 'Detail Block'}`}
+        message={`Are you sure you want to remove this ${removeConfirmConfig.type === 'item' ? 'service item' : 'detail text block'}?`}
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={executeRemoveConfirmed}
+        onCancel={() => setRemoveConfirmConfig({ isOpen: false, type: 'item', id: '', description: '' })}
       />
     </div>
   );

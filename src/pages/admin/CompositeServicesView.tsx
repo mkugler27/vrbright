@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 interface CatalogItem {
   id: string;
@@ -841,68 +842,19 @@ export function CompositeServicesView({ showDeleted, searchQuery }: CompositeSer
       )}
 
       {/* DELETE CONFIRMATION MODAL */}
-      {isDeleteModalOpen && itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div
-            onClick={() => setIsDeleteModalOpen(false)}
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-fade-in"
-          />
-
-          {/* Modal Card */}
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl relative z-10 flex flex-col overflow-hidden animate-slide-up mx-4 border border-slate-100">
-            {/* Modal Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <div>
-                <h3 className="font-black text-slate-800 text-lg">Confirm Delete</h3>
-                <p className="text-[12px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                  This action can be undone
-                </p>
-              </div>
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 text-base text-slate-600 leading-relaxed space-y-3 shrink-0">
-              <p>
-                Are you sure you want to delete the composite service:{' '}
-                <span className="font-extrabold text-slate-800">
-                  "{itemToDelete.description}"
-                </span>
-                ?
-              </p>
-              <p className="text-sm text-slate-400">
-                It will be hidden from new Proposals and WOs, but will be kept in database history.
-              </p>
-            </div>
-
-            {/* Modal Actions Footer */}
-            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-grow px-4 py-3 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-sm font-semibold rounded-2xl transition-all duration-200 active:scale-[0.98] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="flex-grow px-4 py-3 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-2xl shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        title="Confirm Delete"
+        message={`Are you sure you want to delete the composite service "${itemToDelete?.description || ''}"? It will be hidden from new Proposals and WOs, but will be kept in database history.`}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        isDestructive={true}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          setIsDeleteModalOpen(false);
+          setItemToDelete(null);
+        }}
+      />
     </div>
   );
 }
