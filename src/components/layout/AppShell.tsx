@@ -37,6 +37,7 @@ const MENU_ITEMS = [
   { to: '/clients', label: 'Clients', icon: <ClientsIcon /> },
   { to: '/pre-proposal', label: 'Pre-Proposal', icon: <ProposalIcon /> },
   { to: '/supervisors', label: 'Supervisors', icon: <SupervisorIcon /> },
+  { to: '/dev', label: 'Módulo DEV', icon: <DevIcon /> },
 ];
 
 export function AppShell() {
@@ -234,6 +235,14 @@ function AdjustmentIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+    </svg>
+  );
+}
+
+function DevIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 9l3 3-3 3m5 0h3" />
     </svg>
   );
 }

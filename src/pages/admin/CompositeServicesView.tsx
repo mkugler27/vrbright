@@ -525,7 +525,7 @@ export function CompositeServicesView({ showDeleted, searchQuery }: CompositeSer
                   {/* Rates */}
                   <div className="col-span-1 pr-4 text-right">
                     <span className="text-slate-800 font-extrabold">
-                      ${item.worker_value.toFixed(2)}
+                      ${item.worker_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 

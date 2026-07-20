@@ -140,6 +140,8 @@ export function ProposalForm() {
   const [customHtml, setCustomHtml] = useState('');
   const [customPrice, setCustomPrice] = useState<number>(0);
   const [globalApplyQuantity, setGlobalApplyQuantity] = useState(true);
+  const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   // Template import checkboxes
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
@@ -692,10 +694,24 @@ export function ProposalForm() {
     });
   };
 
+  const handleDragStartItems = () => {
+    setIsDragActive(true);
+  };
+
+  const handleDragCancelItems = () => {
+    setIsDragActive(false);
+  };
+
   // Drag and Drop Sort Handler for Services
   const handleDragEndItems = (event: DragEndEvent) => {
+    setIsDragActive(false);
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
+
+    setJustDroppedId(active.id as string);
+    setTimeout(() => setJustDroppedId(null), 500);
+
+    if (active.id === over.id) return;
 
     setItems((prev) => {
       const oldIndex = prev.findIndex((i) => i.id === active.id);
@@ -881,7 +897,7 @@ export function ProposalForm() {
         await supabase.from('client_service_logs').insert({
           client_id: clientId,
           action: 'proposal_approved',
-          changed_by: 'Admin',
+          changed_by: user?.nome || user?.email || 'Admin',
           details: `Approved Proposal ${proposalNumber} adding ${items.length} contracted services`,
         });
       } else {
@@ -1163,7 +1179,13 @@ export function ProposalForm() {
                   <p className="text-[10px] text-slate-400 mt-0.5">Use the selectors above to insert items or import templates.</p>
                 </div>
               ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndItems}>
+                <DndContext 
+                  sensors={sensors} 
+                  collisionDetection={closestCenter} 
+                  onDragStart={handleDragStartItems}
+                  onDragEnd={handleDragEndItems}
+                  onDragCancel={handleDragCancelItems}
+                >
                   <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-3">
                       {items.map((item, idx) => (
@@ -1175,6 +1197,8 @@ export function ProposalForm() {
                           onEditCustom={handleOpenEditCustom}
                           onRemove={handleRemoveItem}
                           onUpdateField={handleUpdateItemInput}
+                          justDropped={justDroppedId === item.id}
+                          isDragActive={isDragActive}
                         />
                       ))}
                     </div>
@@ -1503,7 +1527,7 @@ export function ProposalForm() {
                             dangerouslySetInnerHTML={{ __html: item.description }}
                           />
                           <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                            Price: ${item.unit_price.toFixed(2)}{' '}
+                            Price: ${item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
                             {item.apply_quantity && `| Qty: ${item.quantity}`}
                           </p>
                         </div>
@@ -1582,6 +1606,8 @@ interface SortableRowProps {
   onEditCustom: (item: ProposalItemState) => void;
   onRemove: (itemId: string) => void;
   onUpdateField: (itemId: string, field: 'quantity' | 'unit_price', value: any) => void;
+  justDropped: boolean;
+  isDragActive: boolean;
 }
 
 function SortableRow({
@@ -1591,13 +1617,15 @@ function SortableRow({
   onEditCustom,
   onRemove,
   onUpdateField,
+  justDropped,
+  isDragActive,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragActive ? transition : 'none',
     opacity: isDragging ? 0.35 : 1,
   };
 
@@ -1607,7 +1635,7 @@ function SortableRow({
       style={style}
       className={`p-4 bg-slate-50/70 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
         isDragging ? 'shadow-lg border-primary/20 scale-[1.01]' : 'hover:border-slate-300/80'
-      }`}
+      } ${justDropped ? 'animate-flash-blink' : ''}`}
     >
       {/* Drag & Number indicator */}
       <div className="flex items-center gap-2.5 shrink-0">

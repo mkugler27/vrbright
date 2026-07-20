@@ -1020,7 +1020,7 @@ export function AdminClients() {
           {/* Header Row */}
           <div className="shrink-0 bg-slate-200 border-b border-slate-300/80">
             <div 
-              className="grid grid-cols-12 text-[10px] font-black text-slate-600 uppercase tracking-wider py-4 pl-6"
+              className="grid grid-cols-12 text-xs font-black text-slate-600 uppercase tracking-wider py-4 pl-6"
               style={{ paddingRight: hasScrollbar ? '39px' : '24px' }}
             >
               <div className="col-span-3">Client Name</div>

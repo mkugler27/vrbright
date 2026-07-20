@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { useAuth } from '../../context/AuthContext';
+import { SearchableDropdown } from '../../components/ui/SearchableDropdown';
 
 interface Client {
   id: string;
@@ -13,9 +15,13 @@ interface ClientService {
   description: string;
   unit_price: number;
   apply_quantity: boolean;
+  proposal_id: string | null;
   proposals?: {
+    id: string;
     number: string;
-  };
+    title: string;
+    created_at: string;
+  } | null;
 }
 
 interface AuditLog {
@@ -27,6 +33,7 @@ interface AuditLog {
 }
 
 export function ClientPrices() {
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [services, setServices] = useState<ClientService[]>([]);
@@ -41,9 +48,10 @@ export function ClientPrices() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState<number>(0);
   
-  // Searches
+  // Searches and Filters
   const [clientSearch, setClientSearch] = useState('');
   const [serviceSearch, setServiceSearch] = useState('');
+  const [selectedProposalFilter, setSelectedProposalFilter] = useState('all');
 
   // Delete Service Confirm State
   const [deleteConfirmConfig, setDeleteConfirmConfig] = useState<{
@@ -88,6 +96,8 @@ export function ClientPrices() {
 
   // Fetch services when selected client changes
   useEffect(() => {
+    setSelectedProposalFilter('all');
+    setServiceSearch('');
     if (selectedClientId) {
       fetchClientServices(selectedClientId);
     } else {
@@ -100,7 +110,7 @@ export function ClientPrices() {
       setLoadingServices(true);
       const { data, error } = await supabase
         .from('client_services')
-        .select('*, proposals(number)')
+        .select('*, proposals(id, number, title, created_at)')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
@@ -178,8 +188,8 @@ export function ClientPrices() {
           client_id: selectedClientId,
           client_service_id: service.id,
           action: 'update_price',
-          changed_by: 'Admin', // Pull actual logged-in admin email/name in prod
-          details: `Manual price change for "${service.description.replace(/<[^>]*>/g, '')}" from $${service.unit_price.toFixed(2)} to $${editPrice.toFixed(2)}`
+          changed_by: user?.nome || user?.email || 'Admin',
+          details: `Manual price change for "${service.description.replace(/<[^>]*>/g, '')}" from $${service.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} to $${editPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         });
 
       if (logError) throw logError;
@@ -224,7 +234,7 @@ export function ClientPrices() {
         .insert({
           client_id: selectedClientId,
           action: 'delete_service',
-          changed_by: 'Admin',
+          changed_by: user?.nome || user?.email || 'Admin',
           details: `Removed contracted service: "${description.replace(/<[^>]*>/g, '')}"`
         });
 
@@ -242,13 +252,71 @@ export function ClientPrices() {
     c.name.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
-  // Filter services by search (by description text or proposal number)
+  // Compute dynamic list of proposals for this client's services
+  const proposalsList = Array.from(
+    new Map(
+      services
+        .filter((s) => s.proposals)
+        .map((s) => [s.proposals!.id, s.proposals!])
+    ).values()
+  ).sort((a, b) => b.number.localeCompare(a.number));
+
+  // Filter services by search (by description text or proposal number) and proposal filter
   const filteredServices = services.filter((s) => {
     const term = serviceSearch.toLowerCase();
     const matchesDesc = s.description.toLowerCase().includes(term);
     const matchesProp = s.proposals?.number?.toLowerCase().includes(term) || false;
-    return matchesDesc || matchesProp;
+    const matchesText = matchesDesc || matchesProp;
+
+    let matchesProposal = true;
+    if (selectedProposalFilter === 'direct') {
+      matchesProposal = !s.proposal_id;
+    } else if (selectedProposalFilter !== 'all') {
+      matchesProposal = s.proposal_id === selectedProposalFilter;
+    }
+
+    return matchesText && matchesProposal;
   });
+
+  // Group filtered services by proposal
+  const groupedServices = (() => {
+    const groups: {
+      proposalId: string | null;
+      proposalNumber: string;
+      proposalTitle: string;
+      proposalDate: string;
+      services: ClientService[];
+    }[] = [];
+
+    filteredServices.forEach((s) => {
+      const propId = s.proposal_id || null;
+      const propNumber = s.proposals?.number || 'Direct Entry';
+      const propTitle = s.proposals?.title || 'Manual pricing adjustments or custom entries';
+      const propDate = s.proposals?.created_at || '';
+
+      let group = groups.find((g) => g.proposalId === propId);
+      if (!group) {
+        group = {
+          proposalId: propId,
+          proposalNumber: propNumber,
+          proposalTitle: propTitle,
+          proposalDate: propDate,
+          services: [],
+        };
+        groups.push(group);
+      }
+      group.services.push(s);
+    });
+
+    // Sort groups: Direct Entry at the end, proposals sorted by number descending
+    groups.sort((a, b) => {
+      if (a.proposalId === null) return 1;
+      if (b.proposalId === null) return -1;
+      return b.proposalNumber.localeCompare(a.proposalNumber);
+    });
+
+    return groups;
+  })();
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
 
@@ -322,6 +390,23 @@ export function ClientPrices() {
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{selectedClient.type} client contract list</p>
                 </div>
                 <div className="flex items-center gap-3">
+                  {/* Proposal Dropdown Filter */}
+                  <div className="w-56 sm:w-64">
+                    <SearchableDropdown
+                      value={selectedProposalFilter}
+                      onChange={(val) => setSelectedProposalFilter(val)}
+                      placeholder="All Proposals"
+                      options={[
+                        { label: 'All Proposals', value: 'all' },
+                        { label: 'Direct Entry', value: 'direct' },
+                        ...proposalsList.map((p) => ({
+                          label: `${p.number} ${p.title ? `- ${p.title}` : ''}`,
+                          value: p.id
+                        }))
+                      ]}
+                    />
+                  </div>
+
                   {/* Search box for services */}
                   <div className="relative">
                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
@@ -338,7 +423,7 @@ export function ClientPrices() {
                   {/* History Logs button */}
                   <button
                     onClick={handleOpenLogsDrawer}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-350 text-slate-700 text-xs font-bold rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-350 text-slate-700 text-xs font-bold rounded-xl shadow-2xs hover:shadow-xs transition-all cursor-pointer animate-none"
                   >
                     <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -357,8 +442,7 @@ export function ClientPrices() {
                       className="grid grid-cols-12 text-xs font-black text-slate-600 uppercase tracking-wider py-4 pl-6"
                       style={{ paddingRight: hasScrollbar ? '39px' : '24px' }}
                     >
-                      <div className="col-span-6">Service / Description</div>
-                      <div className="col-span-2 text-center">Origin Proposal</div>
+                      <div className="col-span-8">Service / Description</div>
                       <div className="col-span-2 text-right">Unit Price</div>
                       <div className="col-span-2 text-right">Actions</div>
                     </div>
@@ -380,91 +464,108 @@ export function ClientPrices() {
                         <p className="text-[10px] text-slate-400 mt-0.5">Services appear here once a proposal is marked as "Approved".</p>
                       </div>
                     ) : (
-                      filteredServices.map((s) => {
-                        const isEditing = editingServiceId === s.id;
-                        return (
-                          <div key={s.id} className="grid grid-cols-12 items-center hover:bg-slate-50/40 transition-colors py-4 px-6 text-left">
-                            {/* Description */}
-                            <div className="col-span-6 pr-6 truncate text-xs font-extrabold text-slate-800">
-                              <div
-                                className="truncate"
-                                dangerouslySetInnerHTML={{ __html: s.description }}
-                              />
+                      groupedServices.map((group) => (
+                        <div key={group.proposalId || 'direct'} className="flex flex-col border-b border-slate-100 last:border-0">
+                          {/* Group Header Row */}
+                          <div className="bg-slate-50/70 px-6 py-2.5 flex items-center justify-between border-b border-slate-100/50">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                                group.proposalId 
+                                  ? 'bg-primary/10 text-primary border border-primary/20' 
+                                  : 'bg-slate-100 text-slate-500 border border-slate-200'
+                              }`}>
+                                {group.proposalNumber}
+                              </span>
+                              <span className="text-xs font-black text-slate-700 truncate max-w-lg">
+                                {group.proposalTitle}
+                              </span>
                             </div>
-
-                            {/* Origin Proposal */}
-                            <div className="col-span-2 text-center">
-                              {s.proposals?.number ? (
-                                <span className="inline-block px-2.5 py-0.5 border border-slate-100 rounded-md bg-slate-50 text-[10px] font-black text-slate-500">
-                                  {s.proposals.number}
-                                </span>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-400">Direct Entry</span>
-                              )}
-                            </div>
-
-                            {/* Unit Price */}
-                            <div className="col-span-2 text-right pr-4 font-extrabold text-slate-800">
-                              {isEditing ? (
-                                <div className="relative inline-block w-24">
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
-                                  <input
-                                    type="number"
-                                    value={editPrice}
-                                    onChange={e => setEditPrice(Number(e.target.value))}
-                                    className="w-full border border-slate-200 focus:border-primary rounded-lg pl-5 pr-1.5 py-0.5 text-xs text-slate-700 text-right focus:outline-none bg-white font-extrabold"
-                                  />
-                                </div>
-                              ) : (
-                                <span>${s.unit_price.toFixed(2)}</span>
-                              )}
-                            </div>
-
-                            {/* Actions */}
-                            <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
-                              {isEditing ? (
-                                <>
-                                  <button
-                                    onClick={() => handleSavePrice(s)}
-                                    className="p-1 hover:bg-emerald-50 text-emerald-600 rounded-lg cursor-pointer"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingServiceId(null)}
-                                    className="p-1 hover:bg-rose-50 text-rose-500 rounded-lg cursor-pointer"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => handleStartEdit(s)}
-                                    className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-90 transition-all cursor-pointer"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteService(s.id, s.description)}
-                                    className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                            {group.proposalDate && (
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                {new Date(group.proposalDate).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+                              </span>
+                            )}
                           </div>
-                        );
-                      })
+
+                          {/* Group Items */}
+                          <div className="divide-y divide-slate-100/50">
+                            {group.services.map((s) => {
+                              const isEditing = editingServiceId === s.id;
+                              return (
+                                <div key={s.id} className="grid grid-cols-12 items-center hover:bg-slate-50/20 transition-colors py-3 px-6 text-left">
+                                  {/* Description */}
+                                  <div className="col-span-8 pr-6 truncate text-xs font-medium text-slate-800">
+                                    <div
+                                      className="truncate"
+                                      dangerouslySetInnerHTML={{ __html: s.description }}
+                                    />
+                                  </div>
+
+                                  {/* Unit Price */}
+                                  <div className="col-span-2 text-right pr-4 font-extrabold text-slate-800">
+                                    {isEditing ? (
+                                      <div className="relative inline-block w-24">
+                                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                                        <input
+                                          type="number"
+                                          value={editPrice}
+                                          onChange={e => setEditPrice(Number(e.target.value))}
+                                          className="w-full border border-slate-200 focus:border-primary rounded-lg pl-5 pr-1.5 py-2 text-xs text-slate-700 text-right focus:outline-none bg-white font-extrabold"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <span>${s.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                    )}
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="col-span-2 text-right flex items-center justify-end gap-1.5">
+                                    {isEditing ? (
+                                      <>
+                                        <button
+                                          onClick={() => handleSavePrice(s)}
+                                          className="p-1 hover:bg-emerald-50 text-emerald-600 rounded-lg cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          onClick={() => setEditingServiceId(null)}
+                                          className="p-1 hover:bg-rose-50 text-rose-500 rounded-lg cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => handleStartEdit(s)}
+                                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg active:scale-90 transition-all cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                          </svg>
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteService(s.id, s.description)}
+                                          className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>

@@ -98,6 +98,8 @@ export function TemplateForm() {
   const [customHtml, setCustomHtml] = useState('');
   const [customPrice, setCustomPrice] = useState<number>(0);
   const [globalApplyQuantity, setGlobalApplyQuantity] = useState(true);
+  const [justDroppedId, setJustDroppedId] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState<{
     isOpen: boolean;
@@ -389,9 +391,23 @@ export function TemplateForm() {
     });
   };
 
+  const handleDragStartItems = () => {
+    setIsDragActive(true);
+  };
+
+  const handleDragCancelItems = () => {
+    setIsDragActive(false);
+  };
+
   const handleDragEndItems = (event: DragEndEvent) => {
+    setIsDragActive(false);
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over) return;
+
+    setJustDroppedId(active.id as string);
+    setTimeout(() => setJustDroppedId(null), 500);
+
+    if (active.id === over.id) return;
 
     setItems((prev) => {
       const oldIndex = prev.findIndex((i) => i.id === active.id);
@@ -652,7 +668,13 @@ export function TemplateForm() {
                   <p className="text-[10px] text-slate-400 mt-0.5">Add composite services or custom text blocks above.</p>
                 </div>
               ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndItems}>
+                <DndContext 
+                  sensors={sensors} 
+                  collisionDetection={closestCenter} 
+                  onDragStart={handleDragStartItems}
+                  onDragEnd={handleDragEndItems}
+                  onDragCancel={handleDragCancelItems}
+                >
                   <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
                     <div className="space-y-3">
                       {items.map((item, idx) => (
@@ -664,6 +686,8 @@ export function TemplateForm() {
                           onEditCustom={handleOpenEditCustom}
                           onRemove={handleRemoveItem}
                           onUpdateField={handleUpdateItemInput}
+                          justDropped={justDroppedId === item.id}
+                          isDragActive={isDragActive}
                         />
                       ))}
                     </div>
@@ -846,6 +870,8 @@ interface SortableTemplateRowProps {
   onEditCustom: (item: TemplateItemState) => void;
   onRemove: (itemId: string) => void;
   onUpdateField: (itemId: string, field: 'quantity' | 'unit_price', value: any) => void;
+  justDropped: boolean;
+  isDragActive: boolean;
 }
 
 function SortableTemplateRow({
@@ -855,13 +881,15 @@ function SortableTemplateRow({
   onEditCustom,
   onRemove,
   onUpdateField,
+  justDropped,
+  isDragActive,
 }: SortableTemplateRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: isDragActive ? transition : 'none',
     opacity: isDragging ? 0.35 : 1,
   };
 
@@ -871,7 +899,7 @@ function SortableTemplateRow({
       style={style}
       className={`p-4 bg-slate-50/70 border border-slate-200/60 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all ${
         isDragging ? 'shadow-lg border-primary/20 scale-[1.01]' : 'hover:border-slate-300/80'
-      }`}
+      } ${justDropped ? 'animate-flash-blink' : ''}`}
     >
       {/* Drag & Number indicator */}
       <div className="flex items-center gap-2.5 shrink-0">

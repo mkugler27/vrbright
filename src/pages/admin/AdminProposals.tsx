@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { useAuth } from '../../context/AuthContext';
 
 interface Proposal {
   id: string;
@@ -22,6 +23,7 @@ interface Proposal {
 
 export function AdminProposals() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
@@ -181,7 +183,7 @@ export function AdminProposals() {
             .insert({
               client_id: proposal.client_id,
               action: 'proposal_approved',
-              changed_by: 'Admin', // In real app, pull user name from auth context
+              changed_by: user?.nome || user?.email || 'Admin',
               details: `Approved Proposal ${proposal.number} adding ${items.length} contracted services`
             });
         }
@@ -356,7 +358,7 @@ export function AdminProposals() {
                   </div>
                   
                   {/* Value */}
-                  <div className="col-span-1 font-extrabold text-slate-800">${p.total_value.toFixed(2)}</div>
+                  <div className="col-span-1 font-extrabold text-slate-800">${p.total_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                   
                   {/* Status */}
                   <div className="col-span-1 overflow-visible">

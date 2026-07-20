@@ -288,12 +288,12 @@ export function ProposalPrint() {
                         )}
                         {item.apply_quantity && item.quantity !== null && (
                           <span className="text-[10px] text-slate-400 font-bold block mt-0.5 uppercase tracking-wider">
-                            Quantity: {item.quantity} | Unit Price: ${item.unit_price.toFixed(2)}
+                            Quantity: {item.quantity} | Unit Price: ${item.unit_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         )}
                       </td>
                       <td className="py-3 text-right font-extrabold text-slate-800">
-                        ${item.subtotal.toFixed(2)}
+                        ${item.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
@@ -303,7 +303,7 @@ export function ProposalPrint() {
               {/* Proposals Total value */}
               <div className="flex justify-end items-center gap-3 py-4 border-t border-slate-200 mt-2">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TOTAL AMOUNT:</span>
-                <span className="text-sm font-black text-slate-800">${proposal.total_value.toFixed(2)}</span>
+                <span className="text-sm font-black text-slate-800">${proposal.total_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
 

@@ -171,3 +171,13 @@ html, body, #root {
   margin-top: 0.5rem !important;
   margin-bottom: 0.25rem !important;
 }
+
+@keyframes flashBlink {
+  0% { opacity: 0.5; background-color: rgba(125, 211, 192, 0.4); }
+  50% { opacity: 1; background-color: transparent; }
+  100% { opacity: 1; }
+}
+
+.animate-flash-blink {
+  animation: flashBlink 0.5s ease-out;
+}

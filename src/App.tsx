@@ -18,6 +18,7 @@ import { AdjustmentPage } from './pages/AdjustmentPage';
 import { SplashScreen } from './components/SplashScreen';
 import { ErrorToast } from './components/ui/ErrorToast';
 import { InactivePage } from './pages/InactivePage';
+import { DevTrackerPage } from './pages/DevTrackerPage';
 
 // Admin Shell & Pages
 import { AdminShell } from './components/layout/AdminShell';
@@ -120,6 +121,7 @@ export default function App() {
                       <Route path="/clients" element={<PlaceholderPage title="Clients" />} />
                       <Route path="/pre-proposal" element={<PlaceholderPage title="Pre-Proposal" />} />
                       <Route path="/supervisors" element={<PlaceholderPage title="Supervisors" />} />
+                      <Route path="/dev" element={<DevTrackerPage />} />
                     </Route>
 
                     {/* Admin Routes */}
@@ -149,6 +151,7 @@ export default function App() {
                       <Route path="/admin/chat" element={<ChatPage />} />
                       <Route path="/admin/chat/new" element={<NewChatPage />} />
                       <Route path="/admin/chat/groups/new" element={<NewGroupPage />} />
+                      <Route path="/dev" element={<DevTrackerPage />} />
                     </Route>
 
                     {/* Admin Print Route */}
